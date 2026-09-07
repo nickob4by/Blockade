@@ -154,6 +154,74 @@ class SoundController {
     }
   }
 
+  public playChallenge() {
+    if (!this.enabled) return;
+    try {
+      this.init();
+      if (!this.ctx) return;
+
+      const t = this.ctx.currentTime;
+      // Ascending chord chime: C5 -> E5 -> G5
+      const osc1 = this.ctx.createOscillator();
+      const gain1 = this.ctx.createGain();
+      osc1.connect(gain1);
+      gain1.connect(this.ctx.destination);
+      osc1.type = 'sine';
+      osc1.frequency.setValueAtTime(523.25, t);
+      gain1.gain.setValueAtTime(0.18, t);
+      gain1.gain.exponentialRampToValueAtTime(0.001, t + 0.12);
+      osc1.start(t);
+      osc1.stop(t + 0.12);
+
+      const osc2 = this.ctx.createOscillator();
+      const gain2 = this.ctx.createGain();
+      osc2.connect(gain2);
+      gain2.connect(this.ctx.destination);
+      osc2.type = 'sine';
+      osc2.frequency.setValueAtTime(659.25, t + 0.1);
+      gain2.gain.setValueAtTime(0.2, t + 0.1);
+      gain2.gain.exponentialRampToValueAtTime(0.001, t + 0.25);
+      osc2.start(t + 0.1);
+      osc2.stop(t + 0.25);
+
+      const osc3 = this.ctx.createOscillator();
+      const gain3 = this.ctx.createGain();
+      osc3.connect(gain3);
+      gain3.connect(this.ctx.destination);
+      osc3.type = 'sine';
+      osc3.frequency.setValueAtTime(783.99, t + 0.22);
+      gain3.gain.setValueAtTime(0.22, t + 0.22);
+      gain3.gain.exponentialRampToValueAtTime(0.001, t + 0.45);
+      osc3.start(t + 0.22);
+      osc3.stop(t + 0.45);
+    } catch {
+      // Ignore
+    }
+  }
+
+  public playChallengeDeclined() {
+    if (!this.enabled) return;
+    try {
+      this.init();
+      if (!this.ctx) return;
+
+      const t = this.ctx.currentTime;
+      const osc = this.ctx.createOscillator();
+      const gain = this.ctx.createGain();
+      osc.connect(gain);
+      gain.connect(this.ctx.destination);
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(380, t);
+      osc.frequency.exponentialRampToValueAtTime(260, t + 0.2);
+      gain.gain.setValueAtTime(0.15, t);
+      gain.gain.exponentialRampToValueAtTime(0.001, t + 0.22);
+      osc.start(t);
+      osc.stop(t + 0.22);
+    } catch {
+      // Ignore
+    }
+  }
+
   public playWin() {
     if (!this.enabled) return;
     try {

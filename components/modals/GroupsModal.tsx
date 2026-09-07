@@ -40,12 +40,14 @@ interface GroupsModalProps {
   isOpen: boolean;
   onClose: () => void;
   onStartOnlineMatch?: (opponentName: string) => void;
+  onChallengePlayer?: (member: GroupMember, group?: FriendGroup) => void;
 }
 
 export const GroupsModal: React.FC<GroupsModalProps> = ({
   isOpen,
   onClose,
   onStartOnlineMatch,
+  onChallengePlayer,
 }) => {
   const { user, profile } = useAuth();
   const [groups, setGroups] = useState<FriendGroup[]>([]);
@@ -691,7 +693,10 @@ export const GroupsModal: React.FC<GroupsModalProps> = ({
                               <button
                                 type="button"
                                 onClick={() => {
-                                  if (onStartOnlineMatch) {
+                                  if (onChallengePlayer) {
+                                    onChallengePlayer(member, selectedGroup || undefined);
+                                    onClose();
+                                  } else if (onStartOnlineMatch) {
                                     onStartOnlineMatch(member.name);
                                     onClose();
                                   }

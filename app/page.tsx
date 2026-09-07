@@ -21,6 +21,17 @@ import { MainMenu } from '@/components/menu/MainMenu';
 import { useAuth } from '@/lib/auth/AuthContext';
 import { useTheme } from '@/lib/theme/ThemeContext';
 import { sounds } from '@/lib/audio/sounds';
+import { IncomingChallengeModal } from '@/components/modals/IncomingChallengeModal';
+import { OutgoingChallengeModal, OutgoingChallengeStatus } from '@/components/modals/OutgoingChallengeModal';
+import {
+  MatchChallenge,
+  generateChallengeRoomCode,
+  sendChallenge,
+  respondToChallenge,
+  cancelChallenge,
+  subscribeToUserChallenges,
+} from '@/lib/challenges/challengeService';
+import { GroupMember, FriendGroup } from '@/lib/groups/groupService';
 import { Users, Bot, Globe, ArrowLeft, RefreshCw, Settings, Sun, Moon } from 'lucide-react';
 
 export default function GamePage() {
@@ -51,6 +62,21 @@ export default function GamePage() {
   const [showSupabaseConfig, setShowSupabaseConfig] = useState(false);
   const [showExitConfirm, setShowExitConfirm] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
+
+  // Realtime Match Challenge State
+  const [incomingChallenge, setIncomingChallenge] = useState<MatchChallenge | null>(null);
+  const [outgoingChallenge, setOutgoingChallenge] = useState<MatchChallenge | null>(null);
+  const [outgoingStatus, setOutgoingStatus] = useState<OutgoingChallengeStatus>('waiting');
+
+  const incomingChallengeRef = useRef<MatchChallenge | null>(incomingChallenge);
+  useEffect(() => {
+    incomingChallengeRef.current = incomingChallenge;
+  }, [incomingChallenge]);
+
+  const outgoingChallengeRef = useRef<MatchChallenge | null>(outgoingChallenge);
+  useEffect(() => {
+    outgoingChallengeRef.current = outgoingChallenge;
+  }, [outgoingChallenge]);
 
   // Online Multiplayer State
   const [roomCode, setRoomCode] = useState<string | null>(null);
@@ -568,6 +594,7 @@ export default function GamePage() {
             if (isHostRole) {
               setWaitingForOpponent(false);
               setShowLobby(false);
+              setOutgoingChallenge(null);
               setCurrentView('game');
               sounds.playWall();
 
@@ -637,6 +664,7 @@ export default function GamePage() {
             setGameState(stateToApply);
             setWaitingForOpponent(false);
             setShowLobby(false);
+            setOutgoingChallenge(null);
             setCurrentView('game');
             sounds.playWall();
           } else if (payload.type === 'MOVE_PAWN') {
@@ -732,6 +760,168 @@ export default function GamePage() {
     setupRealtimeRoom(clean, false, effectiveName, profile.emoji);
   };
 
+  // Handle challenging a specific player
+  const handleChallengePlayer = useCallback(
+    async (targetMember: GroupMember, group?: FriendGroup) => {
+      const roomCode = generateChallengeRoomCode();
+      const currentId = user?.id || profile.id || 'guest_user';
+      const currentName = profile.name || playerName || 'Player 1';
+
+      const challenge: MatchChallenge = {
+        id: `chal_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+        challengerId: currentId,
+        challengerName: currentName,
+        challengerEmoji: profile.emoji || undefined,
+        targetUserId: targetMember.id,
+        targetUserName: targetMember.name,
+        roomCode,
+        groupCode: group?.code,
+        groupName: group?.name,
+        createdAt: Date.now(),
+      };
+
+      setOutgoingChallenge(challenge);
+      setOutgoingStatus('waiting');
+      setShowGroups(false);
+
+      // Setup host room and listen for opponent connection
+      setupRealtimeRoom(roomCode, true, currentName, profile.emoji);
+      setWaitingForOpponent(true);
+
+      // Send challenge notification
+      await sendChallenge(challenge);
+    },
+    [user?.id, profile.id, profile.name, profile.emoji, playerName, setupRealtimeRoom]
+  );
+
+  // Cancel outgoing challenge
+  const handleCancelOutgoingChallenge = useCallback(
+    async (challenge: MatchChallenge) => {
+      setOutgoingStatus('cancelled');
+      await cancelChallenge(challenge);
+      setTimeout(() => {
+        setOutgoingChallenge(null);
+      }, 500);
+
+      if (channelLeaveRef.current) {
+        channelLeaveRef.current();
+        channelLeaveRef.current = null;
+      }
+      if (handshakeIntervalRef.current) {
+        clearInterval(handshakeIntervalRef.current);
+        handshakeIntervalRef.current = null;
+      }
+      setWaitingForOpponent(false);
+      setRoomCode(null);
+      setMode('local');
+      setGameState(createInitialGameState('local'));
+      setCurrentView('menu');
+    },
+    []
+  );
+
+  // Accept incoming challenge
+  const handleAcceptIncomingChallenge = useCallback(
+    async (challenge: MatchChallenge) => {
+      const currentId = user?.id || profile.id || 'guest_user';
+      const currentName = profile.name || playerName || 'Player 2';
+
+      await respondToChallenge(
+        challenge,
+        'accepted',
+        currentId,
+        currentName,
+        profile.emoji || undefined
+      );
+
+      setIncomingChallenge(null);
+      setShowGroups(false);
+      setShowLobby(false);
+
+      // Join game room as guest (Player 2)
+      setPlayerName(currentName);
+      setWaitingForOpponent(true);
+      setIsHost(false);
+      setupRealtimeRoom(challenge.roomCode, false, currentName, profile.emoji);
+    },
+    [user?.id, profile.id, profile.name, profile.emoji, playerName, setupRealtimeRoom]
+  );
+
+  // Decline incoming challenge
+  const handleDeclineIncomingChallenge = useCallback(
+    async (challenge: MatchChallenge) => {
+      const currentId = user?.id || profile.id || 'guest_user';
+      const currentName = profile.name || playerName || 'Player 2';
+
+      await respondToChallenge(
+        challenge,
+        'declined',
+        currentId,
+        currentName,
+        profile.emoji || undefined
+      );
+
+      setIncomingChallenge(null);
+    },
+    [user?.id, profile.id, profile.name, profile.emoji, playerName]
+  );
+
+  // Subscribe to incoming match challenges and response notifications across the app
+  useEffect(() => {
+    const currentId = user?.id || profile.id || 'guest_user';
+    const currentName = profile.name || playerName || 'Player 1';
+
+    const unsubscribe = subscribeToUserChallenges(
+      { id: currentId, name: currentName },
+      (payload) => {
+        if (payload.type === 'CHALLENGE_INVITE') {
+          // If already in an active playing online game, decline automatically
+          if (mode === 'online' && gameStateRef.current.status === 'playing') {
+            respondToChallenge(
+              payload.challenge,
+              'declined',
+              currentId,
+              currentName,
+              profile.emoji || undefined
+            );
+            return;
+          }
+          setIncomingChallenge(payload.challenge);
+        } else if (payload.type === 'CHALLENGE_RESPONSE') {
+          if (outgoingChallengeRef.current && outgoingChallengeRef.current.id === payload.challengeId) {
+            if (payload.status === 'accepted') {
+              setOutgoingStatus('accepted');
+              setTimeout(() => {
+                setOutgoingChallenge(null);
+              }, 1200);
+            } else if (payload.status === 'declined') {
+              setOutgoingStatus('declined');
+              sounds.playChallengeDeclined();
+              if (channelLeaveRef.current) {
+                channelLeaveRef.current();
+                channelLeaveRef.current = null;
+              }
+              if (handshakeIntervalRef.current) {
+                clearInterval(handshakeIntervalRef.current);
+                handshakeIntervalRef.current = null;
+              }
+              setWaitingForOpponent(false);
+              setRoomCode(null);
+            }
+          }
+        } else if (payload.type === 'CHALLENGE_CANCEL') {
+          if (incomingChallengeRef.current && incomingChallengeRef.current.id === payload.challengeId) {
+            setIncomingChallenge(null);
+          }
+        }
+      }
+    );
+
+    return () => {
+      unsubscribe();
+    };
+  }, [user?.id, profile.id, profile.name, profile.emoji, playerName, mode]);
+
   // Broadcast player departure on window unload / close
   useEffect(() => {
     if (!isOnlineMode || !roomCode) return;
@@ -806,6 +996,22 @@ export default function GamePage() {
             handleCreateRoom(profile.name || 'Player 1');
             setShowLobby(true);
           }}
+          onChallengePlayer={handleChallengePlayer}
+        />
+
+        {/* Incoming Challenge Notification Modal */}
+        <IncomingChallengeModal
+          challenge={incomingChallenge}
+          onAccept={handleAcceptIncomingChallenge}
+          onDecline={handleDeclineIncomingChallenge}
+        />
+
+        {/* Outgoing Challenge Status Modal */}
+        <OutgoingChallengeModal
+          challenge={outgoingChallenge}
+          status={outgoingStatus}
+          onCancel={handleCancelOutgoingChallenge}
+          onClose={() => setOutgoingChallenge(null)}
         />
 
         <OnlineLobbyModal
@@ -1049,6 +1255,22 @@ export default function GamePage() {
           handleCreateRoom(profile.name || 'Player 1');
           setShowLobby(true);
         }}
+        onChallengePlayer={handleChallengePlayer}
+      />
+
+      {/* Incoming Challenge Notification Modal */}
+      <IncomingChallengeModal
+        challenge={incomingChallenge}
+        onAccept={handleAcceptIncomingChallenge}
+        onDecline={handleDeclineIncomingChallenge}
+      />
+
+      {/* Outgoing Challenge Status Modal */}
+      <OutgoingChallengeModal
+        challenge={outgoingChallenge}
+        status={outgoingStatus}
+        onCancel={handleCancelOutgoingChallenge}
+        onClose={() => setOutgoingChallenge(null)}
       />
 
       {/* Settings Modal */}
