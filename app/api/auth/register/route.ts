@@ -5,11 +5,12 @@ import { normalizeAuthEmail } from '@/lib/auth/utils';
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    const { username, password, displayName } = body;
+    const { username, password, displayName, emoji } = body;
 
     const cleanUsername = (username || '').trim();
     const cleanPassword = (password || '').trim();
     const cleanDisplayName = (displayName || cleanUsername || 'Player').trim();
+    const cleanEmoji = (emoji || '').trim() || undefined;
 
     if (!cleanUsername || cleanUsername.length < 3) {
       return NextResponse.json(
@@ -38,6 +39,7 @@ export async function POST(request: Request) {
           display_name: cleanDisplayName,
           name: cleanDisplayName,
           username: cleanUsername,
+          emoji: cleanEmoji,
         },
       });
 
@@ -77,6 +79,7 @@ export async function POST(request: Request) {
           display_name: cleanDisplayName,
           name: cleanDisplayName,
           username: cleanUsername,
+          emoji: cleanEmoji,
         },
       },
     });

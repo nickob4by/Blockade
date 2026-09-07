@@ -313,41 +313,51 @@ export const GameBoard = forwardRef<GameBoardHandle, GameBoardProps>(({
                 >
                   {/* Pawn 1 */}
                   {isP1 && (
-                    <div
-                      className="w-[82%] h-[82%] rounded-full bg-gradient-to-b from-blue-500 to-blue-600 border border-blue-300/50 shadow-tactile-p1 tactile-pawn flex items-center justify-center font-bold text-white pawn-transition animate-pawn-land"
-                    >
-                      <span
-                        style={{ transform: isFlipped ? 'rotate(180deg)' : undefined }}
-                        className="inline-flex items-center justify-center select-none"
-                      >
-                        {gameState.players[1]?.emoji ? (
-                          <span className="text-base sm:text-lg leading-none drop-shadow">
-                            {gameState.players[1].emoji}
-                          </span>
-                        ) : (
-                          <User className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-white/95 drop-shadow" />
-                        )}
-                      </span>
+                    <div className="w-full h-full flex items-center justify-center pawn-transition animate-pawn-land z-10">
+                      {gameState.players[1]?.emoji ? (
+                        <span
+                          style={{
+                            transform: isFlipped ? 'rotate(180deg)' : undefined,
+                            filter:
+                              'drop-shadow(0 3px 6px rgba(0,0,0,0.85)) drop-shadow(0 0 10px rgba(56,189,248,0.9)) drop-shadow(0 0 2px rgba(255,255,255,0.95))',
+                          }}
+                          className="text-2xl sm:text-3xl select-none leading-none flex items-center justify-center transition-transform hover:scale-110"
+                        >
+                          {gameState.players[1].emoji}
+                        </span>
+                      ) : (
+                        <div className="w-[82%] h-[82%] rounded-full bg-gradient-to-b from-blue-500 to-blue-600 border border-blue-300/50 shadow-tactile-p1 tactile-pawn flex items-center justify-center font-bold text-white">
+                          <User
+                            style={{ transform: isFlipped ? 'rotate(180deg)' : undefined }}
+                            className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-white/95 drop-shadow"
+                          />
+                        </div>
+                      )}
                     </div>
                   )}
 
                   {/* Pawn 2 */}
                   {isP2 && (
-                    <div
-                      className="w-[82%] h-[82%] rounded-full bg-gradient-to-b from-rose-500 to-rose-600 border border-rose-300/50 shadow-tactile-p2 tactile-pawn flex items-center justify-center font-bold text-white pawn-transition animate-pawn-land"
-                    >
-                      <span
-                        style={{ transform: isFlipped ? 'rotate(180deg)' : undefined }}
-                        className="inline-flex items-center justify-center select-none"
-                      >
-                        {gameState.players[2]?.emoji ? (
-                          <span className="text-base sm:text-lg leading-none drop-shadow">
-                            {gameState.players[2].emoji}
-                          </span>
-                        ) : (
-                          <User className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-white/95 drop-shadow" />
-                        )}
-                      </span>
+                    <div className="w-full h-full flex items-center justify-center pawn-transition animate-pawn-land z-10">
+                      {gameState.players[2]?.emoji ? (
+                        <span
+                          style={{
+                            transform: isFlipped ? 'rotate(180deg)' : undefined,
+                            filter:
+                              'drop-shadow(0 3px 6px rgba(0,0,0,0.85)) drop-shadow(0 0 10px rgba(244,63,94,0.9)) drop-shadow(0 0 2px rgba(255,255,255,0.95))',
+                          }}
+                          className="text-2xl sm:text-3xl select-none leading-none flex items-center justify-center transition-transform hover:scale-110"
+                        >
+                          {gameState.players[2].emoji}
+                        </span>
+                      ) : (
+                        <div className="w-[82%] h-[82%] rounded-full bg-gradient-to-b from-rose-500 to-rose-600 border border-rose-300/50 shadow-tactile-p2 tactile-pawn flex items-center justify-center font-bold text-white">
+                          <User
+                            style={{ transform: isFlipped ? 'rotate(180deg)' : undefined }}
+                            className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-white/95 drop-shadow"
+                          />
+                        </div>
+                      )}
                     </div>
                   )}
 

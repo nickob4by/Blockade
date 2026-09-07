@@ -29,6 +29,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
   const [mode, setMode] = useState<'signin' | 'signup'>(defaultMode);
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
+  const [selectedEmoji, setSelectedEmoji] = useState('👑');
   const [guestInput, setGuestInput] = useState(profile.name || 'Player 1');
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
@@ -55,7 +56,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
     setLoading(true);
     try {
       if (mode === 'signup') {
-        await signUp(cleanUsername, password, cleanUsername);
+        await signUp(cleanUsername, password, cleanUsername, selectedEmoji);
         setSuccessMsg(`Welcome, ${cleanUsername}! Account created.`);
       } else {
         await signIn(cleanUsername, password);
@@ -201,6 +202,31 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                 />
               </div>
             </div>
+
+            {mode === 'signup' && (
+              <div>
+                <label className="block text-xs font-semibold text-zinc-300 mb-1.5 flex items-center justify-between">
+                  <span>Choose Your Player Icon</span>
+                  <span className="text-sm select-none">{selectedEmoji}</span>
+                </label>
+                <div className="grid grid-cols-6 gap-1.5 p-1.5 rounded-xl bg-zinc-950 border border-zinc-800">
+                  {['👑', '🦁', '⚡', '🤖', '⚔️', '🦊', '🐉', '💎', '🚀', '👻', '👾', '🎯'].map((emoji) => (
+                    <button
+                      key={emoji}
+                      type="button"
+                      onClick={() => setSelectedEmoji(emoji)}
+                      className={`h-8 rounded-lg flex items-center justify-center text-lg transition-all tap-bounce ${
+                        selectedEmoji === emoji
+                          ? 'bg-sky-500/25 border-2 border-sky-400 scale-105 shadow-sm'
+                          : 'hover:bg-zinc-850 border border-transparent'
+                      }`}
+                    >
+                      {emoji}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
 
             <button
               type="submit"

@@ -20,7 +20,7 @@ interface AuthContextType {
   profile: UserProfile;
   isLoading: boolean;
   isConfigured: boolean;
-  signUp: (identifier: string, password: string, displayName: string) => Promise<void>;
+  signUp: (identifier: string, password: string, displayName: string, emoji?: string) => Promise<void>;
   signIn: (identifier: string, password: string) => Promise<void>;
   signOut: () => Promise<void>;
   setGuestName: (name: string) => void;
@@ -93,7 +93,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
-  const signUp = async (identifier: string, password: string, displayName: string) => {
+  const signUp = async (identifier: string, password: string, displayName: string, emoji?: string) => {
     const cleanName = displayName.trim() || identifier.trim() || 'Player';
     const username = identifier.trim();
 
@@ -104,6 +104,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         username,
         password,
         displayName: cleanName,
+        emoji: emoji?.trim() || undefined,
       }),
     });
 

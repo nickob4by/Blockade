@@ -184,30 +184,46 @@ export default function GamePage() {
     }
   }, [mode, gameState.players, playerName, profile.name, profile.emoji]);
 
-  // Keep playerName and emoji in sync with profile and initial game state
+  // Keep playerName and emoji in sync with profile and active game state
   useEffect(() => {
-    if (profile.name || profile.emoji) {
-      if (profile.name) {
-        setPlayerName(profile.name);
-      }
-      setGameState((prev) => {
-        if (prev.players[1].name === 'Player 1' || prev.players[1].name === profile.name) {
-          return {
-            ...prev,
-            players: {
-              ...prev.players,
-              1: {
-                ...prev.players[1],
-                name: profile.name || prev.players[1].name,
-                emoji: profile.emoji ?? prev.players[1].emoji,
-              },
-            },
-          };
-        }
-        return prev;
-      });
+    if (profile.name) {
+      setPlayerName(profile.name);
     }
-  }, [profile.name, profile.emoji]);
+    setGameState((prev) => {
+      const targetId = clientPlayerId;
+      const targetPlayer = prev.players[targetId];
+      if (!targetPlayer) return prev;
+
+      const newName = profile.name || targetPlayer.name;
+      const newEmoji = profile.emoji !== undefined ? (profile.emoji || undefined) : targetPlayer.emoji;
+
+      // Only update if actually changed
+      if (targetPlayer.name === newName && targetPlayer.emoji === newEmoji) {
+        return prev;
+      }
+
+      const nextState: GameState = {
+        ...prev,
+        players: {
+          ...prev.players,
+          [targetId]: {
+            ...targetPlayer,
+            name: newName,
+            emoji: newEmoji,
+          },
+        },
+      };
+
+      if (mode === 'online' && realtimeBroadcastRef.current) {
+        realtimeBroadcastRef.current({
+          type: 'SYNC_STATE',
+          state: nextState,
+        });
+      }
+
+      return nextState;
+    });
+  }, [profile.name, profile.emoji, clientPlayerId, mode]);
 
   // Check URL query parameters for direct room links (e.g. ?room=ABCD)
   useEffect(() => {

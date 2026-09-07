@@ -109,7 +109,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
             </div>
             <div>
               <h3 className="text-base font-bold text-white leading-none">Player Settings</h3>
-              <span className="text-[11px] text-zinc-400">Customize your name & circle avatar</span>
+              <span className="text-[11px] text-zinc-400">Customize your name & pawn icon</span>
             </div>
           </div>
           <button
@@ -146,7 +146,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
           {/* Live Pawn Preview */}
           <div className="p-4 rounded-xl bg-zinc-950/80 border border-zinc-800/90 space-y-2">
             <div className="flex items-center justify-between">
-              <span className="text-xs font-semibold text-zinc-400">Pawn Circle Preview</span>
+              <span className="text-xs font-semibold text-zinc-400">Pawn Icon Preview</span>
               <button
                 type="button"
                 onClick={handleResetToGeneric}
@@ -161,25 +161,45 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
             <div className="flex items-center justify-around py-3 bg-zinc-900/50 rounded-lg border border-zinc-800/40">
               {/* Blue Theme Preview */}
               <div className="flex flex-col items-center gap-1.5">
-                <div className="w-12 h-12 rounded-full bg-gradient-to-b from-blue-500 to-blue-600 border border-blue-300/50 shadow-tactile-p1 flex items-center justify-center">
-                  {selectedEmoji ? (
-                    <span className="text-xl select-none leading-none drop-shadow">{selectedEmoji}</span>
-                  ) : (
+                {selectedEmoji ? (
+                  <div className="w-12 h-12 flex items-center justify-center">
+                    <span
+                      className="text-3xl select-none leading-none"
+                      style={{
+                        filter:
+                          'drop-shadow(0 3px 6px rgba(0,0,0,0.85)) drop-shadow(0 0 10px rgba(56,189,248,0.9)) drop-shadow(0 0 2px rgba(255,255,255,0.95))',
+                      }}
+                    >
+                      {selectedEmoji}
+                    </span>
+                  </div>
+                ) : (
+                  <div className="w-12 h-12 rounded-full bg-gradient-to-b from-blue-500 to-blue-600 border border-blue-300/50 shadow-tactile-p1 flex items-center justify-center">
                     <User className="w-5 h-5 text-white/90 drop-shadow" />
-                  )}
-                </div>
+                  </div>
+                )}
                 <span className="text-[10px] font-bold text-blue-400">Player 1 (Blue)</span>
               </div>
 
               {/* Rose Theme Preview */}
               <div className="flex flex-col items-center gap-1.5">
-                <div className="w-12 h-12 rounded-full bg-gradient-to-b from-rose-500 to-rose-600 border border-rose-300/50 shadow-tactile-p2 flex items-center justify-center">
-                  {selectedEmoji ? (
-                    <span className="text-xl select-none leading-none drop-shadow">{selectedEmoji}</span>
-                  ) : (
+                {selectedEmoji ? (
+                  <div className="w-12 h-12 flex items-center justify-center">
+                    <span
+                      className="text-3xl select-none leading-none"
+                      style={{
+                        filter:
+                          'drop-shadow(0 3px 6px rgba(0,0,0,0.85)) drop-shadow(0 0 10px rgba(244,63,94,0.9)) drop-shadow(0 0 2px rgba(255,255,255,0.95))',
+                      }}
+                    >
+                      {selectedEmoji}
+                    </span>
+                  </div>
+                ) : (
+                  <div className="w-12 h-12 rounded-full bg-gradient-to-b from-rose-500 to-rose-600 border border-rose-300/50 shadow-tactile-p2 flex items-center justify-center">
                     <User className="w-5 h-5 text-white/90 drop-shadow" />
-                  )}
-                </div>
+                  </div>
+                )}
                 <span className="text-[10px] font-bold text-rose-400">Player 2 (Rose)</span>
               </div>
             </div>
@@ -190,7 +210,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
             <div className="flex items-center justify-between">
               <span className="text-xs font-semibold text-zinc-300 flex items-center gap-1.5">
                 <Smile className="w-3.5 h-3.5 text-amber-400" />
-                Choose Circle Emoji
+                Choose Pawn Emoji
               </span>
               <span className="text-[10px] text-zinc-500">Tap to select</span>
             </div>

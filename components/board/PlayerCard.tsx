@@ -1,6 +1,6 @@
 import React from 'react';
 import { PlayerState, Wall } from '@/lib/game/types';
-import { Shield, Sparkles } from 'lucide-react';
+import { Shield, Sparkles, User } from 'lucide-react';
 
 interface PlayerCardProps {
   player: PlayerState;
@@ -30,15 +30,26 @@ export const PlayerCard: React.FC<PlayerCardProps> = ({
     >
       {/* Player identity */}
       <div className="flex items-center gap-2 min-w-0">
-        {player.emoji && (
+        {player.emoji ? (
+          <span
+            className="text-xl sm:text-2xl leading-none select-none flex-shrink-0"
+            style={{
+              filter: isP1
+                ? 'drop-shadow(0 2px 4px rgba(0,0,0,0.6)) drop-shadow(0 0 8px rgba(56,189,248,0.7))'
+                : 'drop-shadow(0 2px 4px rgba(0,0,0,0.6)) drop-shadow(0 0 8px rgba(244,63,94,0.7))',
+            }}
+          >
+            {player.emoji}
+          </span>
+        ) : (
           <div
             className={`w-6 h-6 sm:w-7 sm:h-7 rounded-full flex-shrink-0 flex items-center justify-center text-xs sm:text-sm border shadow-sm ${
               isP1
-                ? 'bg-blue-950/80 border-blue-500/40'
-                : 'bg-rose-950/80 border-rose-500/40'
+                ? 'bg-blue-950/80 border-blue-500/40 text-blue-400'
+                : 'bg-rose-950/80 border-rose-500/40 text-rose-400'
             }`}
           >
-            <span className="leading-none select-none">{player.emoji}</span>
+            <User className="w-3.5 h-3.5 text-white/90" />
           </div>
         )}
         <div className="flex flex-col min-w-0">
