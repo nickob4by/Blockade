@@ -104,7 +104,58 @@ export const GroupsModal: React.FC<GroupsModalProps> = ({
     };
   }, [selectedGroup?.code, currentUserId, currentUserName, profile.emoji]);
 
-  if (!isOpen) return null;
+  // Calculate live members for selected group (only real users, no dummy mock bots)
+  const resolvedMembers: GroupMember[] = useMemo(() => {
+    if (!selectedGroup || !Array.isArray(selectedGroup.members)) return [];
+
+    const memberMap = new Map<string, GroupMember>();
+
+    selectedGroup.members.forEach((member) => {
+      if (!member) return;
+      const mName = member.name || 'Player';
+      const isYou = member.id === currentUserId || mName.toLowerCase() === (currentUserName || '').toLowerCase();
+      const live = livePresences[member.id] || Object.values(livePresences).find(
+        (p) => (p?.name || '').toLowerCase() === mName.toLowerCase()
+      );
+
+      memberMap.set(member.id, {
+        ...member,
+        name: isYou ? currentUserName : mName,
+        isYou,
+        emoji: isYou ? (profile.emoji || member.emoji) : (live?.emoji || member.emoji),
+        status: isYou ? 'online' : (live ? live.status : member.status),
+      });
+    });
+
+    // Also include any other real player who joined the group's real-time channel
+    Object.entries(livePresences).forEach(([id, live]) => {
+      if (!live) return;
+      if (!memberMap.has(id)) {
+        const liveName = live.name || 'Player';
+        const isYou = id === currentUserId || liveName.toLowerCase() === (currentUserName || '').toLowerCase();
+        memberMap.set(id, {
+          id,
+          name: liveName,
+          role: 'member',
+          status: live.status,
+          emoji: live.emoji,
+          isYou,
+          lastActive: 'Just now',
+        });
+      }
+    });
+
+    return Array.from(memberMap.values());
+  }, [selectedGroup, currentUserId, currentUserName, profile.emoji, livePresences]);
+
+  const filteredMembers = resolvedMembers.filter((m) => {
+    if (memberFilter === 'all') return true;
+    return m.status === memberFilter;
+  });
+
+  const onlineMembersCount = resolvedMembers.filter((m) => m.status === 'online').length;
+  const inGameMembersCount = resolvedMembers.filter((m) => m.status === 'in_game').length;
+  const offlineMembersCount = resolvedMembers.filter((m) => m.status === 'offline').length;
 
   // Handle Copy Code or Link
   const handleCopyCode = (code: string) => {
@@ -166,54 +217,7 @@ export const GroupsModal: React.FC<GroupsModalProps> = ({
     setFeedbackMsg({ type: 'success', text: 'You left the group.' });
   };
 
-  // Calculate live members for selected group (only real users, no dummy mock bots)
-  const resolvedMembers: GroupMember[] = useMemo(() => {
-    if (!selectedGroup) return [];
-
-    const memberMap = new Map<string, GroupMember>();
-
-    selectedGroup.members.forEach((member) => {
-      const isYou = member.id === currentUserId || member.name.toLowerCase() === currentUserName.toLowerCase();
-      const live = livePresences[member.id] || Object.values(livePresences).find(
-        (p) => p.name.toLowerCase() === member.name.toLowerCase()
-      );
-
-      memberMap.set(member.id, {
-        ...member,
-        isYou,
-        name: isYou ? currentUserName : member.name,
-        emoji: isYou ? (profile.emoji || member.emoji) : (live?.emoji || member.emoji),
-        status: isYou ? 'online' : (live ? live.status : member.status),
-      });
-    });
-
-    // Also include any other real player who joined the group's real-time channel
-    Object.entries(livePresences).forEach(([id, live]) => {
-      if (!memberMap.has(id)) {
-        const isYou = id === currentUserId || live.name.toLowerCase() === currentUserName.toLowerCase();
-        memberMap.set(id, {
-          id,
-          name: live.name,
-          role: 'member',
-          status: live.status,
-          emoji: live.emoji,
-          isYou,
-          lastActive: 'Just now',
-        });
-      }
-    });
-
-    return Array.from(memberMap.values());
-  }, [selectedGroup, currentUserId, currentUserName, profile.emoji, livePresences]);
-
-  const filteredMembers = resolvedMembers.filter((m) => {
-    if (memberFilter === 'all') return true;
-    return m.status === memberFilter;
-  });
-
-  const onlineMembersCount = resolvedMembers.filter((m) => m.status === 'online').length;
-  const inGameMembersCount = resolvedMembers.filter((m) => m.status === 'in_game').length;
-  const offlineMembersCount = resolvedMembers.filter((m) => m.status === 'offline').length;
+  if (!isOpen) return null;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/80 backdrop-blur-md animate-fadeIn">

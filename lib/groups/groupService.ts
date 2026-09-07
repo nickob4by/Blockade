@@ -50,21 +50,29 @@ export function getInitialStarterGroups(_userId?: string, _userName?: string): F
  * Clean legacy dummy groups and dummy members out of stored groups.
  */
 function sanitizeGroups(groups: FriendGroup[], userId: string, userName: string): FriendGroup[] {
+  if (!Array.isArray(groups)) return [];
   return groups
     .filter((g) => {
+      if (!g || typeof g !== 'object') return false;
       if (g.id === 'group_warriors' || g.id === 'group_champions') return false;
-      if (g.name.includes('Blockade Warriors') || g.name.includes('Quoridor Champions')) return false;
+      if (typeof g.name === 'string' && (g.name.includes('Blockade Warriors') || g.name.includes('Quoridor Champions'))) return false;
       return true;
     })
     .map((g) => ({
       ...g,
-      members: g.members
-        .filter((m) => !DUMMY_MEMBER_IDS.includes(m.id))
-        .map((m) => ({
-          ...m,
-          isYou: m.id === userId || m.name.toLowerCase() === userName.toLowerCase(),
-          name: m.id === userId ? userName : m.name,
-        })),
+      members: Array.isArray(g.members)
+        ? g.members
+            .filter((m) => m && typeof m === 'object' && !DUMMY_MEMBER_IDS.includes(m.id))
+            .map((m) => {
+              const mName = m.name || 'Player';
+              const isYou = m.id === userId || mName.toLowerCase() === (userName || '').toLowerCase();
+              return {
+                ...m,
+                isYou,
+                name: m.id === userId ? userName : mName,
+              };
+            })
+        : [],
     }));
 }
 

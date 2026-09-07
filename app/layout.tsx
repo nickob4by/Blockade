@@ -29,26 +29,6 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" className="dark h-full" suppressHydrationWarning>
-      <head>
-        <script
-          dangerouslySetInnerHTML={{
-            __html: `(function() {
-  try {
-    var saved = localStorage.getItem('blockade-theme');
-    var pref = window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark';
-    var theme = saved === 'light' || saved === 'dark' ? saved : pref;
-    if (theme === 'dark') {
-      document.documentElement.classList.add('dark');
-      document.documentElement.classList.remove('light');
-    } else {
-      document.documentElement.classList.remove('dark');
-      document.documentElement.classList.add('light');
-    }
-  } catch (e) {}
-})();`,
-          }}
-        />
-      </head>
       <body className="h-full bg-slate-50 text-slate-900 dark:bg-slate-950 dark:text-slate-100 antialiased selection:bg-sky-500 selection:text-white overscroll-none touch-manipulation select-none transition-colors duration-150">
         <ThemeProvider>
           <AuthProvider>{children}</AuthProvider>
