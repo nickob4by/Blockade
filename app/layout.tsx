@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
+import { AuthProvider } from "@/lib/auth/AuthContext";
 
 export const metadata: Metadata = {
   title: "Blockade | 2D Strategy Grid Racing Game",
@@ -28,8 +29,9 @@ export default function RootLayout({
   return (
     <html lang="en" className="dark h-full">
       <body className="h-full bg-slate-950 text-slate-100 antialiased selection:bg-sky-500 selection:text-white overscroll-none touch-manipulation select-none">
-        {children}
+        <AuthProvider>{children}</AuthProvider>
       </body>
     </html>
   );
 }
+

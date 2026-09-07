@@ -14,10 +14,15 @@ import { GameOverModal } from '@/components/modals/GameOverModal';
 import { RulesModal } from '@/components/modals/RulesModal';
 import { OnlineLobbyModal } from '@/components/modals/OnlineLobbyModal';
 import { SupabaseConfigModal } from '@/components/modals/SupabaseConfigModal';
+import { GroupsModal } from '@/components/modals/GroupsModal';
+import { MainMenu } from '@/components/menu/MainMenu';
+import { useAuth } from '@/lib/auth/AuthContext';
 import { sounds } from '@/lib/audio/sounds';
-import { Users, Bot, Globe } from 'lucide-react';
+import { Users, Bot, Globe, ArrowLeft, RefreshCw } from 'lucide-react';
 
 export default function GamePage() {
+  const { profile } = useAuth();
+  const [currentView, setCurrentView] = useState<'menu' | 'game'>('menu');
   const [mode, setMode] = useState<GameMode>('local');
   const [gameState, setGameState] = useState<GameState>(() => createInitialGameState('local'));
   const [orientation, setOrientation] = useState<WallOrientation>('H');
@@ -38,12 +43,14 @@ export default function GamePage() {
   // Modals state
   const [showRules, setShowRules] = useState(false);
   const [showLobby, setShowLobby] = useState(false);
+  const [showGroups, setShowGroups] = useState(false);
   const [showSupabaseConfig, setShowSupabaseConfig] = useState(false);
+  const [showExitConfirm, setShowExitConfirm] = useState(false);
 
   // Online Multiplayer State
   const [roomCode, setRoomCode] = useState<string | null>(null);
   const [waitingForOpponent, setWaitingForOpponent] = useState(false);
-  const [playerName, setPlayerName] = useState('Player 1');
+  const [playerName, setPlayerName] = useState(profile.name || 'Player 1');
   const [connectionStatus, setConnectionStatus] = useState<string>('disconnected');
 
   const realtimeBroadcastRef = useRef<((payload: RealtimePayload) => void) | null>(null);
@@ -73,6 +80,32 @@ export default function GamePage() {
     }
   }, [mode]);
 
+  // Keep playerName in sync with profile
+  useEffect(() => {
+    if (profile.name) {
+      setPlayerName(profile.name);
+    }
+  }, [profile.name]);
+
+  // Check URL query parameters for direct room links (e.g. ?room=ABCD)
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const urlParams = new URLSearchParams(window.location.search);
+      const roomParam = urlParams.get('room');
+      if (roomParam) {
+        const code = roomParam.toUpperCase();
+        setRoomCode(code);
+        setMode('online');
+        setCurrentView('game');
+        if (isSupabaseConfigured()) {
+          setupRealtimeRoom(code, false);
+        } else {
+          setShowSupabaseConfig(true);
+        }
+      }
+    }
+  }, []);
+
   // Switch Game Mode
   const handleSelectMode = (newMode: GameMode) => {
     if (newMode === 'online') {
@@ -92,6 +125,28 @@ export default function GamePage() {
     activeDragRef.current = null;
     setRoomCode(null);
     setWaitingForOpponent(false);
+    setCurrentView('game');
+  };
+
+  const handleRequestExitToMenu = () => {
+    const hasMadeMoves =
+      gameState.walls.length > 0 ||
+      gameState.players[1].position.r !== 8 ||
+      gameState.players[2].position.r !== 0;
+
+    if (gameState.status === 'playing' && hasMadeMoves) {
+      setShowExitConfirm(true);
+    } else {
+      setCurrentView('menu');
+    }
+  };
+
+  const handleConfirmExitToMenu = () => {
+    setShowExitConfirm(false);
+    setSelectedWall(null);
+    setActiveDrag(null);
+    activeDragRef.current = null;
+    setCurrentView('menu');
   };
 
   // Perform Pawn Move
@@ -343,20 +398,6 @@ export default function GamePage() {
     setShowLobby(false);
   };
 
-  // Check URL parameters for ?room=XXXXXX
-  useEffect(() => {
-    if (typeof window === 'undefined') return;
-    const params = new URLSearchParams(window.location.search);
-    const roomFromUrl = params.get('room');
-    if (roomFromUrl) {
-      if (isSupabaseConfigured()) {
-        setShowLobby(true);
-      } else {
-        setShowSupabaseConfig(true);
-      }
-    }
-  }, []);
-
   const isMyTurn =
     mode === 'local'
       ? true
@@ -365,60 +406,113 @@ export default function GamePage() {
   const isPlayerInteractionDisabled =
     mode === 'online' && gameState.currentTurn !== clientPlayerId;
 
+  if (currentView === 'menu') {
+    return (
+      <main className="h-full min-h-[100dvh] bg-slate-950 text-slate-100 flex flex-col items-center justify-center">
+        <MainMenu
+          onSelectMode={(selectedMode) => {
+            if (selectedMode === 'online') {
+              if (!isSupabaseConfigured()) {
+                setShowSupabaseConfig(true);
+                return;
+              }
+              setShowLobby(true);
+              return;
+            }
+            handleSelectMode(selectedMode);
+          }}
+          onOpenRules={() => setShowRules(true)}
+          onOpenGroups={() => setShowGroups(true)}
+          onOpenOnlineLobby={() => {
+            if (!isSupabaseConfigured()) {
+              setShowSupabaseConfig(true);
+              return;
+            }
+            setShowLobby(true);
+          }}
+        />
+
+        {/* Modals available from Menu */}
+        <RulesModal isOpen={showRules} onClose={() => setShowRules(false)} />
+
+        <GroupsModal
+          isOpen={showGroups}
+          onClose={() => setShowGroups(false)}
+          onStartOnlineMatch={() => {
+            handleCreateRoom(profile.name || 'Player 1');
+            setCurrentView('game');
+          }}
+        />
+
+        <OnlineLobbyModal
+          isOpen={showLobby}
+          onClose={() => setShowLobby(false)}
+          onCreateRoom={(pName) => {
+            handleCreateRoom(pName);
+            setCurrentView('game');
+          }}
+          onJoinRoom={(code, pName) => {
+            handleJoinRoom(code, pName);
+            setCurrentView('game');
+          }}
+          currentRoomCode={roomCode}
+          waitingForOpponent={waitingForOpponent}
+          playerName={playerName}
+          setPlayerName={setPlayerName}
+        />
+
+        <SupabaseConfigModal
+          isOpen={showSupabaseConfig}
+          onClose={() => setShowSupabaseConfig(false)}
+          onSwitchToLocal={() => handleSelectMode('local')}
+        />
+      </main>
+    );
+  }
+
   return (
     <main className="h-full h-[100dvh] flex flex-col justify-between items-center px-2 py-1 sm:py-2 max-w-md mx-auto overflow-hidden">
       {/* 1. Mobile Top Bar */}
-      <header className="w-full flex items-center justify-between gap-1.5 pt-safe pb-1">
-        <div className="flex items-center gap-2">
-          <div className="w-7 h-7 rounded-lg bg-zinc-800 border border-zinc-700 flex items-center justify-center font-black text-zinc-100 text-sm shadow-sm flex-shrink-0">
-            B
-          </div>
-          <span className="font-bold text-sm tracking-wider uppercase text-zinc-200">
-            Blockade
-          </span>
+      <header className="w-full flex items-center justify-between gap-2 pt-safe pb-1">
+        <button
+          type="button"
+          onClick={handleRequestExitToMenu}
+          className="flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 text-zinc-300 hover:text-white text-xs font-semibold tap-bounce shadow-sm"
+        >
+          <ArrowLeft className="w-3.5 h-3.5 text-sky-400" />
+          <span>Menu</span>
+        </button>
+
+        {/* Mode Indicator Chip */}
+        <div className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-zinc-900/90 border border-zinc-800 text-xs font-semibold text-zinc-200 shadow-sm">
+          {mode === 'ai' ? (
+            <>
+              <Bot className="w-3.5 h-3.5 text-rose-400" />
+              <span>vs AI Bot</span>
+            </>
+          ) : mode === 'local' ? (
+            <>
+              <Users className="w-3.5 h-3.5 text-blue-400" />
+              <span>Pass & Play</span>
+            </>
+          ) : (
+            <>
+              <Globe className="w-3.5 h-3.5 text-emerald-400" />
+              <span>Online Match</span>
+            </>
+          )}
         </div>
 
-        {/* Mode Selector Tabs */}
-        <div className="flex items-center gap-0.5 p-0.5 bg-zinc-900/90 rounded-xl border border-zinc-800 text-[11px] font-semibold">
-          <button
-            type="button"
-            onClick={() => handleSelectMode('local')}
-            className={`flex items-center gap-1 px-2.5 py-1 rounded-lg transition-all tap-bounce ${
-              mode === 'local'
-                ? 'bg-zinc-800 text-zinc-100 shadow-sm'
-                : 'text-zinc-400 hover:text-zinc-200'
-            }`}
-          >
-            <Users className="w-3 h-3 text-blue-400" />
-            <span>2P</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => handleSelectMode('ai')}
-            className={`flex items-center gap-1 px-2.5 py-1 rounded-lg transition-all tap-bounce ${
-              mode === 'ai'
-                ? 'bg-zinc-800 text-zinc-100 shadow-sm'
-                : 'text-zinc-400 hover:text-zinc-200'
-            }`}
-          >
-            <Bot className="w-3 h-3 text-rose-400" />
-            <span>AI</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => handleSelectMode('online')}
-            className={`flex items-center gap-1 px-2.5 py-1 rounded-lg transition-all tap-bounce ${
-              mode === 'online'
-                ? 'bg-zinc-800 text-zinc-100 shadow-sm'
-                : 'text-zinc-400 hover:text-zinc-200'
-            }`}
-          >
-            <Globe className="w-3 h-3 text-emerald-400" />
-            <span>Online</span>
-          </button>
-        </div>
+        {/* Action Button: Restart Match */}
+        <button
+          type="button"
+          onClick={handleRestart}
+          title="Restart Match"
+          className="flex items-center gap-1 px-2.5 py-1 rounded-xl bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 text-zinc-400 hover:text-zinc-200 text-xs font-semibold tap-bounce shadow-sm"
+        >
+          <RefreshCw className="w-3.5 h-3.5" />
+          <span className="hidden sm:inline">Reset</span>
+        </button>
       </header>
 
       {/* Online room banner if active */}
@@ -546,6 +640,44 @@ export default function GamePage() {
         onClose={() => setShowSupabaseConfig(false)}
         onSwitchToLocal={() => handleSelectMode('local')}
       />
+
+      {/* Groups Modal */}
+      <GroupsModal
+        isOpen={showGroups}
+        onClose={() => setShowGroups(false)}
+        onStartOnlineMatch={() => {
+          handleCreateRoom(profile.name || 'Player 1');
+          setCurrentView('game');
+        }}
+      />
+
+      {/* Exit Match Confirmation Modal */}
+      {showExitConfirm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-fadeIn">
+          <div className="w-full max-w-xs p-5 rounded-2xl bg-zinc-900 border border-zinc-800 shadow-2xl text-center space-y-4">
+            <h3 className="text-base font-bold text-zinc-100">Exit to Main Menu?</h3>
+            <p className="text-xs text-zinc-400">
+              Your ongoing match will be ended and progress lost.
+            </p>
+            <div className="grid grid-cols-2 gap-2 pt-1">
+              <button
+                type="button"
+                onClick={() => setShowExitConfirm(false)}
+                className="py-2 px-3 rounded-xl bg-zinc-800 hover:bg-zinc-750 text-zinc-300 font-semibold text-xs tap-bounce border border-zinc-700/60"
+              >
+                Keep Playing
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmExitToMenu}
+                className="py-2 px-3 rounded-xl bg-rose-600 hover:bg-rose-500 text-white font-bold text-xs tap-bounce shadow-md"
+              >
+                Exit Match
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </main>
   );
 }
