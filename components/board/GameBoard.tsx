@@ -26,8 +26,6 @@ interface GameBoardProps {
   onMovePawn: (target: Coordinate) => void;
   onPlaceWall: (placement: { r: number; c: number; orientation: WallOrientation }) => void;
   clientPlayerId: PlayerId;
-  selectedWall: { r: number; c: number; orientation: WallOrientation } | null;
-  setSelectedWall: (wall: { r: number; c: number; orientation: WallOrientation } | null) => void;
   activeDrag: ActiveDragInfo | null;
   disabled?: boolean;
   isFlipped?: boolean;
@@ -161,14 +159,11 @@ export const GameBoard = forwardRef<GameBoardHandle, GameBoardProps>(({
   onMovePawn,
   onPlaceWall,
   clientPlayerId,
-  selectedWall,
-  setSelectedWall,
   activeDrag,
   disabled = false,
   isFlipped = false,
 }, ref) => {
   const innerGridRef = useRef<HTMLDivElement>(null);
-  const [validationError, setValidationError] = useState<string | null>(null);
 
   const isP1Turn = gameState.currentTurn === 1;
   const isMyTurn = !disabled && gameState.currentTurn === clientPlayerId && gameState.status === 'playing';
@@ -213,68 +208,18 @@ export const GameBoard = forwardRef<GameBoardHandle, GameBoardProps>(({
       )
     : [];
 
-  // Update validation error for selected wall (tap flow)
-  useEffect(() => {
-    if (!selectedWall || !isMyTurn) {
-      setValidationError(null);
-      return;
-    }
-
-    const check = canPlaceWall(gameState, {
-      r: selectedWall.r,
-      c: selectedWall.c,
-      orientation: selectedWall.orientation,
-    });
-
-    if (!check.valid) {
-      setValidationError(check.reason || 'Invalid placement');
-    } else {
-      setValidationError(null);
-    }
-  }, [selectedWall, gameState, isMyTurn]);
-
   // Handle cell click (Pawn movement)
   const handleCellClick = (r: number, c: number) => {
     if (!isMyTurn) return;
 
     const isValid = validPawnMoves.some((m) => isSameCoord(m, { r, c }));
     if (isValid) {
-      setSelectedWall(null);
       sounds.playMove();
       onMovePawn({ r, c });
     }
   };
 
-  // Handle wall slot tap (Alternative tap-to-place flow)
-  const handleWallSlotTap = (r: number, c: number) => {
-    if (!isMyTurn) return;
-
-    if (gameState.players[gameState.currentTurn].wallsLeft <= 0) {
-      sounds.playInvalid();
-      setValidationError('No walls remaining');
-      return;
-    }
-
-    const currentOri = selectedWall?.orientation || 'H';
-
-    if (selectedWall && selectedWall.r === r && selectedWall.c === c) {
-      const check = canPlaceWall(gameState, { r, c, orientation: currentOri });
-      if (check.valid) {
-        sounds.playWall();
-        onPlaceWall({ r, c, orientation: currentOri });
-        setSelectedWall(null);
-        setValidationError(null);
-      } else {
-        sounds.playInvalid();
-        setValidationError(check.reason || 'Cannot place wall here');
-      }
-      return;
-    }
-
-    setSelectedWall({ r, c, orientation: currentOri });
-  };
-
-  // Determine wall preview (Drag takes precedence over tap-selected wall)
+  // Determine wall preview (Exclusively active during drag-and-drop)
   const previewWall = activeDrag?.snappedCoord
     ? {
         r: activeDrag.snappedCoord.r,
@@ -282,53 +227,30 @@ export const GameBoard = forwardRef<GameBoardHandle, GameBoardProps>(({
         orientation: activeDrag.orientation,
         isValid: activeDrag.isValid,
       }
-    : selectedWall
-    ? {
-        r: selectedWall.r,
-        c: selectedWall.c,
-        orientation: selectedWall.orientation,
-        isValid: canPlaceWall(gameState, selectedWall).valid,
-      }
     : null;
 
   return (
     <div className="relative flex flex-col items-center justify-center w-full">
-      {/* Floating HUD Feedback Toast - 0px in-flow height to guarantee pixel-perfect spacing */}
-      {(activeDrag || validationError || selectedWall) && (
+      {/* Floating HUD Feedback Toast - ONLY active during drag-and-drop */}
+      {activeDrag && (
         <div className="fixed top-12 sm:top-14 left-1/2 -translate-x-1/2 z-50 pointer-events-none transition-all duration-200 animate-fadeIn">
-          {activeDrag ? (
-            <span
-              className={`inline-flex items-center gap-1.5 px-3.5 py-1 rounded-full text-xs font-semibold shadow-2xl backdrop-blur-md transition-colors ${
-                activeDrag.snappedCoord
-                  ? activeDrag.isValid
-                    ? isP1Turn
-                      ? 'bg-blue-950/90 text-blue-200 border border-blue-500/50'
-                      : 'bg-rose-950/90 text-rose-200 border border-rose-500/50'
-                    : 'bg-red-950/90 text-red-200 border border-red-500/50 animate-bounce'
-                  : 'bg-zinc-900/90 text-zinc-300 border border-zinc-700/70'
-              }`}
-            >
-              {activeDrag.snappedCoord
+          <span
+            className={`inline-flex items-center gap-1.5 px-3.5 py-1 rounded-full text-xs font-semibold shadow-2xl backdrop-blur-md transition-colors ${
+              activeDrag.snappedCoord
                 ? activeDrag.isValid
-                  ? 'Release to place wall ✓'
-                  : '⚠️ Cannot place wall here'
-                : 'Drag over a grid line'}
-            </span>
-          ) : validationError ? (
-            <span className="inline-flex items-center gap-1.5 px-3.5 py-1 rounded-full text-xs font-semibold bg-red-950/90 text-red-200 border border-red-500/50 shadow-2xl backdrop-blur-md animate-bounce">
-              ⚠️ {validationError}
-            </span>
-          ) : selectedWall ? (
-            <span
-              className={`inline-flex items-center gap-1.5 px-3.5 py-1 rounded-full text-xs font-semibold border shadow-2xl backdrop-blur-md ${
-                isP1Turn
-                  ? 'bg-blue-950/90 text-blue-200 border-blue-500/50'
-                  : 'bg-rose-950/90 text-rose-200 border-rose-500/50'
-              }`}
-            >
-              Tap slot again or press Confirm
-            </span>
-          ) : null}
+                  ? isP1Turn
+                    ? 'bg-blue-950/90 text-blue-200 border border-blue-500/50'
+                    : 'bg-rose-950/90 text-rose-200 border border-rose-500/50'
+                  : 'bg-red-950/90 text-red-200 border border-red-500/50 animate-bounce'
+                : 'bg-zinc-900/90 text-zinc-300 border border-zinc-700/70'
+            }`}
+          >
+            {activeDrag.snappedCoord
+              ? activeDrag.isValid
+                ? 'Release to place wall ✓'
+                : '⚠️ Cannot place wall here'
+              : 'Drag over a grid line'}
+          </span>
         </div>
       )}
 
@@ -525,39 +447,28 @@ export const GameBoard = forwardRef<GameBoardHandle, GameBoardProps>(({
             );
           })}
 
-          {/* 3. Render Wall Slots (8x8 Intersections) */}
+          {/* 3. Render Wall Intersection Snap Guides (8x8) */}
           {Array.from({ length: BOARD_SIZE - 1 }).map((_, r) =>
             Array.from({ length: BOARD_SIZE - 1 }).map((_, c) => {
               const targetRow = 2 * r + 2;
               const targetCol = 2 * c + 2;
 
               return (
-                <button
+                <div
                   key={`slot-${r}-${c}`}
-                  type="button"
-                  onClick={() => handleWallSlotTap(r, c)}
-                  disabled={!isMyTurn}
-                  aria-label={`Wall slot ${r}, ${c}`}
                   style={{
                     gridRowStart: targetRow,
                     gridRowEnd: targetRow + 1,
                     gridColumnStart: targetCol,
                     gridColumnEnd: targetCol + 1,
                   }}
-                  className={`relative z-30 rounded-full flex items-center justify-center focus:outline-none ${
-                    isMyTurn ? 'cursor-pointer' : 'cursor-default'
-                  }`}
+                  className="relative z-30 flex items-center justify-center pointer-events-none select-none"
                 >
                   {/* Subtle snap guide dot ONLY during active wall drag */}
                   {activeDrag && (
                     <span className="w-1.5 h-1.5 rounded-full bg-slate-400/60 dark:bg-zinc-600/40 pointer-events-none" />
                   )}
-                  <span
-                    className={`absolute -inset-2.5 sm:-inset-3 z-30 rounded-full ${
-                      isP1Turn ? 'active:bg-blue-400/20' : 'active:bg-rose-400/20'
-                    }`}
-                  />
-                </button>
+                </div>
               );
             })
           )}

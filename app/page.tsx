@@ -49,11 +49,6 @@ export default function GamePage() {
   const [gameState, setGameState] = useState<GameState>(() => createInitialGameState('local'));
   const [orientation, setOrientation] = useState<WallOrientation>('H');
   const [clientPlayerId, setClientPlayerId] = useState<PlayerId>(1);
-  const [selectedWall, setSelectedWall] = useState<{
-    r: number;
-    c: number;
-    orientation: WallOrientation;
-  } | null>(null);
 
   // Drag-and-drop state & Synchronous Ref (prevents async stale closures)
   const [activeDrag, setActiveDrag] = useState<ActiveDragInfo | null>(null);
@@ -200,7 +195,6 @@ export default function GamePage() {
     }
 
     sounds.playAlert();
-    setSelectedWall(null);
     setActiveDrag(null);
     activeDragRef.current = null;
 
@@ -217,11 +211,7 @@ export default function GamePage() {
 
   // Toggle wall orientation
   const handleToggleOrientation = useCallback(() => {
-    setOrientation((prev) => {
-      const nextOri = prev === 'H' ? 'V' : 'H';
-      setSelectedWall((curr) => (curr ? { ...curr, orientation: nextOri } : null));
-      return nextOri;
-    });
+    setOrientation((prev) => (prev === 'H' ? 'V' : 'H'));
   }, []);
 
   // Reset / Restart Game
@@ -239,7 +229,6 @@ export default function GamePage() {
       newState.players[2].emoji = '🤖';
     }
     setGameState(newState);
-    setSelectedWall(null);
     setActiveDrag(null);
     activeDragRef.current = null;
 
@@ -393,7 +382,6 @@ export default function GamePage() {
     }
     setGameState(initial);
     setClientPlayerId(1);
-    setSelectedWall(null);
     setActiveDrag(null);
     activeDragRef.current = null;
     setRoomCode(null);
@@ -442,7 +430,6 @@ export default function GamePage() {
 
   const handleConfirmExitToMenu = async () => {
     setShowExitConfirm(false);
-    setSelectedWall(null);
     setActiveDrag(null);
     activeDragRef.current = null;
 
@@ -476,7 +463,6 @@ export default function GamePage() {
 
   // Perform Pawn Move
   const handleMovePawn = (target: Coordinate) => {
-    setSelectedWall(null);
     const res = applyPawnMove(gameState, target);
     if (!res.success) return;
 
@@ -496,7 +482,6 @@ export default function GamePage() {
     const res = applyWallPlacement(gameState, placement);
     if (!res.success) return;
 
-    setSelectedWall(null);
     setActiveDrag(null);
     activeDragRef.current = null;
     setGameState(res.nextState);
@@ -510,22 +495,6 @@ export default function GamePage() {
     }
   }, [gameState, mode, clientPlayerId]);
 
-  // Confirm currently selected ghost wall (tap flow)
-  const handleConfirmWall = () => {
-    if (!selectedWall) return;
-    const check = canPlaceWall(gameState, selectedWall);
-    if (check.valid) {
-      sounds.playWall();
-      handlePlaceWall(selectedWall);
-    } else {
-      sounds.playInvalid();
-    }
-  };
-
-  const handleCancelWall = () => {
-    setSelectedWall(null);
-  };
-
   // Drag-and-drop Handlers using Synchronous Ref to eliminate stale closures
   const handleDragStart = (
     dragOrientation: WallOrientation,
@@ -533,7 +502,6 @@ export default function GamePage() {
     startY: number,
     isTouch: boolean
   ) => {
-    setSelectedWall(null);
     lastSnappedCoordRef.current = null;
     isTouchDragRef.current = isTouch;
 
@@ -612,11 +580,6 @@ export default function GamePage() {
     setActiveDrag(null);
     lastSnappedCoordRef.current = null;
   };
-
-  // Check if selected wall is valid (tap flow)
-  const isValidWallPlacement = selectedWall
-    ? canPlaceWall(gameState, selectedWall).valid
-    : false;
 
   // AI Turn Execution
   useEffect(() => {
@@ -1385,8 +1348,6 @@ export default function GamePage() {
           onMovePawn={handleMovePawn}
           onPlaceWall={handlePlaceWall}
           clientPlayerId={mode === 'local' ? gameState.currentTurn : clientPlayerId}
-          selectedWall={selectedWall}
-          setSelectedWall={setSelectedWall}
           activeDrag={activeDrag}
           disabled={isPlayerInteractionDisabled}
           isFlipped={isFlipped}
@@ -1404,17 +1365,11 @@ export default function GamePage() {
 
       {/* 3. Bottom Thumb Zone Controls & Wall Tray */}
       <MobileControls
-        orientation={orientation}
-        onToggleOrientation={handleToggleOrientation}
-        selectedWall={selectedWall}
-        onConfirmWall={handleConfirmWall}
-        onCancelWall={handleCancelWall}
         onRestart={!isOnlineMode ? handleRestart : undefined}
         onOpenRules={() => setShowRules(true)}
         wallsLeft={gameState.players[gameState.currentTurn].wallsLeft}
         currentTurn={gameState.currentTurn}
         isMyTurn={isMyTurn}
-        isValidWallPlacement={isValidWallPlacement}
         onDragStart={handleDragStart}
         onDragMove={handleDragMove}
         onDragEnd={handleDragEnd}
