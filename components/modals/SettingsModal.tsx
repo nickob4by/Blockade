@@ -4,7 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { useAuth } from '@/lib/auth/AuthContext';
 import { useTheme } from '@/lib/theme/ThemeContext';
 import { sounds } from '@/lib/audio/sounds';
-import { X, Settings, User, Check, Loader2, Sparkles, Smile, Sun, Moon } from 'lucide-react';
+import { X, Settings, Check, Loader2, Sparkles, Smile, Sun, Moon } from 'lucide-react';
 
 interface SettingsModalProps {
   isOpen: boolean;
@@ -55,7 +55,11 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
 
   const handleSelectEmoji = (emoji: string) => {
     sounds.playSnap();
-    setSelectedEmoji(emoji);
+    if (selectedEmoji === emoji) {
+      setSelectedEmoji('');
+    } else {
+      setSelectedEmoji(emoji);
+    }
     setCustomInput('');
   };
 
@@ -178,68 +182,6 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
             </div>
           </div>
 
-          {/* Live Pawn Preview */}
-          <div className="p-4 rounded-xl bg-slate-50 dark:bg-zinc-950/80 border border-slate-200 dark:border-zinc-800/90 space-y-2">
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-semibold text-slate-600 dark:text-zinc-400">Pawn Icon Preview</span>
-              <button
-                type="button"
-                onClick={handleResetToGeneric}
-                className={`text-[11px] font-semibold transition-colors ${
-                  !selectedEmoji ? 'text-sky-600 dark:text-sky-400 font-bold' : 'text-slate-400 dark:text-zinc-500 hover:text-slate-600 dark:hover:text-zinc-300'
-                }`}
-              >
-                Reset to Generic Icon
-              </button>
-            </div>
-
-            <div className="flex items-center justify-around py-3 bg-white/90 dark:bg-zinc-900/50 rounded-lg border border-slate-200 dark:border-zinc-800/40 shadow-sm">
-              {/* Blue Theme Preview */}
-              <div className="flex flex-col items-center gap-1.5">
-                {selectedEmoji ? (
-                  <div className="w-12 h-12 flex items-center justify-center">
-                    <span
-                      className="text-3xl select-none leading-none"
-                      style={{
-                        filter:
-                          'drop-shadow(0 2px 3px rgba(0,0,0,0.35)) drop-shadow(0 0 3px rgba(56,189,248,0.5))',
-                      }}
-                    >
-                      {selectedEmoji}
-                    </span>
-                  </div>
-                ) : (
-                  <div className="w-12 h-12 rounded-full bg-gradient-to-b from-blue-500 to-blue-600 border border-blue-300/50 shadow-tactile-p1 flex items-center justify-center">
-                    <User className="w-5 h-5 text-white/90 drop-shadow" />
-                  </div>
-                )}
-                <span className="text-[10px] font-bold text-blue-500 dark:text-blue-400">Player 1 (Blue)</span>
-              </div>
-
-              {/* Rose Theme Preview */}
-              <div className="flex flex-col items-center gap-1.5">
-                {selectedEmoji ? (
-                  <div className="w-12 h-12 flex items-center justify-center">
-                    <span
-                      className="text-3xl select-none leading-none"
-                      style={{
-                        filter:
-                          'drop-shadow(0 2px 3px rgba(0,0,0,0.35)) drop-shadow(0 0 3px rgba(244,63,94,0.5))',
-                      }}
-                    >
-                      {selectedEmoji}
-                    </span>
-                  </div>
-                ) : (
-                  <div className="w-12 h-12 rounded-full bg-gradient-to-b from-rose-500 to-rose-600 border border-rose-300/50 shadow-tactile-p2 flex items-center justify-center">
-                    <User className="w-5 h-5 text-white/90 drop-shadow" />
-                  </div>
-                )}
-                <span className="text-[10px] font-bold text-rose-500 dark:text-rose-400">Player 2 (Rose)</span>
-              </div>
-            </div>
-          </div>
-
           {/* Emoji Selection Section */}
           <div className="space-y-2.5">
             <div className="flex items-center justify-between">
@@ -247,7 +189,17 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
                 <Smile className="w-3.5 h-3.5 text-amber-500" />
                 Choose Pawn Emoji
               </span>
-              <span className="text-[10px] text-slate-400 dark:text-zinc-500">Tap to select</span>
+              {selectedEmoji ? (
+                <button
+                  type="button"
+                  onClick={handleResetToGeneric}
+                  className="text-[11px] text-sky-600 dark:text-sky-400 hover:underline font-semibold"
+                >
+                  Reset to default
+                </button>
+              ) : (
+                <span className="text-[10px] text-slate-400 dark:text-zinc-500">Tap to select</span>
+              )}
             </div>
 
             {/* Category tabs */}
@@ -291,13 +243,24 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
 
             {/* Custom Emoji Input */}
             <div className="flex items-center gap-2 pt-1">
-              <input
-                type="text"
-                value={customInput}
-                onChange={(e) => handleCustomEmojiChange(e.target.value)}
-                placeholder="Type or paste any custom emoji..."
-                className="flex-1 px-3 py-2 rounded-xl bg-slate-50 dark:bg-zinc-950 border border-slate-200 dark:border-zinc-800 text-xs text-slate-900 dark:text-white focus:outline-none focus:border-sky-500"
-              />
+              <div className="relative flex-1">
+                <input
+                  type="text"
+                  value={customInput}
+                  onChange={(e) => handleCustomEmojiChange(e.target.value)}
+                  placeholder="Type or paste any custom emoji..."
+                  className="w-full px-3 py-2 pr-8 rounded-xl bg-slate-50 dark:bg-zinc-950 border border-slate-200 dark:border-zinc-800 text-xs text-slate-900 dark:text-white focus:outline-none focus:border-sky-500"
+                />
+                {customInput && (
+                  <button
+                    type="button"
+                    onClick={() => setCustomInput('')}
+                    className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-zinc-200"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                )}
+              </div>
             </div>
           </div>
 
