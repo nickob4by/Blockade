@@ -222,12 +222,10 @@ export const GameBoard = forwardRef<GameBoardHandle, GameBoardProps>(({
                     gridColumnStart: gridCol,
                     gridColumnEnd: gridCol + 1,
                   }}
-                  className={`relative w-full h-full rounded-lg flex items-center justify-center transition-all duration-150 focus:outline-none tap-bounce z-[1] ${
-                    isValidMove
-                      ? isP1Turn
-                        ? 'bg-blue-500/25 border-2 border-blue-500 dark:border-blue-400/80 cursor-pointer hover:bg-blue-500/35 shadow-sm'
-                        : 'bg-rose-500/25 border-2 border-rose-500 dark:border-rose-400/80 cursor-pointer hover:bg-rose-500/35 shadow-sm'
-                      : isP1FinishLine
+                  className={`group relative w-full h-full rounded-lg flex items-center justify-center transition-all duration-150 focus:outline-none tap-bounce z-[1] ${
+                    isValidMove ? 'cursor-pointer' : ''
+                  } ${
+                    isP1FinishLine
                       ? 'bg-blue-500/[0.08] dark:bg-blue-500/[0.04] border border-slate-200/90 dark:border-zinc-800/80 hover:border-slate-300 dark:hover:border-zinc-700/60'
                       : isP2FinishLine
                       ? 'bg-rose-500/[0.08] dark:bg-rose-500/[0.04] border border-slate-200/90 dark:border-zinc-800/80 hover:border-slate-300 dark:hover:border-zinc-700/60'
@@ -284,13 +282,18 @@ export const GameBoard = forwardRef<GameBoardHandle, GameBoardProps>(({
                     </div>
                   )}
 
-                  {/* Clean move hint target dot */}
+                  {/* Clean move hint glowing circle */}
                   {isValidMove && !isP1 && !isP2 && (
                     <div
-                      className={`w-2.5 h-2.5 rounded-full transition-transform ${
+                      style={{
+                        filter: isP1Turn
+                          ? 'drop-shadow(0 2px 3px rgba(0,0,0,0.35)) drop-shadow(0 0 4px rgba(56,189,248,0.7))'
+                          : 'drop-shadow(0 2px 3px rgba(0,0,0,0.35)) drop-shadow(0 0 4px rgba(244,63,94,0.7))',
+                      }}
+                      className={`w-3.5 h-3.5 sm:w-4 sm:h-4 rounded-full transition-transform duration-200 group-hover:scale-125 group-active:scale-95 ${
                         isP1Turn
-                          ? 'bg-blue-500 dark:bg-blue-400 shadow-sm'
-                          : 'bg-rose-500 dark:bg-rose-400 shadow-sm'
+                          ? 'bg-sky-400 dark:bg-sky-400 shadow-[0_0_6px_rgba(56,189,248,0.5)]'
+                          : 'bg-rose-400 dark:bg-rose-400 shadow-[0_0_6px_rgba(244,63,94,0.5)]'
                       }`}
                     />
                   )}
