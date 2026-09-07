@@ -15,6 +15,7 @@ import {
   ArrowRight,
   UserCheck,
 } from 'lucide-react';
+import { AuthSetupModal } from './AuthSetupModal';
 
 interface GroupsModalProps {
   isOpen: boolean;
@@ -32,6 +33,7 @@ export const GroupsModal: React.FC<GroupsModalProps> = ({
   const [groupName, setGroupName] = useState('');
   const [groupCode, setGroupCode] = useState('');
   const [authError, setAuthError] = useState<string | null>(null);
+  const [showAuthSetup, setShowAuthSetup] = useState(false);
 
   // Mock initial demo group so user can immediately experience the UI
   const demoMembers = [
@@ -48,7 +50,10 @@ export const GroupsModal: React.FC<GroupsModalProps> = ({
       setAuthError(null);
       await signInWithGoogle();
     } catch (err: any) {
-      setAuthError(err?.message || 'Failed to sign in with Google. Check Supabase settings.');
+      console.error('Google Sign-In Error:', err);
+      const msg = err?.message || 'Unsupported provider: provider is not enabled';
+      setAuthError(msg);
+      setShowAuthSetup(true);
     }
   };
 
@@ -128,6 +133,14 @@ export const GroupsModal: React.FC<GroupsModalProps> = ({
                   />
                 </svg>
                 Sign In with Google
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setShowAuthSetup(true)}
+                className="w-full py-2 px-3 rounded-xl bg-zinc-800/80 hover:bg-zinc-800 text-zinc-300 font-semibold text-xs flex items-center justify-center gap-1.5 transition-colors tap-bounce border border-zinc-700/60"
+              >
+                Set Custom Player Name / Auth Guide
               </button>
             </div>
           ) : (
@@ -341,6 +354,13 @@ export const GroupsModal: React.FC<GroupsModalProps> = ({
           </button>
         </div>
       </div>
+
+      {/* Google OAuth Setup & Custom Player Name Modal */}
+      <AuthSetupModal
+        isOpen={showAuthSetup}
+        onClose={() => setShowAuthSetup(false)}
+        errorMessage={authError}
+      />
     </div>
   );
 };
