@@ -40,3 +40,47 @@ CREATE TRIGGER update_game_rooms_modtime
     BEFORE UPDATE ON public.game_rooms
     FOR EACH ROW
     EXECUTE PROCEDURE update_modified_column();
+
+-- 6. Create groups table
+CREATE TABLE IF NOT EXISTS public.groups (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  name TEXT NOT NULL,
+  code VARCHAR(16) UNIQUE NOT NULL,
+  description TEXT,
+  icon TEXT DEFAULT '🛡️',
+  created_by TEXT NOT NULL,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL,
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
+);
+
+ALTER TABLE public.groups ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Allow public read and write access for groups"
+  ON public.groups
+  FOR ALL
+  USING (true)
+  WITH CHECK (true);
+
+-- 7. Create group_members table
+CREATE TABLE IF NOT EXISTS public.group_members (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  group_id UUID REFERENCES public.groups(id) ON DELETE CASCADE,
+  user_id TEXT NOT NULL,
+  user_name TEXT NOT NULL,
+  role VARCHAR(20) DEFAULT 'member' CHECK (role IN ('leader', 'member')),
+  joined_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL,
+  UNIQUE(group_id, user_id)
+);
+
+ALTER TABLE public.group_members ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Allow public read and write access for group members"
+  ON public.group_members
+  FOR ALL
+  USING (true)
+  WITH CHECK (true);
+
+-- Enable Realtime for groups and members
+ALTER PUBLICATION supabase_realtime ADD TABLE public.groups;
+ALTER PUBLICATION supabase_realtime ADD TABLE public.group_members;
+
