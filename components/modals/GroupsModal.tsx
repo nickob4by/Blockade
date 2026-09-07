@@ -139,7 +139,7 @@ export const GroupsModal: React.FC<GroupsModalProps> = ({
                 </div>
               </div>
               <div className="text-[10px] font-semibold text-zinc-400 bg-zinc-900 px-2 py-1 rounded-md border border-zinc-800">
-                Google Verified
+                Active Player
               </div>
             </div>
           )}
