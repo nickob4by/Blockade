@@ -272,12 +272,16 @@ export const GameBoard = forwardRef<GameBoardHandle, GameBoardProps>(({
                     gridColumnStart: gridCol,
                     gridColumnEnd: gridCol + 1,
                   }}
-                  className={`relative w-full h-full rounded-xl flex items-center justify-center transition-all duration-150 focus:outline-none tap-bounce z-[1] ${
+                  className={`relative w-full h-full rounded-lg flex items-center justify-center transition-all duration-150 focus:outline-none tap-bounce z-[1] ${
                     isValidMove
                       ? isP1Turn
-                        ? 'bg-blue-500/20 border-2 border-blue-400/80 cursor-pointer hover:bg-blue-500/30 shadow-sm'
-                        : 'bg-rose-500/20 border-2 border-rose-400/80 cursor-pointer hover:bg-rose-500/30 shadow-sm'
-                      : 'bg-transparent border-0'
+                        ? 'bg-blue-500/25 border-2 border-blue-400/80 cursor-pointer hover:bg-blue-500/35 shadow-sm'
+                        : 'bg-rose-500/25 border-2 border-rose-400/80 cursor-pointer hover:bg-rose-500/35 shadow-sm'
+                      : isP1FinishLine
+                      ? 'bg-blue-500/[0.04] border border-zinc-800/80 hover:border-zinc-700/60'
+                      : isP2FinishLine
+                      ? 'bg-rose-500/[0.04] border border-zinc-800/80 hover:border-zinc-700/60'
+                      : 'bg-zinc-800/25 border border-zinc-800/70 hover:border-zinc-700/60'
                   }`}
                 >
                   {/* Pawn 1 */}
