@@ -16,13 +16,14 @@ import { OnlineLobbyModal } from '@/components/modals/OnlineLobbyModal';
 import { SupabaseConfigModal } from '@/components/modals/SupabaseConfigModal';
 import { GroupsModal } from '@/components/modals/GroupsModal';
 import { OpponentLeftModal } from '@/components/modals/OpponentLeftModal';
+import { SettingsModal } from '@/components/modals/SettingsModal';
 import { MainMenu } from '@/components/menu/MainMenu';
 import { useAuth } from '@/lib/auth/AuthContext';
 import { sounds } from '@/lib/audio/sounds';
-import { Users, Bot, Globe, ArrowLeft, RefreshCw } from 'lucide-react';
+import { Users, Bot, Globe, ArrowLeft, RefreshCw, Settings } from 'lucide-react';
 
 export default function GamePage() {
-  const { profile } = useAuth();
+  const { user, profile } = useAuth();
   const [currentView, setCurrentView] = useState<'menu' | 'game'>('menu');
   const [mode, setMode] = useState<GameMode>('local');
   const [gameState, setGameState] = useState<GameState>(() => createInitialGameState('local'));
@@ -47,6 +48,7 @@ export default function GamePage() {
   const [showGroups, setShowGroups] = useState(false);
   const [showSupabaseConfig, setShowSupabaseConfig] = useState(false);
   const [showExitConfirm, setShowExitConfirm] = useState(false);
+  const [showSettings, setShowSettings] = useState(false);
 
   // Online Multiplayer State
   const [roomCode, setRoomCode] = useState<string | null>(null);
@@ -161,8 +163,13 @@ export default function GamePage() {
     const newState = createInitialGameState(mode);
     const p1Name = gameState.players[1]?.name || playerName.trim() || profile.name || 'Player 1';
     newState.players[1].name = p1Name;
+    newState.players[1].emoji = gameState.players[1]?.emoji || profile.emoji;
     if (gameState.players[2]?.name) {
       newState.players[2].name = gameState.players[2].name;
+      newState.players[2].emoji = gameState.players[2]?.emoji;
+    } else if (mode === 'ai') {
+      newState.players[2].name = 'AI Bot';
+      newState.players[2].emoji = '🤖';
     }
     setGameState(newState);
     setSelectedWall(null);
@@ -175,21 +182,24 @@ export default function GamePage() {
         state: newState,
       });
     }
-  }, [mode, gameState.players, playerName, profile.name]);
+  }, [mode, gameState.players, playerName, profile.name, profile.emoji]);
 
-  // Keep playerName in sync with profile and initial game state
+  // Keep playerName and emoji in sync with profile and initial game state
   useEffect(() => {
-    if (profile.name) {
-      setPlayerName(profile.name);
+    if (profile.name || profile.emoji) {
+      if (profile.name) {
+        setPlayerName(profile.name);
+      }
       setGameState((prev) => {
-        if (prev.players[1].name === 'Player 1') {
+        if (prev.players[1].name === 'Player 1' || prev.players[1].name === profile.name) {
           return {
             ...prev,
             players: {
               ...prev.players,
               1: {
                 ...prev.players[1],
-                name: profile.name!,
+                name: profile.name || prev.players[1].name,
+                emoji: profile.emoji ?? prev.players[1].emoji,
               },
             },
           };
@@ -197,7 +207,7 @@ export default function GamePage() {
         return prev;
       });
     }
-  }, [profile.name]);
+  }, [profile.name, profile.emoji]);
 
   // Check URL query parameters for direct room links (e.g. ?room=ABCD)
   useEffect(() => {
@@ -212,7 +222,7 @@ export default function GamePage() {
           setIsHost(false);
           const guestName = profile.name || 'Guest';
           setPlayerName(guestName);
-          setupRealtimeRoom(code, false, guestName);
+          setupRealtimeRoom(code, false, guestName, profile.emoji);
         } else {
           setShowSupabaseConfig(true);
         }
@@ -234,6 +244,11 @@ export default function GamePage() {
     setMode(newMode);
     const initial = createInitialGameState(newMode);
     initial.players[1].name = playerName.trim() || profile.name || 'Player 1';
+    initial.players[1].emoji = profile.emoji;
+    if (newMode === 'ai') {
+      initial.players[2].name = 'AI Bot';
+      initial.players[2].emoji = '🤖';
+    }
     setGameState(initial);
     setClientPlayerId(1);
     setSelectedWall(null);
@@ -501,7 +516,7 @@ export default function GamePage() {
 
   // Online Realtime Room Setup
   const setupRealtimeRoom = useCallback(
-    (code: string, isHostRole: boolean, currentName: string) => {
+    (code: string, isHostRole: boolean, currentName: string, currentEmoji?: string) => {
       // 1. Clean up any previous room channel & active retry intervals
       if (channelLeaveRef.current) {
         channelLeaveRef.current();
@@ -521,7 +536,9 @@ export default function GamePage() {
       // Initialize base game state for online match
       const baseState = createInitialGameState('online');
       baseState.players[1].name = isHostRole ? currentName : 'Host';
+      baseState.players[1].emoji = isHostRole ? currentEmoji : undefined;
       baseState.players[2].name = !isHostRole ? currentName : 'Waiting for opponent...';
+      baseState.players[2].emoji = !isHostRole ? currentEmoji : undefined;
       setGameState(baseState);
 
       let hasSynced = false;
@@ -544,10 +561,12 @@ export default function GamePage() {
                     1: {
                       ...prev.players[1],
                       name: currentName || prev.players[1].name || 'Player 1',
+                      emoji: currentEmoji || prev.players[1].emoji,
                     },
                     2: {
                       ...prev.players[2],
                       name: payload.playerName || 'Player 2',
+                      emoji: payload.playerEmoji,
                     },
                   },
                 };
@@ -590,6 +609,10 @@ export default function GamePage() {
                     !isHostRole
                       ? currentName || payload.state.players[2]?.name || 'Player 2'
                       : payload.state.players[2]?.name || 'Player 2',
+                  emoji:
+                    !isHostRole
+                      ? currentEmoji || payload.state.players[2]?.emoji
+                      : payload.state.players[2]?.emoji,
                 },
               },
             };
@@ -628,6 +651,7 @@ export default function GamePage() {
                 type: 'PLAYER_JOIN',
                 playerId: 2,
                 playerName: currentName,
+                playerEmoji: currentEmoji,
               });
 
               if (handshakeIntervalRef.current) {
@@ -649,6 +673,7 @@ export default function GamePage() {
                   type: 'PLAYER_JOIN',
                   playerId: 2,
                   playerName: currentName,
+                  playerEmoji: currentEmoji,
                 });
               }, 800);
             }
@@ -676,7 +701,7 @@ export default function GamePage() {
     setIsHost(true);
     const effectiveName = hostName.trim() || playerName.trim() || profile.name || 'Player 1';
     setPlayerName(effectiveName);
-    setupRealtimeRoom(code, true, effectiveName);
+    setupRealtimeRoom(code, true, effectiveName, profile.emoji);
   };
 
   // Online: Join Room
@@ -686,7 +711,7 @@ export default function GamePage() {
     setIsHost(false);
     const effectiveName = guestName.trim() || playerName.trim() || profile.name || 'Player 2';
     setPlayerName(effectiveName);
-    setupRealtimeRoom(clean, false, effectiveName);
+    setupRealtimeRoom(clean, false, effectiveName, profile.emoji);
   };
 
   // Broadcast player departure on window unload / close
@@ -819,20 +844,31 @@ export default function GamePage() {
           )}
         </div>
 
-        {/* Action Button: Restart Match (hidden in online mode) */}
-        {!isOnlineMode ? (
-          <button
-            type="button"
-            onClick={handleRestart}
-            title="Restart Match"
-            className="flex items-center gap-1 px-2.5 py-1 rounded-xl bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 text-zinc-400 hover:text-zinc-200 text-xs font-semibold tap-bounce shadow-sm"
-          >
-            <RefreshCw className="w-3.5 h-3.5" />
-            <span className="hidden sm:inline">Reset</span>
-          </button>
-        ) : (
-          <div className="w-[70px]" />
-        )}
+        {/* Action Buttons: Reset (offline) and Settings (logged in) */}
+        <div className="flex items-center gap-1.5">
+          {!isOnlineMode && (
+            <button
+              type="button"
+              onClick={handleRestart}
+              title="Restart Match"
+              className="flex items-center gap-1 px-2.5 py-1 rounded-xl bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 text-zinc-400 hover:text-zinc-200 text-xs font-semibold tap-bounce shadow-sm"
+            >
+              <RefreshCw className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">Reset</span>
+            </button>
+          )}
+          {user && (
+            <button
+              type="button"
+              onClick={() => setShowSettings(true)}
+              title="Player Settings"
+              className="flex items-center justify-center p-1.5 rounded-xl bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 text-zinc-400 hover:text-sky-300 text-xs font-semibold tap-bounce shadow-sm"
+            >
+              <Settings className="w-3.5 h-3.5" />
+            </button>
+          )}
+          {isOnlineMode && !user && <div className="w-[30px]" />}
+        </div>
       </header>
 
       {/* Online room banner if active */}
@@ -981,6 +1017,12 @@ export default function GamePage() {
           handleCreateRoom(profile.name || 'Player 1');
           setShowLobby(true);
         }}
+      />
+
+      {/* Settings Modal */}
+      <SettingsModal
+        isOpen={showSettings}
+        onClose={() => setShowSettings(false)}
       />
 
       {/* Exit Match Confirmation Modal */}

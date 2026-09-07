@@ -6,6 +6,7 @@ import { BOARD_SIZE, isSameCoord } from '@/lib/game/board';
 import { canPlaceWall } from '@/lib/game/engine';
 import { getValidPawnMoves } from '@/lib/game/pathfinding';
 import { sounds } from '@/lib/audio/sounds';
+import { User } from 'lucide-react';
 
 export interface GameBoardHandle {
   getSnappedIntersection: (x: number, y: number) => { r: number; c: number } | null;
@@ -219,7 +220,9 @@ export const GameBoard = forwardRef<GameBoardHandle, GameBoardProps>(({
                 : 'text-sky-200 bg-gradient-to-r from-blue-950 via-blue-900 to-blue-950 border-sky-400/40'
             }`}
           >
-            {isFlipped ? '▲ Player 2 Finish Line ▲' : '▲ Player 1 Finish Line ▲'}
+            {isFlipped
+              ? `▲ ${gameState.players[2]?.name || 'Player 2'} Finish Line ▲`
+              : `▲ ${gameState.players[1]?.name || 'Player 1'} Finish Line ▲`}
           </span>
         </div>
         <div className="absolute -bottom-2.5 left-6 right-6 flex items-center justify-center pointer-events-none z-20">
@@ -230,7 +233,9 @@ export const GameBoard = forwardRef<GameBoardHandle, GameBoardProps>(({
                 : 'text-rose-200 bg-gradient-to-r from-rose-950 via-rose-900 to-rose-950 border-rose-400/40'
             }`}
           >
-            {isFlipped ? '▼ Player 1 Finish Line ▼' : '▼ Player 2 Finish Line ▼'}
+            {isFlipped
+              ? `▼ ${gameState.players[1]?.name || 'Player 1'} Finish Line ▼`
+              : `▼ ${gameState.players[2]?.name || 'Player 2'} Finish Line ▼`}
           </span>
         </div>
 
@@ -309,20 +314,40 @@ export const GameBoard = forwardRef<GameBoardHandle, GameBoardProps>(({
                   {/* Pawn 1 */}
                   {isP1 && (
                     <div
-                      style={{ transform: isFlipped ? 'rotate(180deg)' : undefined }}
-                      className="w-[82%] h-[82%] rounded-full bg-gradient-to-b from-blue-500 to-blue-600 border border-blue-300/50 shadow-tactile-p1 tactile-pawn flex items-center justify-center font-bold text-[11px] sm:text-xs text-white pawn-transition animate-pawn-land"
+                      className="w-[82%] h-[82%] rounded-full bg-gradient-to-b from-blue-500 to-blue-600 border border-blue-300/50 shadow-tactile-p1 tactile-pawn flex items-center justify-center font-bold text-white pawn-transition animate-pawn-land"
                     >
-                      P1
+                      <span
+                        style={{ transform: isFlipped ? 'rotate(180deg)' : undefined }}
+                        className="inline-flex items-center justify-center select-none"
+                      >
+                        {gameState.players[1]?.emoji ? (
+                          <span className="text-base sm:text-lg leading-none drop-shadow">
+                            {gameState.players[1].emoji}
+                          </span>
+                        ) : (
+                          <User className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-white/95 drop-shadow" />
+                        )}
+                      </span>
                     </div>
                   )}
 
                   {/* Pawn 2 */}
                   {isP2 && (
                     <div
-                      style={{ transform: isFlipped ? 'rotate(180deg)' : undefined }}
-                      className="w-[82%] h-[82%] rounded-full bg-gradient-to-b from-rose-500 to-rose-600 border border-rose-300/50 shadow-tactile-p2 tactile-pawn flex items-center justify-center font-bold text-[11px] sm:text-xs text-white pawn-transition animate-pawn-land"
+                      className="w-[82%] h-[82%] rounded-full bg-gradient-to-b from-rose-500 to-rose-600 border border-rose-300/50 shadow-tactile-p2 tactile-pawn flex items-center justify-center font-bold text-white pawn-transition animate-pawn-land"
                     >
-                      P2
+                      <span
+                        style={{ transform: isFlipped ? 'rotate(180deg)' : undefined }}
+                        className="inline-flex items-center justify-center select-none"
+                      >
+                        {gameState.players[2]?.emoji ? (
+                          <span className="text-base sm:text-lg leading-none drop-shadow">
+                            {gameState.players[2].emoji}
+                          </span>
+                        ) : (
+                          <User className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-white/95 drop-shadow" />
+                        )}
+                      </span>
                     </div>
                   )}
 

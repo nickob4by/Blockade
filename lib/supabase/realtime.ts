@@ -3,8 +3,8 @@ import { getSupabaseClient } from './client';
 import { Coordinate, GameState, PlayerId, WallOrientation } from '../game/types';
 
 export type RealtimePayload =
-  | { type: 'PLAYER_JOIN'; playerId: PlayerId; playerName: string }
-  | { type: 'PLAYER_JOIN_ACK'; playerId: PlayerId; playerName: string }
+  | { type: 'PLAYER_JOIN'; playerId: PlayerId; playerName: string; playerEmoji?: string }
+  | { type: 'PLAYER_JOIN_ACK'; playerId: PlayerId; playerName: string; playerEmoji?: string }
   | { type: 'REQUEST_SYNC'; requestedBy: PlayerId }
   | { type: 'SYNC_STATE'; state: GameState }
   | { type: 'MOVE_PAWN'; playerId: PlayerId; target: Coordinate }

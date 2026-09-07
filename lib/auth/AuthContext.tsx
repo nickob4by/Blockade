@@ -11,6 +11,7 @@ export interface UserProfile {
   name: string;
   email?: string;
   avatarUrl?: string;
+  emoji?: string;
   isGuest: boolean;
 }
 
@@ -23,6 +24,7 @@ interface AuthContextType {
   signIn: (identifier: string, password: string) => Promise<void>;
   signOut: () => Promise<void>;
   setGuestName: (name: string) => void;
+  updateProfile: (updates: { name?: string; emoji?: string }) => Promise<void>;
 }
 
 const GUEST_NAME_KEY = 'blockade_guest_name';
@@ -150,6 +152,46 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
+  const updateProfile = async (updates: { name?: string; emoji?: string }) => {
+    if (!user) return;
+    const supabase = getSupabaseClient();
+    if (!supabase) return;
+
+    const newMetadata: Record<string, any> = { ...(user.user_metadata || {}) };
+    if (updates.name !== undefined) {
+      const cleanName = updates.name.trim() || 'Blockade Player';
+      newMetadata.display_name = cleanName;
+      newMetadata.name = cleanName;
+    }
+    if (updates.emoji !== undefined) {
+      newMetadata.emoji = updates.emoji.trim();
+    }
+
+    const { data, error } = await supabase.auth.updateUser({
+      data: newMetadata,
+    });
+
+    if (error) {
+      console.error('Failed to update user profile:', error);
+      throw error;
+    }
+
+    if (data?.user) {
+      setUser(data.user);
+    }
+
+    try {
+      await supabase.from('profiles').upsert({
+        id: user.id,
+        display_name: newMetadata.display_name,
+        avatar_url: newMetadata.emoji || newMetadata.avatar_url,
+        updated_at: new Date().toISOString(),
+      });
+    } catch {
+      // profiles table might not be present or configured; metadata is primary
+    }
+  };
+
   const profile: UserProfile = useMemo(() => {
     if (user) {
       const meta = user.user_metadata || {};
@@ -165,6 +207,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         name: displayName,
         email: user.email,
         avatarUrl: meta.avatar_url || meta.picture,
+        emoji: meta.emoji || undefined,
         isGuest: false,
       };
     }
@@ -187,6 +230,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         signIn,
         signOut,
         setGuestName,
+        updateProfile,
       }}
     >
       {children}

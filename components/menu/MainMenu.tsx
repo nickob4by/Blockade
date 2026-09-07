@@ -19,8 +19,10 @@ import {
   Zap,
   User,
   UserPlus,
+  Settings,
 } from 'lucide-react';
 import { AuthModal } from '@/components/modals/AuthModal';
+import { SettingsModal } from '@/components/modals/SettingsModal';
 
 interface MainMenuProps {
   onSelectMode: (mode: 'ai' | 'local' | 'online') => void;
@@ -38,6 +40,7 @@ export const MainMenu: React.FC<MainMenuProps> = ({
   const { user, profile, signOut } = useAuth();
   const [soundEnabled, setSoundEnabled] = useState(true);
   const [showAuthModal, setShowAuthModal] = useState(false);
+  const [showSettingsModal, setShowSettingsModal] = useState(false);
   const [authModalMode, setAuthModalMode] = useState<'signin' | 'signup'>('signup');
 
   const handleToggleSound = () => {
@@ -61,18 +64,39 @@ export const MainMenu: React.FC<MainMenuProps> = ({
         {/* User Account / Sign-In Chip */}
         <div className="flex items-center gap-2">
           {user ? (
-            <div className="flex items-center gap-2 bg-zinc-900/90 border border-zinc-800 px-2.5 py-1 rounded-full shadow-sm">
-              <div className="w-5 h-5 rounded-full bg-sky-500/20 text-sky-300 font-bold text-[10px] flex items-center justify-center">
-                {profile.name[0]?.toUpperCase()}
-              </div>
-              <span className="text-xs font-semibold text-zinc-200 max-w-[90px] truncate">
-                {profile.name}
-              </span>
+            <div className="flex items-center gap-1.5 bg-zinc-900/90 border border-zinc-800 pl-2 pr-1.5 py-1 rounded-full shadow-sm">
+              <button
+                type="button"
+                onClick={() => setShowSettingsModal(true)}
+                className="flex items-center gap-1.5 text-left hover:opacity-85 transition-opacity"
+                title="Open Player Settings"
+              >
+                <div className="w-5 h-5 rounded-full bg-sky-500/20 text-sky-300 font-bold text-[10px] flex items-center justify-center border border-sky-400/30">
+                  {profile.emoji ? (
+                    <span className="text-xs leading-none select-none">{profile.emoji}</span>
+                  ) : (
+                    profile.name[0]?.toUpperCase()
+                  )}
+                </div>
+                <span className="text-xs font-semibold text-zinc-200 max-w-[85px] sm:max-w-[110px] truncate">
+                  {profile.name}
+                </span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setShowSettingsModal(true)}
+                title="Player Settings"
+                className="text-zinc-400 hover:text-sky-300 hover:bg-zinc-800 rounded-full p-1 transition-colors"
+              >
+                <Settings className="w-3.5 h-3.5" />
+              </button>
+
               <button
                 type="button"
                 onClick={() => signOut()}
                 title="Sign Out"
-                className="text-zinc-500 hover:text-zinc-300 transition-colors p-0.5"
+                className="text-zinc-500 hover:text-rose-400 hover:bg-zinc-800 rounded-full p-1 transition-colors"
               >
                 <LogOut className="w-3.5 h-3.5" />
               </button>
@@ -276,6 +300,12 @@ export const MainMenu: React.FC<MainMenuProps> = ({
         isOpen={showAuthModal}
         onClose={() => setShowAuthModal(false)}
         defaultMode={authModalMode}
+      />
+
+      {/* Player Settings Modal */}
+      <SettingsModal
+        isOpen={showSettingsModal}
+        onClose={() => setShowSettingsModal(false)}
       />
     </div>
   );

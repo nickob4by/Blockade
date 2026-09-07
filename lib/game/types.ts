@@ -20,6 +20,7 @@ export interface PlayerState {
   position: Coordinate;
   wallsLeft: number;
   targetRow: number; // 0 for Player 1, 8 for Player 2
+  emoji?: string;
 }
 
 export type GameStatus = 'waiting' | 'playing' | 'player1_won' | 'player2_won';

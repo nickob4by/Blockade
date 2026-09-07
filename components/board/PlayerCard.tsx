@@ -30,6 +30,17 @@ export const PlayerCard: React.FC<PlayerCardProps> = ({
     >
       {/* Player identity */}
       <div className="flex items-center gap-2 min-w-0">
+        {player.emoji && (
+          <div
+            className={`w-6 h-6 sm:w-7 sm:h-7 rounded-full flex-shrink-0 flex items-center justify-center text-xs sm:text-sm border shadow-sm ${
+              isP1
+                ? 'bg-blue-950/80 border-blue-500/40'
+                : 'bg-rose-950/80 border-rose-500/40'
+            }`}
+          >
+            <span className="leading-none select-none">{player.emoji}</span>
+          </div>
+        )}
         <div className="flex flex-col min-w-0">
           <div className="flex items-center gap-1.5 leading-tight">
             <span className="font-bold text-xs sm:text-sm text-zinc-100 truncate max-w-[150px] sm:max-w-none">
