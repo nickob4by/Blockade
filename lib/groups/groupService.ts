@@ -88,7 +88,6 @@ export function getUserGroups(userId: string, userName: string): FriendGroup[] {
   try {
     const parsed: FriendGroup[] = JSON.parse(stored);
     const cleaned = sanitizeGroups(parsed, userId, userName);
-    // If sanitized differs from stored, rewrite
     if (cleaned.length !== parsed.length) {
       saveUserGroups(userId, cleaned);
     }
@@ -103,9 +102,12 @@ export function saveUserGroups(userId: string, groups: FriendGroup[]): void {
   if (typeof window === 'undefined') return;
   const key = `${STORAGE_KEY_PREFIX}${userId}`;
   localStorage.setItem(key, JSON.stringify(groups));
+
+  // Also cache in known groups map
+  groups.forEach((g) => saveKnownGroup(g));
 }
 
-function getKnownGroupsMap(): Record<string, FriendGroup> {
+export function getKnownGroupsMap(): Record<string, FriendGroup> {
   if (typeof window === 'undefined') return {};
   try {
     const stored = localStorage.getItem(ALL_KNOWN_GROUPS_KEY);
@@ -115,8 +117,8 @@ function getKnownGroupsMap(): Record<string, FriendGroup> {
   }
 }
 
-function saveKnownGroup(group: FriendGroup): void {
-  if (typeof window === 'undefined') return;
+export function saveKnownGroup(group: FriendGroup): void {
+  if (typeof window === 'undefined' || !group || !group.code) return;
   try {
     const all = getKnownGroupsMap();
     all[group.code.toUpperCase()] = group;
@@ -124,6 +126,72 @@ function saveKnownGroup(group: FriendGroup): void {
   } catch {
     // Ignore storage quota
   }
+}
+
+/**
+ * Fetch group details from server with complete members list.
+ */
+export async function fetchRemoteGroup(code: string): Promise<FriendGroup | null> {
+  if (typeof fetch === 'undefined') return null;
+  try {
+    const clean = code.trim().toUpperCase();
+    const res = await fetch(`/api/groups?code=${encodeURIComponent(clean)}`);
+    if (res.ok) {
+      const data = await res.json();
+      if (data.success && data.group) {
+        saveKnownGroup(data.group);
+        return data.group;
+      }
+    }
+  } catch {
+    // Offline fallback
+  }
+  return null;
+}
+
+/**
+ * Fetch all groups the user belongs to from the server across devices.
+ */
+export async function fetchUserGroupsAsync(
+  userId: string,
+  userName: string
+): Promise<FriendGroup[]> {
+  const local = getUserGroups(userId, userName);
+  if (typeof fetch === 'undefined') return local;
+
+  try {
+    const res = await fetch(`/api/groups?userId=${encodeURIComponent(userId)}`);
+    if (res.ok) {
+      const data = await res.json();
+      if (data.success && Array.isArray(data.groups)) {
+        const remoteGroups: FriendGroup[] = data.groups;
+        const mergedMap = new Map<string, FriendGroup>();
+        
+        remoteGroups.forEach((g) => mergedMap.set(g.id, g));
+        local.forEach((g) => {
+          if (!mergedMap.has(g.id)) {
+            mergedMap.set(g.id, g);
+          } else {
+            const rem = mergedMap.get(g.id)!;
+            const existingMemberIds = new Set(rem.members.map((m) => m.id));
+            g.members.forEach((m) => {
+              if (!existingMemberIds.has(m.id)) {
+                rem.members.push(m);
+              }
+            });
+          }
+        });
+
+        const mergedList = sanitizeGroups(Array.from(mergedMap.values()), userId, userName);
+        saveUserGroups(userId, mergedList);
+        return mergedList;
+      }
+    }
+  } catch {
+    // Offline fallback
+  }
+
+  return local;
 }
 
 export function createGroup(
@@ -168,7 +236,7 @@ export function createGroup(
   saveUserGroups(userId, updated);
   saveKnownGroup(newGroup);
 
-  // Sync with backend API if available
+  // Sync with backend API (and Supabase Storage)
   if (typeof fetch !== 'undefined') {
     fetch('/api/groups', {
       method: 'POST',
@@ -208,7 +276,7 @@ export function joinGroupByCode(
     };
   }
 
-  // Add current user to real members (no random users)
+  // Add current user to real members (no dummy users)
   const cleanMembers = targetGroup.members.filter((m) => !DUMMY_MEMBER_IDS.includes(m.id));
   const existingMemberIdx = cleanMembers.findIndex((m) => m.id === userId);
 
@@ -294,7 +362,7 @@ export async function joinGroupByCodeAsync(
         return { success: false, error: data.error };
       }
     } catch {
-      // Fallback to local check if network or API route is unavailable
+      // Fallback to local check
     }
   }
 
@@ -321,17 +389,71 @@ export function leaveGroup(userId: string, userName: string, groupId: string): F
 }
 
 /**
+ * Permanently stores a presence-discovered member into the group in localStorage and on server.
+ */
+export function persistMemberIntoGroup(
+  groupId: string,
+  member: GroupMember,
+  userId: string,
+  userName: string
+): FriendGroup[] {
+  const groups = getUserGroups(userId, userName);
+  const targetGroup = groups.find((g) => g.id === groupId);
+  if (!targetGroup) return groups;
+
+  const idx = targetGroup.members.findIndex((m) => m.id === member.id);
+  if (idx === -1) {
+    targetGroup.members.push({
+      id: member.id,
+      name: member.name,
+      emoji: member.emoji,
+      role: member.role || 'member',
+      status: member.status || 'offline',
+      lastActive: member.lastActive || 'Recently',
+    });
+    saveUserGroups(userId, groups);
+    saveKnownGroup(targetGroup);
+
+    if (typeof fetch !== 'undefined') {
+      fetch('/api/groups', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'sync_members',
+          code: targetGroup.code,
+          members: [member],
+        }),
+      }).catch(() => {});
+    }
+  }
+  return groups;
+}
+
+export interface GroupPresenceSubscription {
+  channel: RealtimeChannel | null;
+  updateStatus: (status: MemberStatus) => Promise<void>;
+  broadcastMemberJoined: (member: GroupMember) => Promise<void>;
+  unsubscribe: () => void;
+}
+
+/**
  * Subscribes to real-time presence for a specific group channel.
  * Updates dynamic presence (online/in_game) when other players join or leave.
  */
 export function subscribeToGroupPresence(
   groupCode: string,
   user: { id: string; name: string; status: MemberStatus; emoji?: string },
-  onPresenceUpdate: (presences: Record<string, { name: string; status: MemberStatus; emoji?: string }>) => void
-): { channel: RealtimeChannel | null; unsubscribe: () => void } {
+  onPresenceUpdate: (presences: Record<string, { name: string; status: MemberStatus; emoji?: string }>) => void,
+  onMemberJoined?: (member: GroupMember) => void
+): GroupPresenceSubscription {
   const supabase = getSupabaseClient();
   if (!supabase) {
-    return { channel: null, unsubscribe: () => {} };
+    return {
+      channel: null,
+      updateStatus: async () => {},
+      broadcastMemberJoined: async () => {},
+      unsubscribe: () => {},
+    };
   }
 
   const channelName = `group_presence:${groupCode.toLowerCase()}`;
@@ -339,6 +461,9 @@ export function subscribeToGroupPresence(
     config: {
       presence: {
         key: user.id,
+      },
+      broadcast: {
+        self: false,
       },
     },
   });
@@ -365,6 +490,11 @@ export function subscribeToGroupPresence(
     .on('presence', { event: 'sync' }, handleSync)
     .on('presence', { event: 'join' }, handleSync)
     .on('presence', { event: 'leave' }, handleSync)
+    .on('broadcast', { event: 'group_event' }, ({ payload }) => {
+      if (payload?.type === 'MEMBER_JOINED' && payload.member && onMemberJoined) {
+        onMemberJoined(payload.member);
+      }
+    })
     .subscribe(async (status) => {
       if (status === 'SUBSCRIBED') {
         await channel.track({
@@ -377,8 +507,37 @@ export function subscribeToGroupPresence(
       }
     });
 
+  const updateStatus = async (newStatus: MemberStatus) => {
+    user.status = newStatus;
+    try {
+      await channel.track({
+        userId: user.id,
+        name: user.name,
+        emoji: user.emoji,
+        status: newStatus,
+        updatedAt: new Date().toISOString(),
+      });
+    } catch {
+      // Ignore
+    }
+  };
+
+  const broadcastMemberJoined = async (member: GroupMember) => {
+    try {
+      await channel.send({
+        type: 'broadcast',
+        event: 'group_event',
+        payload: { type: 'MEMBER_JOINED', member },
+      });
+    } catch {
+      // Ignore
+    }
+  };
+
   return {
     channel,
+    updateStatus,
+    broadcastMemberJoined,
     unsubscribe: () => {
       channel.unsubscribe();
     },

@@ -34,6 +34,9 @@ import {
   joinGroupByCodeAsync,
   leaveGroup,
   subscribeToGroupPresence,
+  fetchRemoteGroup,
+  fetchUserGroupsAsync,
+  persistMemberIntoGroup,
 } from '@/lib/groups/groupService';
 
 interface GroupsModalProps {
@@ -72,6 +75,13 @@ export const GroupsModal: React.FC<GroupsModalProps> = ({
       const userGroups = getUserGroups(currentUserId, currentUserName);
       setGroups(userGroups);
       setFeedbackMsg(null);
+
+      // Async fetch to sync circles from server / other devices
+      fetchUserGroupsAsync(currentUserId, currentUserName).then((remoteGroups) => {
+        if (remoteGroups && remoteGroups.length > 0) {
+          setGroups(remoteGroups);
+        }
+      });
     }
   }, [isOpen, currentUserId, currentUserName]);
 
@@ -81,14 +91,23 @@ export const GroupsModal: React.FC<GroupsModalProps> = ({
     return groups.find((g) => g.id === selectedGroupId) || null;
   }, [groups, selectedGroupId]);
 
-  // Subscribe to real-time presence when a group is selected
+  // Subscribe to real-time presence when a group is selected and sync full remote member list
   useEffect(() => {
     if (!selectedGroup) {
       setLivePresences({});
       return;
     }
 
-    const { unsubscribe } = subscribeToGroupPresence(
+    // Fetch latest group details and persistent members from server
+    fetchRemoteGroup(selectedGroup.code).then((remote) => {
+      if (remote && Array.isArray(remote.members)) {
+        setGroups((prev) =>
+          prev.map((g) => (g.id === remote.id ? { ...g, members: remote.members } : g))
+        );
+      }
+    });
+
+    const sub = subscribeToGroupPresence(
       selectedGroup.code,
       {
         id: currentUserId,
@@ -98,11 +117,24 @@ export const GroupsModal: React.FC<GroupsModalProps> = ({
       },
       (presences) => {
         setLivePresences(presences);
+      },
+      (newMember) => {
+        // Broadcast listener: add new member in real-time
+        setGroups((prev) =>
+          prev.map((g) => {
+            if (g.code.toUpperCase() === selectedGroup.code.toUpperCase()) {
+              if (!g.members.some((m) => m.id === newMember.id)) {
+                return { ...g, members: [...g.members, newMember] };
+              }
+            }
+            return g;
+          })
+        );
       }
     );
 
     return () => {
-      unsubscribe();
+      sub.unsubscribe();
     };
   }, [selectedGroup?.code, currentUserId, currentUserName, profile.emoji]);
 
@@ -112,6 +144,7 @@ export const GroupsModal: React.FC<GroupsModalProps> = ({
 
     const memberMap = new Map<string, GroupMember>();
 
+    // 1. Process all persistent group members
     selectedGroup.members.forEach((member) => {
       if (!member) return;
       const mName = member.name || 'Player';
@@ -120,34 +153,59 @@ export const GroupsModal: React.FC<GroupsModalProps> = ({
         (p) => (p?.name || '').toLowerCase() === mName.toLowerCase()
       );
 
+      // Status: if isYou -> online; if live in channel -> live.status; otherwise -> offline
+      const status: MemberStatus = isYou
+        ? 'online'
+        : live
+        ? live.status
+        : 'offline';
+
       memberMap.set(member.id, {
         ...member,
         name: isYou ? currentUserName : mName,
         isYou,
         emoji: isYou ? (profile.emoji || member.emoji) : (live?.emoji || member.emoji),
-        status: isYou ? 'online' : (live ? live.status : member.status),
+        status,
+        lastActive: isYou
+          ? 'Active now'
+          : live
+          ? (live.status === 'in_game' ? 'Playing match' : 'Active now')
+          : member.lastActive || 'Offline',
       });
     });
 
-    // Also include any other real player who joined the group's real-time channel
+    // 2. Also include any real player who connected to this circle via presence
+    // and PERMANENTLY persist them into selectedGroup so they never disappear when logging out!
     Object.entries(livePresences).forEach(([id, live]) => {
       if (!live) return;
       if (!memberMap.has(id)) {
         const liveName = live.name || 'Player';
         const isYou = id === currentUserId || liveName.toLowerCase() === (currentUserName || '').toLowerCase();
-        memberMap.set(id, {
+        const discoveredMember: GroupMember = {
           id,
           name: liveName,
           role: 'member',
           status: live.status,
           emoji: live.emoji,
           isYou,
-          lastActive: 'Just now',
-        });
+          lastActive: live.status === 'in_game' ? 'Playing match' : 'Active now',
+        };
+
+        memberMap.set(id, discoveredMember);
+        persistMemberIntoGroup(selectedGroup.id, discoveredMember, currentUserId, currentUserName);
       }
     });
 
-    return Array.from(memberMap.values());
+    const allMembers = Array.from(memberMap.values());
+
+    // Sort: You first, then active/in_game, then offline
+    return allMembers.sort((a, b) => {
+      if (a.isYou) return -1;
+      if (b.isYou) return 1;
+      if (a.status !== 'offline' && b.status === 'offline') return -1;
+      if (a.status === 'offline' && b.status !== 'offline') return 1;
+      return 0;
+    });
   }, [selectedGroup, currentUserId, currentUserName, profile.emoji, livePresences]);
 
   const filteredMembers = resolvedMembers.filter((m) => {

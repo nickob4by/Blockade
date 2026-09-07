@@ -94,3 +94,34 @@ test('Friend Groups - Leave Group', () => {
   assert.equal(remaining.length, 0);
   assert.equal(getUserGroups('user_test_1', 'Nicko').length, 0);
 });
+
+test('Friend Groups - Member Persistence When Offline or Disconnected', () => {
+  global.localStorage.clear();
+  const created = createGroup('user_test_1', 'Nicko', 'Diamond Circle');
+  
+  // A second member is discovered via presence or join
+  const { persistMemberIntoGroup } = require('../lib/groups/groupService');
+  persistMemberIntoGroup(
+    created.id,
+    {
+      id: 'user_test_2',
+      name: 'Karyl',
+      emoji: '👑',
+      role: 'member',
+      status: 'offline',
+      lastActive: '5m ago',
+    },
+    'user_test_1',
+    'Nicko'
+  );
+
+  const groups = getUserGroups('user_test_1', 'Nicko');
+  const group = groups.find((g) => g.id === created.id);
+  assert.ok(group);
+  assert.equal(group.members.length, 2, 'Must retain all members even when offline');
+  
+  const karyl = group.members.find((m) => m.id === 'user_test_2');
+  assert.ok(karyl, 'Karyl must remain in the group members list when offline');
+  assert.equal(karyl.name, 'Karyl');
+});
+
