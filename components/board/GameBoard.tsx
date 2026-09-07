@@ -272,16 +272,12 @@ export const GameBoard = forwardRef<GameBoardHandle, GameBoardProps>(({
                     gridColumnStart: gridCol,
                     gridColumnEnd: gridCol + 1,
                   }}
-                  className={`relative w-full h-full rounded-lg flex items-center justify-center transition-all duration-150 focus:outline-none tap-bounce z-[1] ${
+                  className={`relative w-full h-full rounded-xl flex items-center justify-center transition-all duration-150 focus:outline-none tap-bounce z-[1] ${
                     isValidMove
                       ? isP1Turn
-                        ? 'bg-blue-500/25 border-2 border-blue-400 cursor-pointer hover:bg-blue-500/35'
-                        : 'bg-rose-500/25 border-2 border-rose-400 cursor-pointer hover:bg-rose-500/35'
-                      : isP1FinishLine
-                      ? 'bg-gradient-to-b from-blue-500/20 via-zinc-800/90 to-zinc-800/80 border border-zinc-700/40 hover:border-zinc-700/70'
-                      : isP2FinishLine
-                      ? 'bg-gradient-to-t from-rose-500/20 via-zinc-800/90 to-zinc-800/80 border border-zinc-700/40 hover:border-zinc-700/70'
-                      : 'bg-zinc-800/80 border border-zinc-700/40 hover:border-zinc-700/70'
+                        ? 'bg-blue-500/20 border-2 border-blue-400/80 cursor-pointer hover:bg-blue-500/30 shadow-sm'
+                        : 'bg-rose-500/20 border-2 border-rose-400/80 cursor-pointer hover:bg-rose-500/30 shadow-sm'
+                      : 'bg-transparent border-0'
                   }`}
                 >
                   {/* Pawn 1 */}
@@ -366,6 +362,10 @@ export const GameBoard = forwardRef<GameBoardHandle, GameBoardProps>(({
                     isMyTurn ? 'cursor-pointer' : 'cursor-default'
                   }`}
                 >
+                  {/* Subtle snap guide dot ONLY during active wall drag */}
+                  {activeDrag && (
+                    <span className="w-1.5 h-1.5 rounded-full bg-zinc-600/40 pointer-events-none" />
+                  )}
                   <span
                     className={`absolute -inset-2.5 sm:-inset-3 z-30 rounded-full ${
                       isP1Turn ? 'active:bg-blue-400/20' : 'active:bg-rose-400/20'
