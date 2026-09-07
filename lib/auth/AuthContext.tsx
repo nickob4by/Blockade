@@ -3,6 +3,8 @@
 import React, { createContext, useContext, useEffect, useState, useMemo } from 'react';
 import { User } from '@supabase/supabase-js';
 import { getSupabaseClient, isSupabaseConfigured } from '@/lib/supabase/client';
+import { normalizeAuthEmail } from './utils';
+export { normalizeAuthEmail } from './utils';
 
 export interface UserProfile {
   id: string;
@@ -26,12 +28,6 @@ interface AuthContextType {
 const GUEST_NAME_KEY = 'blockade_guest_name';
 const GUEST_ID_KEY = 'blockade_guest_id';
 
-export function normalizeAuthEmail(identifier: string): string {
-  const trimmed = identifier.trim().toLowerCase();
-  if (trimmed.includes('@')) return trimmed;
-  const cleanUsername = trimmed.replace(/[^a-z0-9_.-]/g, '') || 'player';
-  return `${cleanUsername}@blockade.local`;
-}
 
 const AuthContext = createContext<AuthContextType | null>(null);
 
@@ -96,34 +92,26 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   const signUp = async (identifier: string, password: string, displayName: string) => {
-    const supabase = getSupabaseClient();
-    if (!supabase) {
-      throw new Error('Database is not configured yet. Please check .env settings.');
-    }
-
-    const email = normalizeAuthEmail(identifier);
     const cleanName = displayName.trim() || identifier.trim() || 'Player';
+    const username = identifier.trim();
 
-    const { data, error } = await supabase.auth.signUp({
-      email,
-      password,
-      options: {
-        data: {
-          display_name: cleanName,
-          name: cleanName,
-        },
-      },
+    const res = await fetch('/api/auth/register', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        username,
+        password,
+        displayName: cleanName,
+      }),
     });
 
-    if (error) {
-      console.error('Sign Up Error:', error);
-      throw error;
+    const json = await res.json();
+    if (!res.ok) {
+      throw new Error(json.error || 'Failed to create account.');
     }
 
-    if (data?.user) {
-      setUser(data.user);
-      setGuestName(cleanName);
-    }
+    // Automatically sign in with credentials to initialize the client session
+    await signIn(username, password);
   };
 
   const signIn = async (identifier: string, password: string) => {

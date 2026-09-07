@@ -40,3 +40,20 @@ export function getSupabaseClient(): SupabaseClient | null {
 
   return supabaseInstance;
 }
+
+export function getSupabaseAdminClient(): SupabaseClient | null {
+  const secretKey =
+    process.env.SUPABASE_SECRET_KEY ||
+    process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+  if (!supabaseUrl || !secretKey) {
+    return null;
+  }
+
+  return createClient(supabaseUrl, secretKey, {
+    auth: {
+      autoRefreshToken: false,
+      persistSession: false,
+    },
+  });
+}
