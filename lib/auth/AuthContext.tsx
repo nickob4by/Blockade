@@ -17,13 +17,21 @@ interface AuthContextType {
   profile: UserProfile;
   isLoading: boolean;
   isConfigured: boolean;
-  signInWithGoogle: () => Promise<void>;
+  signUp: (identifier: string, password: string, displayName: string) => Promise<void>;
+  signIn: (identifier: string, password: string) => Promise<void>;
   signOut: () => Promise<void>;
   setGuestName: (name: string) => void;
 }
 
 const GUEST_NAME_KEY = 'blockade_guest_name';
 const GUEST_ID_KEY = 'blockade_guest_id';
+
+export function normalizeAuthEmail(identifier: string): string {
+  const trimmed = identifier.trim().toLowerCase();
+  if (trimmed.includes('@')) return trimmed;
+  const cleanUsername = trimmed.replace(/[^a-z0-9_.-]/g, '') || 'player';
+  return `${cleanUsername}@blockade.local`;
+}
 
 const AuthContext = createContext<AuthContextType | null>(null);
 
@@ -87,28 +95,62 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
-  const signInWithGoogle = async () => {
+  const signUp = async (identifier: string, password: string, displayName: string) => {
     const supabase = getSupabaseClient();
     if (!supabase) {
-      throw new Error('Supabase is not configured yet. Please check .env settings.');
+      throw new Error('Database is not configured yet. Please check .env settings.');
     }
 
-    const redirectTo = typeof window !== 'undefined' ? `${window.location.origin}/auth/callback` : undefined;
+    const email = normalizeAuthEmail(identifier);
+    const cleanName = displayName.trim() || identifier.trim() || 'Player';
 
-    const { error } = await supabase.auth.signInWithOAuth({
-      provider: 'google',
+    const { data, error } = await supabase.auth.signUp({
+      email,
+      password,
       options: {
-        redirectTo,
-        queryParams: {
-          access_type: 'offline',
-          prompt: 'select_account',
+        data: {
+          display_name: cleanName,
+          name: cleanName,
         },
       },
     });
 
     if (error) {
-      console.error('Google Sign-In Error:', error);
+      console.error('Sign Up Error:', error);
       throw error;
+    }
+
+    if (data?.user) {
+      setUser(data.user);
+      setGuestName(cleanName);
+    }
+  };
+
+  const signIn = async (identifier: string, password: string) => {
+    const supabase = getSupabaseClient();
+    if (!supabase) {
+      throw new Error('Database is not configured yet. Please check .env settings.');
+    }
+
+    const email = normalizeAuthEmail(identifier);
+
+    const { data, error } = await supabase.auth.signInWithPassword({
+      email,
+      password,
+    });
+
+    if (error) {
+      console.error('Sign In Error:', error);
+      throw error;
+    }
+
+    if (data?.user) {
+      setUser(data.user);
+      const name =
+        data.user.user_metadata?.display_name ||
+        data.user.user_metadata?.name ||
+        identifier;
+      setGuestName(name);
     }
   };
 
@@ -124,9 +166,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (user) {
       const meta = user.user_metadata || {};
       const displayName =
+        meta.display_name ||
         meta.full_name ||
         meta.name ||
-        meta.user_name ||
         user.email?.split('@')[0] ||
         'Blockade Player';
 
@@ -153,7 +195,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         profile,
         isLoading,
         isConfigured,
-        signInWithGoogle,
+        signUp,
+        signIn,
         signOut,
         setGuestName,
       }}
