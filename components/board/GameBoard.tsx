@@ -201,10 +201,6 @@ export const GameBoard = forwardRef<GameBoardHandle, GameBoardProps>(({
 
       {/* Main Board Outer Frame */}
       <div className="relative w-[94vw] max-w-[390px] aspect-square p-2.5 sm:p-3.5 rounded-2xl bg-zinc-900/95 border border-zinc-800 shadow-2xl backdrop-blur-md flex items-center justify-center">
-        {/* Continuous Finish Line Accent Bars */}
-        <div className="absolute top-1 left-3 right-3 h-0.5 rounded-full bg-gradient-to-r from-transparent via-blue-400/80 to-transparent pointer-events-none" />
-        <div className="absolute bottom-1 left-3 right-3 h-0.5 rounded-full bg-gradient-to-r from-transparent via-rose-400/80 to-transparent pointer-events-none" />
-
         {/* Clean Goal Line Indicators */}
         <div className="absolute -top-3 left-6 right-6 flex items-center justify-center pointer-events-none">
           <span className="text-[9px] font-bold uppercase tracking-wider text-blue-200 bg-gradient-to-r from-blue-950 via-blue-900/90 to-blue-950 px-2.5 py-0.5 rounded-full border border-blue-500/40 shadow-sm">
@@ -220,7 +216,7 @@ export const GameBoard = forwardRef<GameBoardHandle, GameBoardProps>(({
         {/* 17x17 CSS Grid: 9 Cells + 8 Grooves */}
         <div
           ref={innerGridRef}
-          className="w-full h-full grid select-none touch-manipulation"
+          className="relative w-full h-full grid select-none touch-manipulation"
           style={{
             gridTemplateColumns:
               'repeat(8, 1fr clamp(6px, 1.8vw, 10px)) 1fr',
@@ -228,7 +224,17 @@ export const GameBoard = forwardRef<GameBoardHandle, GameBoardProps>(({
               'repeat(8, 1fr clamp(6px, 1.8vw, 10px)) 1fr',
           }}
         >
-          {/* 1. Render Cells (9x9) with finish line gradients and clean movement highlights */}
+          {/* Continuous Straight Finish Line Bars (Unbroken straight lines) */}
+          <div
+            className="absolute -top-1.5 left-0 right-0 h-1 rounded-full bg-gradient-to-r from-blue-600 via-blue-400 to-blue-600 shadow-[0_1px_6px_rgba(37,99,235,0.4)] pointer-events-none z-10"
+            aria-hidden="true"
+          />
+          <div
+            className="absolute -bottom-1.5 left-0 right-0 h-1 rounded-full bg-gradient-to-r from-rose-600 via-rose-400 to-rose-600 shadow-[0_1px_6px_rgba(225,29,72,0.4)] pointer-events-none z-10"
+            aria-hidden="true"
+          />
+
+          {/* 1. Render Cells (9x9) with clean movement highlights */}
           {Array.from({ length: BOARD_SIZE }).map((_, r) =>
             Array.from({ length: BOARD_SIZE }).map((_, c) => {
               const coord: Coordinate = { r, c };
@@ -260,20 +266,12 @@ export const GameBoard = forwardRef<GameBoardHandle, GameBoardProps>(({
                         ? 'bg-blue-500/25 border-2 border-blue-400 cursor-pointer hover:bg-blue-500/35'
                         : 'bg-rose-500/25 border-2 border-rose-400 cursor-pointer hover:bg-rose-500/35'
                       : isP1FinishLine
-                      ? 'bg-gradient-to-b from-blue-500/20 via-zinc-800/90 to-zinc-800/80 border border-zinc-700/40 border-t-2 border-t-blue-400/80 hover:border-blue-400/60'
+                      ? 'bg-blue-500/10 border border-zinc-700/40 hover:border-zinc-700/70'
                       : isP2FinishLine
-                      ? 'bg-gradient-to-t from-rose-500/20 via-zinc-800/90 to-zinc-800/80 border border-zinc-700/40 border-b-2 border-b-rose-400/80 hover:border-rose-400/60'
+                      ? 'bg-rose-500/10 border border-zinc-700/40 hover:border-zinc-700/70'
                       : 'bg-zinc-800/80 border border-zinc-700/40 hover:border-zinc-700/70'
                   }`}
                 >
-                  {/* Subtle finish line edge bar */}
-                  {isP1FinishLine && !isValidMove && (
-                    <span className="absolute top-0.5 inset-x-2 h-0.5 rounded-full bg-blue-400/40 pointer-events-none" />
-                  )}
-                  {isP2FinishLine && !isValidMove && (
-                    <span className="absolute bottom-0.5 inset-x-2 h-0.5 rounded-full bg-rose-400/40 pointer-events-none" />
-                  )}
-
                   {/* Pawn 1 */}
                   {isP1 && (
                     <div className="w-[82%] h-[82%] rounded-full bg-gradient-to-b from-blue-500 to-blue-600 border border-blue-300/50 shadow-tactile-p1 tactile-pawn flex items-center justify-center font-bold text-[11px] sm:text-xs text-white pawn-transition animate-pawn-land">
