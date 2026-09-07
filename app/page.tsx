@@ -50,10 +50,13 @@ export default function GamePage() {
   // Online Multiplayer State
   const [roomCode, setRoomCode] = useState<string | null>(null);
   const [waitingForOpponent, setWaitingForOpponent] = useState(false);
+  const [isHost, setIsHost] = useState(true);
   const [playerName, setPlayerName] = useState(profile.name || 'Player 1');
   const [connectionStatus, setConnectionStatus] = useState<string>('disconnected');
 
-  const realtimeBroadcastRef = useRef<((payload: RealtimePayload) => void) | null>(null);
+  const realtimeBroadcastRef = useRef<((payload: RealtimePayload) => Promise<boolean>) | null>(null);
+  const channelLeaveRef = useRef<(() => void) | null>(null);
+  const handshakeIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
   // Toggle wall orientation
   const handleToggleOrientation = useCallback(() => {
@@ -98,7 +101,7 @@ export default function GamePage() {
         setMode('online');
         setCurrentView('game');
         if (isSupabaseConfigured()) {
-          setupRealtimeRoom(code, false);
+          setupRealtimeRoom(code, false, profile.name || 'Guest');
         } else {
           setShowSupabaseConfig(true);
         }
@@ -137,6 +140,16 @@ export default function GamePage() {
     if (gameState.status === 'playing' && hasMadeMoves) {
       setShowExitConfirm(true);
     } else {
+      if (channelLeaveRef.current) {
+        channelLeaveRef.current();
+        channelLeaveRef.current = null;
+      }
+      if (handshakeIntervalRef.current) {
+        clearInterval(handshakeIntervalRef.current);
+        handshakeIntervalRef.current = null;
+      }
+      setWaitingForOpponent(false);
+      setRoomCode(null);
       setCurrentView('menu');
     }
   };
@@ -146,6 +159,16 @@ export default function GamePage() {
     setSelectedWall(null);
     setActiveDrag(null);
     activeDragRef.current = null;
+    if (channelLeaveRef.current) {
+      channelLeaveRef.current();
+      channelLeaveRef.current = null;
+    }
+    if (handshakeIntervalRef.current) {
+      clearInterval(handshakeIntervalRef.current);
+      handshakeIntervalRef.current = null;
+    }
+    setWaitingForOpponent(false);
+    setRoomCode(null);
     setCurrentView('menu');
   };
 
@@ -322,29 +345,94 @@ export default function GamePage() {
     }
   }, [mode, gameState]);
 
+  const generateRoomCode = (): string => {
+    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+    let code = '';
+    for (let i = 0; i < 6; i++) {
+      code += chars.charAt(Math.floor(Math.random() * chars.length));
+    }
+    return code;
+  };
+
   // Online Realtime Room Setup
   const setupRealtimeRoom = useCallback(
-    (code: string, isHost: boolean) => {
-      setRoomCode(code);
-      setClientPlayerId(isHost ? 1 : 2);
+    (code: string, isHostRole: boolean, currentName: string) => {
+      // 1. Clean up any previous room channel & active retry intervals
+      if (channelLeaveRef.current) {
+        channelLeaveRef.current();
+        channelLeaveRef.current = null;
+      }
+      if (handshakeIntervalRef.current) {
+        clearInterval(handshakeIntervalRef.current);
+        handshakeIntervalRef.current = null;
+      }
+
+      const cleanCode = code.trim().toUpperCase();
+      setRoomCode(cleanCode);
+      setClientPlayerId(isHostRole ? 1 : 2);
+      setIsHost(isHostRole);
       setMode('online');
 
+      // Initialize base game state for online match
+      const baseState = createInitialGameState('online');
+      baseState.players[1].name = isHostRole ? currentName : 'Host';
+      baseState.players[2].name = !isHostRole ? currentName : 'Guest';
+      setGameState(baseState);
+
+      let hasSynced = false;
+
       const { broadcast, leave } = subscribeToGameRoom(
-        code,
+        cleanCode,
         (payload) => {
           if (payload.type === 'PLAYER_JOIN') {
-            if (isHost) {
+            if (isHostRole) {
               setWaitingForOpponent(false);
               setShowLobby(false);
-              broadcast({
-                type: 'SYNC_STATE',
-                state: gameState,
+              sounds.playWall();
+
+              setGameState((prev) => {
+                const updated: GameState = {
+                  ...prev,
+                  players: {
+                    ...prev.players,
+                    2: {
+                      ...prev.players[2],
+                      name: payload.playerName || 'Player 2',
+                    },
+                  },
+                };
+
+                // Broadcast current state back to the joining guest
+                broadcast({
+                  type: 'SYNC_STATE',
+                  state: updated,
+                });
+
+                return updated;
+              });
+            }
+          } else if (payload.type === 'REQUEST_SYNC') {
+            if (isHostRole) {
+              setWaitingForOpponent(false);
+              setShowLobby(false);
+              setGameState((curr) => {
+                broadcast({
+                  type: 'SYNC_STATE',
+                  state: curr,
+                });
+                return curr;
               });
             }
           } else if (payload.type === 'SYNC_STATE') {
+            hasSynced = true;
+            if (handshakeIntervalRef.current) {
+              clearInterval(handshakeIntervalRef.current);
+              handshakeIntervalRef.current = null;
+            }
             setGameState(payload.state);
             setWaitingForOpponent(false);
             setShowLobby(false);
+            sounds.playWall();
           } else if (payload.type === 'MOVE_PAWN') {
             sounds.playMove();
             setGameState((prev) => applyPawnMove(prev, payload.target).nextState);
@@ -364,38 +452,61 @@ export default function GamePage() {
         },
         (status) => {
           setConnectionStatus(status);
+          if (status === 'SUBSCRIBED') {
+            if (!isHostRole) {
+              // Guest sends join immediately once channel is subscribed!
+              broadcast({
+                type: 'PLAYER_JOIN',
+                playerId: 2,
+                playerName: currentName,
+              });
+
+              if (handshakeIntervalRef.current) {
+                clearInterval(handshakeIntervalRef.current);
+              }
+
+              // Robust retry: repeat every 800ms until host syncs or up to 20 attempts
+              let attempts = 0;
+              handshakeIntervalRef.current = setInterval(() => {
+                attempts++;
+                if (hasSynced || attempts > 20) {
+                  if (handshakeIntervalRef.current) {
+                    clearInterval(handshakeIntervalRef.current);
+                    handshakeIntervalRef.current = null;
+                  }
+                  return;
+                }
+                broadcast({
+                  type: 'PLAYER_JOIN',
+                  playerId: 2,
+                  playerName: currentName,
+                });
+              }, 800);
+            }
+          }
         }
       );
 
+      channelLeaveRef.current = leave;
       realtimeBroadcastRef.current = broadcast;
-
-      return () => {
-        leave();
-      };
     },
-    [gameState, handleRestart]
+    [handleRestart]
   );
 
   // Online: Create Room
   const handleCreateRoom = (hostName: string) => {
-    const randomCode = Math.random().toString(36).substring(2, 8).toUpperCase();
+    const code = generateRoomCode();
     setWaitingForOpponent(true);
-    setupRealtimeRoom(randomCode, true);
+    setIsHost(true);
+    setupRealtimeRoom(code, true, hostName || profile.name || 'Player 1');
   };
 
   // Online: Join Room
   const handleJoinRoom = (code: string, guestName: string) => {
-    setupRealtimeRoom(code.toUpperCase(), false);
-    setTimeout(() => {
-      if (realtimeBroadcastRef.current) {
-        realtimeBroadcastRef.current({
-          type: 'PLAYER_JOIN',
-          playerId: 2,
-          playerName: guestName,
-        });
-      }
-    }, 400);
-    setShowLobby(false);
+    const clean = code.trim().toUpperCase();
+    setWaitingForOpponent(true);
+    setIsHost(false);
+    setupRealtimeRoom(clean, false, guestName || profile.name || 'Player 2');
   };
 
   const isMyTurn =
@@ -446,7 +557,21 @@ export default function GamePage() {
 
         <OnlineLobbyModal
           isOpen={showLobby}
-          onClose={() => setShowLobby(false)}
+          onClose={() => {
+            setShowLobby(false);
+            if (waitingForOpponent) {
+              if (channelLeaveRef.current) {
+                channelLeaveRef.current();
+                channelLeaveRef.current = null;
+              }
+              if (handshakeIntervalRef.current) {
+                clearInterval(handshakeIntervalRef.current);
+                handshakeIntervalRef.current = null;
+              }
+              setWaitingForOpponent(false);
+              setRoomCode(null);
+            }
+          }}
           onCreateRoom={(pName) => {
             handleCreateRoom(pName);
             setCurrentView('game');
@@ -459,6 +584,7 @@ export default function GamePage() {
           waitingForOpponent={waitingForOpponent}
           playerName={playerName}
           setPlayerName={setPlayerName}
+          isHost={isHost}
         />
 
         <SupabaseConfigModal
@@ -626,13 +752,28 @@ export default function GamePage() {
 
       <OnlineLobbyModal
         isOpen={showLobby}
-        onClose={() => setShowLobby(false)}
+        onClose={() => {
+          setShowLobby(false);
+          if (waitingForOpponent) {
+            if (channelLeaveRef.current) {
+              channelLeaveRef.current();
+              channelLeaveRef.current = null;
+            }
+            if (handshakeIntervalRef.current) {
+              clearInterval(handshakeIntervalRef.current);
+              handshakeIntervalRef.current = null;
+            }
+            setWaitingForOpponent(false);
+            setRoomCode(null);
+          }
+        }}
         onCreateRoom={handleCreateRoom}
         onJoinRoom={handleJoinRoom}
         currentRoomCode={roomCode}
         waitingForOpponent={waitingForOpponent}
         playerName={playerName}
         setPlayerName={setPlayerName}
+        isHost={isHost}
       />
 
       <SupabaseConfigModal

@@ -12,6 +12,7 @@ interface OnlineLobbyModalProps {
   waitingForOpponent: boolean;
   playerName: string;
   setPlayerName: (name: string) => void;
+  isHost?: boolean;
 }
 
 export const OnlineLobbyModal: React.FC<OnlineLobbyModalProps> = ({
@@ -23,6 +24,7 @@ export const OnlineLobbyModal: React.FC<OnlineLobbyModalProps> = ({
   waitingForOpponent,
   playerName,
   setPlayerName,
+  isHost = true,
 }) => {
   const [joinCode, setJoinCode] = useState('');
   const [copiedLink, setCopiedLink] = useState(false);
@@ -55,16 +57,20 @@ export const OnlineLobbyModal: React.FC<OnlineLobbyModalProps> = ({
         </div>
 
         {waitingForOpponent && currentRoomCode ? (
-          /* Waiting for opponent in room */
+          /* Waiting for opponent / Connecting in room */
           <div className="mt-6 text-center space-y-4">
             <div className="w-16 h-16 mx-auto rounded-full bg-sky-500/10 border border-sky-400/30 flex items-center justify-center text-sky-400">
               <Loader2 className="w-8 h-8 animate-spin" />
             </div>
 
             <div>
-              <h4 className="text-xl font-bold text-white">Waiting for Opponent...</h4>
+              <h4 className="text-xl font-bold text-white">
+                {isHost ? 'Waiting for Opponent...' : 'Connecting to Room...'}
+              </h4>
               <p className="text-xs text-slate-400 mt-1">
-                Share this room code or link with your friend to start!
+                {isHost
+                  ? 'Share this room code with your friend on their device to start!'
+                  : `Connecting to room ${currentRoomCode}... Syncing game with host.`}
               </p>
             </div>
 
@@ -75,22 +81,32 @@ export const OnlineLobbyModal: React.FC<OnlineLobbyModalProps> = ({
               </div>
             </div>
 
+            {isHost && (
+              <button
+                type="button"
+                onClick={handleCopyLink}
+                className="w-full py-2.5 px-4 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 flex items-center justify-center gap-2 text-sm font-medium transition-colors tap-bounce"
+              >
+                {copiedLink ? (
+                  <>
+                    <Check className="w-4 h-4 text-emerald-400" />
+                    Invite Link Copied!
+                  </>
+                ) : (
+                  <>
+                    <Copy className="w-4 h-4 text-sky-400" />
+                    Copy Shareable Invite Link
+                  </>
+                )}
+              </button>
+            )}
+
             <button
               type="button"
-              onClick={handleCopyLink}
-              className="w-full py-2.5 px-4 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 flex items-center justify-center gap-2 text-sm font-medium transition-colors"
+              onClick={onClose}
+              className="text-xs text-slate-400 hover:text-slate-200 underline pt-1"
             >
-              {copiedLink ? (
-                <>
-                  <Check className="w-4 h-4 text-emerald-400" />
-                  Invite Link Copied!
-                </>
-              ) : (
-                <>
-                  <Copy className="w-4 h-4 text-sky-400" />
-                  Copy Shareable Invite Link
-                </>
-              )}
+              Cancel
             </button>
           </div>
         ) : (
