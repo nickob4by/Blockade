@@ -1,4 +1,4 @@
-import { Coordinate, GameState, WallOrientation } from './types';
+import { Coordinate, GameState, PlayerId, WallOrientation } from './types';
 import { canPlaceWall } from './engine';
 import { findShortestPath, getValidPawnMoves } from './pathfinding';
 
@@ -12,8 +12,8 @@ export type AIAction =
  * to impede Player 1 when Player 1 is closer to winning.
  */
 export function computeAIMove(state: GameState): AIAction {
-  const aiId = 2;
-  const humanId = 1;
+  const aiId: PlayerId = 2;
+  const humanId: PlayerId = 1;
   const aiState = state.players[aiId];
   const humanState = state.players[humanId];
 
