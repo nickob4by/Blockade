@@ -72,6 +72,14 @@ export const GroupsModal: React.FC<GroupsModalProps> = ({
   // Load groups when modal opens or user changes
   useEffect(() => {
     if (isOpen) {
+      if (!user) {
+        // Logged-out guests do not retain or access authenticated accounts' groups
+        setGroups([]);
+        setSelectedGroupId(null);
+        setFeedbackMsg(null);
+        return;
+      }
+
       const userGroups = getUserGroups(currentUserId, currentUserName);
       setGroups(userGroups);
       setFeedbackMsg(null);
@@ -83,7 +91,7 @@ export const GroupsModal: React.FC<GroupsModalProps> = ({
         }
       });
     }
-  }, [isOpen, currentUserId, currentUserName]);
+  }, [isOpen, user, currentUserId, currentUserName]);
 
   // Selected group object
   const selectedGroup = useMemo(() => {
@@ -93,7 +101,7 @@ export const GroupsModal: React.FC<GroupsModalProps> = ({
 
   // Subscribe to real-time presence when a group is selected and sync full remote member list
   useEffect(() => {
-    if (!selectedGroup || !selectedGroup.code || typeof selectedGroup.code !== 'string') {
+    if (!user || !selectedGroup || !selectedGroup.code || typeof selectedGroup.code !== 'string') {
       setLivePresences({});
       return;
     }
@@ -136,27 +144,7 @@ export const GroupsModal: React.FC<GroupsModalProps> = ({
     return () => {
       sub.unsubscribe();
     };
-  }, [selectedGroup?.id, selectedGroup?.code, currentUserId, currentUserName, profile.emoji]);
-
-  // Safely persist members discovered via real-time presence into local & remote group roster
-  useEffect(() => {
-    if (!selectedGroup || !selectedGroup.id) return;
-    Object.entries(livePresences).forEach(([id, live]) => {
-      if (!live) return;
-      const alreadyIn = selectedGroup.members?.some((m) => m && m.id === id);
-      if (!alreadyIn) {
-        const discoveredMember: GroupMember = {
-          id,
-          name: live.name || 'Player',
-          role: 'member',
-          status: live.status || 'online',
-          emoji: live.emoji,
-          lastActive: 'Active now',
-        };
-        persistMemberIntoGroup(selectedGroup.id, discoveredMember, currentUserId, currentUserName);
-      }
-    });
-  }, [livePresences, selectedGroup?.id, currentUserId, currentUserName]);
+  }, [selectedGroup?.id, selectedGroup?.code, user, currentUserId, currentUserName, profile.emoji]);
 
   // Calculate live members for selected group (only real users, no dummy mock bots)
   const resolvedMembers: GroupMember[] = useMemo(() => {
@@ -164,13 +152,16 @@ export const GroupsModal: React.FC<GroupsModalProps> = ({
 
     const memberMap = new Map<string, GroupMember>();
 
-    // 1. Process all persistent group members
+    // Process all legitimate group members, deduplicating by normalized name
     selectedGroup.members.forEach((member) => {
       if (!member) return;
-      const mName = member.name || 'Player';
-      const isYou = member.id === currentUserId || mName.toLowerCase() === (currentUserName || '').toLowerCase();
+      const mName = (member.name || 'Player').trim();
+      const normName = mName.toLowerCase();
+      const isYou = member.id === currentUserId || normName === (currentUserName || '').toLowerCase();
+      
+      // Match presence by user ID or username
       const live = livePresences[member.id] || Object.values(livePresences).find(
-        (p) => (p?.name || '').toLowerCase() === mName.toLowerCase()
+        (p) => (p?.name || '').trim().toLowerCase() === normName
       );
 
       // Status: if isYou -> online; if live in channel -> live.status; otherwise -> offline
@@ -180,7 +171,7 @@ export const GroupsModal: React.FC<GroupsModalProps> = ({
         ? live.status
         : 'offline';
 
-      memberMap.set(member.id, {
+      const resolved: GroupMember = {
         ...member,
         name: isYou ? currentUserName : mName,
         isYou,
@@ -191,24 +182,16 @@ export const GroupsModal: React.FC<GroupsModalProps> = ({
           : live
           ? (live.status === 'in_game' ? 'Playing match' : 'Active now')
           : member.lastActive || 'Offline',
-      });
-    });
+      };
 
-    // 2. Also include any real player who connected to this circle via presence
-    Object.entries(livePresences).forEach(([id, live]) => {
-      if (!live) return;
-      if (!memberMap.has(id)) {
-        const liveName = live.name || 'Player';
-        const isYou = id === currentUserId || liveName.toLowerCase() === (currentUserName || '').toLowerCase();
-        memberMap.set(id, {
-          id,
-          name: liveName,
-          role: 'member',
-          status: live.status,
-          emoji: live.emoji,
-          isYou,
-          lastActive: live.status === 'in_game' ? 'Playing match' : 'Active now',
-        });
+      // Deduplicate by name: keep real account if both guest and real exist
+      const existing = memberMap.get(normName);
+      if (!existing) {
+        memberMap.set(normName, resolved);
+      } else {
+        if (existing.id.startsWith('guest_') && !member.id.startsWith('guest_')) {
+          memberMap.set(normName, resolved);
+        }
       }
     });
 

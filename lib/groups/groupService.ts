@@ -690,3 +690,22 @@ export function subscribeToGroupPresence(
     unsubscribe,
   };
 }
+
+/**
+ * Unsubscribes and closes all active group presence channels immediately.
+ * Called when a user logs out so their online status drops to offline instantly.
+ */
+export function unsubscribeAllGroupPresence(): void {
+  const supabase = getSupabaseClient();
+  groupChannelRegistry.forEach((entry) => {
+    try {
+      entry.channel.unsubscribe();
+      if (supabase) {
+        supabase.removeChannel(entry.channel);
+      }
+    } catch {
+      // Ignore
+    }
+  });
+  groupChannelRegistry.clear();
+}

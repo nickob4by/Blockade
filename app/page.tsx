@@ -934,12 +934,13 @@ export default function GamePage() {
 
   // Sync user circles on login, profile update, or group change
   useEffect(() => {
-    const currentId = user?.id || profile.id;
-    if (!currentId) {
+    // Only authenticated users have synced circles
+    if (!user || !user.id || profile.isGuest) {
       setUserGroups([]);
       return;
     }
-    const currentName = profile.name || playerName || 'Player 1';
+    const currentId = user.id;
+    const currentName = profile.name || playerName || 'Player';
 
     const local = getUserGroups(currentId, currentName);
     setUserGroups(local);
@@ -960,15 +961,18 @@ export default function GamePage() {
       window.removeEventListener('blockade_groups_updated', handleGroupsUpdated);
       window.removeEventListener('storage', handleGroupsUpdated);
     };
-  }, [user?.id, profile.id, profile.name, playerName]);
+  }, [user?.id, profile.isGuest, profile.name, playerName]);
 
   // Continuously maintain dynamic presence (online vs in_game) across all groups the user belongs to
   useEffect(() => {
-    const currentId = user?.id || profile.id;
-    if (!currentId || !profile.name) return;
+    // Only authenticated accounts broadcast presence into groups
+    if (!user || !user.id || profile.isGuest || !profile.name) {
+      return;
+    }
 
     if (userGroups.length === 0) return;
 
+    const currentId = user.id;
     const currentName = profile.name;
     const currentStatus: MemberStatus =
       currentView === 'game' && gameState.status === 'playing'
@@ -997,7 +1001,7 @@ export default function GamePage() {
     };
   }, [
     user?.id,
-    profile.id,
+    profile.isGuest,
     profile.name,
     profile.emoji,
     currentView,

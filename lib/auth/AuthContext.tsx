@@ -3,6 +3,7 @@
 import React, { createContext, useContext, useEffect, useState, useMemo } from 'react';
 import { User } from '@supabase/supabase-js';
 import { getSupabaseClient, isSupabaseConfigured } from '@/lib/supabase/client';
+import { unsubscribeAllGroupPresence } from '@/lib/groups/groupService';
 import { normalizeAuthEmail } from './utils';
 export { normalizeAuthEmail } from './utils';
 
@@ -146,10 +147,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   const signOut = async () => {
+    try {
+      unsubscribeAllGroupPresence();
+    } catch {
+      // Ignore
+    }
+
     const supabase = getSupabaseClient();
     if (supabase) {
       await supabase.auth.signOut();
       setUser(null);
+    }
+
+    setGuestName('Player 1');
+    if (typeof window !== 'undefined') {
+      localStorage.removeItem(GUEST_NAME_KEY);
     }
   };
 

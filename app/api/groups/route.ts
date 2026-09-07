@@ -171,10 +171,11 @@ export async function GET(request: Request) {
     }
 
     if (userId || userName) {
+      const isGeneric = !userName || userName === 'player 1' || userName === 'guest' || userName.startsWith('guest_');
       const userGroups = Object.values(groups).filter((g) =>
         g.members.some((m) =>
-          (userId && m.id === userId) ||
-          (userName && m.name && m.name.toLowerCase() === userName)
+          (userId && !userId.startsWith('guest_') && m.id === userId) ||
+          (!isGeneric && m.name && m.name.toLowerCase() === userName)
         )
       );
       return NextResponse.json({ success: true, groups: userGroups });
