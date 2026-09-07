@@ -18,16 +18,16 @@ export const OpponentLeftModal: React.FC<OpponentLeftModalProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-fadeIn">
-      <div className="relative w-full max-w-sm p-6 rounded-2xl bg-zinc-900 border border-zinc-800 shadow-2xl text-center space-y-4">
+      <div className="relative w-full max-w-sm p-6 rounded-2xl bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 shadow-2xl text-center space-y-4">
         {/* Opponent Left Icon Badge */}
-        <div className="w-16 h-16 mx-auto rounded-full bg-amber-500/10 border border-amber-500/30 flex items-center justify-center text-amber-400 shadow-lg">
+        <div className="w-16 h-16 mx-auto rounded-full bg-amber-500/10 border border-amber-500/30 flex items-center justify-center text-amber-500 dark:text-amber-400 shadow-lg">
           <UserX className="w-8 h-8" />
         </div>
 
         <div>
-          <h3 className="text-xl font-extrabold text-white">Opponent Left</h3>
-          <p className="text-sm text-zinc-400 mt-2 leading-relaxed">
-            <strong className="text-zinc-200 font-semibold">{opponentName}</strong> has left the game. The match has ended and the room is closed.
+          <h3 className="text-xl font-extrabold text-slate-900 dark:text-white">Opponent Left</h3>
+          <p className="text-sm text-slate-600 dark:text-zinc-400 mt-2 leading-relaxed">
+            <strong className="text-slate-900 dark:text-zinc-200 font-semibold">{opponentName}</strong> has left the game. The match has ended and the room is closed.
           </p>
         </div>
 

@@ -33,6 +33,129 @@ interface GameBoardProps {
   isFlipped?: boolean;
 }
 
+interface WallLayout {
+  gridRowStart: number;
+  gridRowEnd: number;
+  gridColStart: number;
+  gridColEnd: number;
+  roundedClass: string;
+  borderClass: string;
+}
+
+function computeWallLayout(
+  wall: { r: number; c: number; orientation: WallOrientation },
+  allWalls: Array<{ r: number; c: number; orientation: WallOrientation }>
+): WallLayout {
+  const isH = wall.orientation === 'H';
+
+  if (isH) {
+    const gridRowStart = 2 * wall.r + 2;
+    const gridRowEnd = 2 * wall.r + 3;
+    const gridColStart = 2 * wall.c + 1;
+    let gridColEnd = 2 * wall.c + 4;
+
+    // Check if there is an adjacent horizontal wall directly to the right (side by side)
+    const hasRightCollinear = allWalls.some(
+      (w) => w.orientation === 'H' && w.r === wall.r && w.c === wall.c + 2
+    );
+    // Check if there is an adjacent horizontal wall directly to the left (side by side)
+    const hasLeftCollinear = allWalls.some(
+      (w) => w.orientation === 'H' && w.r === wall.r && w.c === wall.c - 2
+    );
+
+    // If there is a right neighbor, span across Groove c+1 to seamlessly touch the next wall at Line 2c+5
+    if (hasRightCollinear) {
+      gridColEnd = 2 * wall.c + 5;
+    }
+
+    // Check perpendicular vertical walls meeting at either end to flatten touching corners
+    const meetsVerticalLeft = allWalls.some(
+      (w) =>
+        w.orientation === 'V' &&
+        w.c === wall.c - 1 &&
+        (w.r === wall.r || w.r === wall.r - 1 || w.r === wall.r + 1)
+    );
+    const meetsVerticalRight = allWalls.some(
+      (w) =>
+        w.orientation === 'V' &&
+        w.c === wall.c + 1 &&
+        (w.r === wall.r || w.r === wall.r - 1 || w.r === wall.r + 1)
+    );
+
+    const connectRight = hasRightCollinear || meetsVerticalRight;
+    const connectLeft = hasLeftCollinear || meetsVerticalLeft;
+
+    let roundedClass = 'rounded-[3px]';
+    let borderClass = '';
+
+    if (connectLeft && connectRight) {
+      roundedClass = 'rounded-none';
+      borderClass = 'border-x-0';
+    } else if (connectLeft) {
+      roundedClass = 'rounded-l-none rounded-r-[3px]';
+      borderClass = 'border-l-0';
+    } else if (connectRight) {
+      roundedClass = 'rounded-r-none rounded-l-[3px]';
+      borderClass = 'border-r-0';
+    }
+
+    return { gridRowStart, gridRowEnd, gridColStart, gridColEnd, roundedClass, borderClass };
+  } else {
+    // Vertical wall
+    const gridRowStart = 2 * wall.r + 1;
+    let gridRowEnd = 2 * wall.r + 4;
+    const gridColStart = 2 * wall.c + 2;
+    const gridColEnd = 2 * wall.c + 3;
+
+    // Check if there is an adjacent vertical wall directly below (end to end)
+    const hasBottomCollinear = allWalls.some(
+      (w) => w.orientation === 'V' && w.c === wall.c && w.r === wall.r + 2
+    );
+    // Check if there is an adjacent vertical wall directly above (end to end)
+    const hasTopCollinear = allWalls.some(
+      (w) => w.orientation === 'V' && w.c === wall.c && w.r === wall.r - 2
+    );
+
+    // If there is a bottom neighbor, span across Groove r+1 to seamlessly touch the next wall at Line 2r+5
+    if (hasBottomCollinear) {
+      gridRowEnd = 2 * wall.r + 5;
+    }
+
+    // Check perpendicular horizontal walls meeting at either end to flatten touching corners
+    const meetsHorizontalTop = allWalls.some(
+      (w) =>
+        w.orientation === 'H' &&
+        w.r === wall.r - 1 &&
+        (w.c === wall.c || w.c === wall.c - 1 || w.c === wall.c + 1)
+    );
+    const meetsHorizontalBottom = allWalls.some(
+      (w) =>
+        w.orientation === 'H' &&
+        w.r === wall.r + 1 &&
+        (w.c === wall.c || w.c === wall.c - 1 || w.c === wall.c + 1)
+    );
+
+    const connectBottom = hasBottomCollinear || meetsHorizontalBottom;
+    const connectTop = hasTopCollinear || meetsHorizontalTop;
+
+    let roundedClass = 'rounded-[3px]';
+    let borderClass = '';
+
+    if (connectTop && connectBottom) {
+      roundedClass = 'rounded-none';
+      borderClass = 'border-y-0';
+    } else if (connectTop) {
+      roundedClass = 'rounded-t-none rounded-b-[3px]';
+      borderClass = 'border-t-0';
+    } else if (connectBottom) {
+      roundedClass = 'rounded-b-none rounded-t-[3px]';
+      borderClass = 'border-b-0';
+    }
+
+    return { gridRowStart, gridRowEnd, gridColStart, gridColEnd, roundedClass, borderClass };
+  }
+}
+
 export const GameBoard = forwardRef<GameBoardHandle, GameBoardProps>(({
   gameState,
   onMovePawn,
@@ -210,14 +333,14 @@ export const GameBoard = forwardRef<GameBoardHandle, GameBoardProps>(({
       )}
 
       {/* Main Board Outer Frame */}
-      <div className="relative w-[94vw] max-w-[390px] aspect-square p-2.5 sm:p-3.5 rounded-2xl bg-zinc-900/95 border border-zinc-800 shadow-2xl backdrop-blur-md flex items-center justify-center">
+      <div className="relative w-[94vw] max-w-[390px] aspect-square p-2.5 sm:p-3.5 rounded-2xl bg-white/95 border border-slate-200/90 shadow-xl dark:bg-zinc-900/95 dark:border-zinc-800 dark:shadow-2xl backdrop-blur-md flex items-center justify-center">
         {/* Clean Goal Line Indicators */}
         <div className="absolute -top-2.5 left-6 right-6 flex items-center justify-center pointer-events-none z-20">
           <span
             className={`text-[9px] font-extrabold uppercase tracking-wider px-3 py-0.5 rounded-full border shadow-md ${
               isFlipped
-                ? 'text-rose-200 bg-gradient-to-r from-rose-950 via-rose-900 to-rose-950 border-rose-400/40'
-                : 'text-sky-200 bg-gradient-to-r from-blue-950 via-blue-900 to-blue-950 border-sky-400/40'
+                ? 'text-rose-700 bg-rose-50 border-rose-300 dark:text-rose-200 dark:bg-gradient-to-r dark:from-rose-950 dark:via-rose-900 dark:to-rose-950 dark:border-rose-400/40'
+                : 'text-blue-700 bg-blue-50 border-blue-300 dark:text-sky-200 dark:bg-gradient-to-r dark:from-blue-950 dark:via-blue-900 dark:to-blue-950 dark:border-sky-400/40'
             }`}
           >
             {isFlipped
@@ -229,8 +352,8 @@ export const GameBoard = forwardRef<GameBoardHandle, GameBoardProps>(({
           <span
             className={`text-[9px] font-extrabold uppercase tracking-wider px-3 py-0.5 rounded-full border shadow-md ${
               isFlipped
-                ? 'text-sky-200 bg-gradient-to-r from-blue-950 via-blue-900 to-blue-950 border-sky-400/40'
-                : 'text-rose-200 bg-gradient-to-r from-rose-950 via-rose-900 to-rose-950 border-rose-400/40'
+                ? 'text-blue-700 bg-blue-50 border-blue-300 dark:text-sky-200 dark:bg-gradient-to-r dark:from-blue-950 dark:via-blue-900 dark:to-blue-950 dark:border-sky-400/40'
+                : 'text-rose-700 bg-rose-50 border-rose-300 dark:text-rose-200 dark:bg-gradient-to-r dark:from-rose-950 dark:via-rose-900 dark:to-rose-950 dark:border-rose-400/40'
             }`}
           >
             {isFlipped
@@ -302,13 +425,13 @@ export const GameBoard = forwardRef<GameBoardHandle, GameBoardProps>(({
                   className={`relative w-full h-full rounded-lg flex items-center justify-center transition-all duration-150 focus:outline-none tap-bounce z-[1] ${
                     isValidMove
                       ? isP1Turn
-                        ? 'bg-blue-500/25 border-2 border-blue-400/80 cursor-pointer hover:bg-blue-500/35 shadow-sm'
-                        : 'bg-rose-500/25 border-2 border-rose-400/80 cursor-pointer hover:bg-rose-500/35 shadow-sm'
+                        ? 'bg-blue-500/25 border-2 border-blue-500 dark:border-blue-400/80 cursor-pointer hover:bg-blue-500/35 shadow-sm'
+                        : 'bg-rose-500/25 border-2 border-rose-500 dark:border-rose-400/80 cursor-pointer hover:bg-rose-500/35 shadow-sm'
                       : isP1FinishLine
-                      ? 'bg-blue-500/[0.04] border border-zinc-800/80 hover:border-zinc-700/60'
+                      ? 'bg-blue-500/[0.08] dark:bg-blue-500/[0.04] border border-slate-200/90 dark:border-zinc-800/80 hover:border-slate-300 dark:hover:border-zinc-700/60'
                       : isP2FinishLine
-                      ? 'bg-rose-500/[0.04] border border-zinc-800/80 hover:border-zinc-700/60'
-                      : 'bg-zinc-800/25 border border-zinc-800/70 hover:border-zinc-700/60'
+                      ? 'bg-rose-500/[0.08] dark:bg-rose-500/[0.04] border border-slate-200/90 dark:border-zinc-800/80 hover:border-slate-300 dark:hover:border-zinc-700/60'
+                      : 'bg-slate-100/90 dark:bg-zinc-800/25 border border-slate-200/90 dark:border-zinc-800/70 hover:border-slate-300 dark:hover:border-zinc-700/60'
                   }`}
                 >
                   {/* Pawn 1 */}
@@ -319,7 +442,7 @@ export const GameBoard = forwardRef<GameBoardHandle, GameBoardProps>(({
                           style={{
                             transform: isFlipped ? 'rotate(180deg)' : undefined,
                             filter:
-                              'drop-shadow(0 3px 6px rgba(0,0,0,0.85)) drop-shadow(0 0 10px rgba(56,189,248,0.9)) drop-shadow(0 0 2px rgba(255,255,255,0.95))',
+                              'drop-shadow(0 2px 3px rgba(0,0,0,0.35)) drop-shadow(0 0 3px rgba(56,189,248,0.5))',
                           }}
                           className="text-2xl sm:text-3xl select-none leading-none flex items-center justify-center transition-transform hover:scale-110"
                         >
@@ -344,7 +467,7 @@ export const GameBoard = forwardRef<GameBoardHandle, GameBoardProps>(({
                           style={{
                             transform: isFlipped ? 'rotate(180deg)' : undefined,
                             filter:
-                              'drop-shadow(0 3px 6px rgba(0,0,0,0.85)) drop-shadow(0 0 10px rgba(244,63,94,0.9)) drop-shadow(0 0 2px rgba(255,255,255,0.95))',
+                              'drop-shadow(0 2px 3px rgba(0,0,0,0.35)) drop-shadow(0 0 3px rgba(244,63,94,0.5))',
                           }}
                           className="text-2xl sm:text-3xl select-none leading-none flex items-center justify-center transition-transform hover:scale-110"
                         >
@@ -366,8 +489,8 @@ export const GameBoard = forwardRef<GameBoardHandle, GameBoardProps>(({
                     <div
                       className={`w-2.5 h-2.5 rounded-full transition-transform ${
                         isP1Turn
-                          ? 'bg-blue-400 shadow-sm'
-                          : 'bg-rose-400 shadow-sm'
+                          ? 'bg-blue-500 dark:bg-blue-400 shadow-sm'
+                          : 'bg-rose-500 dark:bg-rose-400 shadow-sm'
                       }`}
                     />
                   )}
@@ -376,13 +499,9 @@ export const GameBoard = forwardRef<GameBoardHandle, GameBoardProps>(({
             })
           )}
 
-          {/* 2. Render Placed Walls with Modern Tactile Slabs */}
+          {/* 2. Render Placed Walls with Seamless Connections */}
           {gameState.walls.map((wall, index) => {
-            const isHorizontal = wall.orientation === 'H';
-            const gridRowStart = isHorizontal ? 2 * wall.r + 2 : 2 * wall.r + 1;
-            const gridRowEnd = isHorizontal ? 2 * wall.r + 3 : 2 * wall.r + 4;
-            const gridColStart = isHorizontal ? 2 * wall.c + 1 : 2 * wall.c + 2;
-            const gridColEnd = isHorizontal ? 2 * wall.c + 4 : 2 * wall.c + 3;
+            const layout = computeWallLayout(wall, gameState.walls);
             const isP1Wall = wall.placedBy === 1;
             const isLatest = index === gameState.walls.length - 1;
 
@@ -390,17 +509,17 @@ export const GameBoard = forwardRef<GameBoardHandle, GameBoardProps>(({
               <div
                 key={`placed-wall-${index}`}
                 style={{
-                  gridRowStart,
-                  gridRowEnd,
-                  gridColumnStart: gridColStart,
-                  gridColumnEnd: gridColEnd,
+                  gridRowStart: layout.gridRowStart,
+                  gridRowEnd: layout.gridRowEnd,
+                  gridColumnStart: layout.gridColStart,
+                  gridColumnEnd: layout.gridColEnd,
                 }}
-                className={`z-20 rounded-full pointer-events-none transition-all duration-150 border wall-slab ${
+                className={`z-20 pointer-events-none transition-all duration-150 border wall-slab ${layout.roundedClass} ${layout.borderClass} ${
                   isLatest ? 'animate-wall-slam' : ''
                 } ${
                   isP1Wall
-                    ? 'bg-blue-500 border-blue-300/40 shadow-tactile-md'
-                    : 'bg-rose-500 border-rose-300/40 shadow-tactile-md'
+                    ? 'bg-blue-600 dark:bg-blue-500 border-blue-400/60 dark:border-blue-300/40 shadow-tactile-md'
+                    : 'bg-rose-600 dark:bg-rose-500 border-rose-400/60 dark:border-rose-300/40 shadow-tactile-md'
                 }`}
               />
             );
@@ -431,7 +550,7 @@ export const GameBoard = forwardRef<GameBoardHandle, GameBoardProps>(({
                 >
                   {/* Subtle snap guide dot ONLY during active wall drag */}
                   {activeDrag && (
-                    <span className="w-1.5 h-1.5 rounded-full bg-zinc-600/40 pointer-events-none" />
+                    <span className="w-1.5 h-1.5 rounded-full bg-slate-400/60 dark:bg-zinc-600/40 pointer-events-none" />
                   )}
                   <span
                     className={`absolute -inset-2.5 sm:-inset-3 z-30 rounded-full ${
@@ -443,36 +562,27 @@ export const GameBoard = forwardRef<GameBoardHandle, GameBoardProps>(({
             })
           )}
 
-          {/* 4. Active Snapped Wall Preview */}
-          {previewWall && (
-            <div
-              style={{
-                gridRowStart:
-                  previewWall.orientation === 'H'
-                    ? 2 * previewWall.r + 2
-                    : 2 * previewWall.r + 1,
-                gridRowEnd:
-                  previewWall.orientation === 'H'
-                    ? 2 * previewWall.r + 3
-                    : 2 * previewWall.r + 4,
-                gridColumnStart:
-                  previewWall.orientation === 'H'
-                    ? 2 * previewWall.c + 1
-                    : 2 * previewWall.c + 2,
-                gridColumnEnd:
-                  previewWall.orientation === 'H'
-                    ? 2 * previewWall.c + 4
-                    : 2 * previewWall.c + 3,
-              }}
-              className={`z-25 rounded-full pointer-events-none transition-all duration-75 border ${
-                previewWall.isValid
-                  ? isP1Turn
-                    ? 'bg-blue-500/45 border-blue-400/80 shadow-md'
-                    : 'bg-rose-500/45 border-rose-400/80 shadow-md'
-                  : 'bg-red-500/35 border-red-400/70 shadow-md animate-pulse'
-              }`}
-            />
-          )}
+          {/* 4. Active Snapped Wall Preview with Seamless Connection */}
+          {previewWall && (() => {
+            const previewLayout = computeWallLayout(previewWall, gameState.walls);
+            return (
+              <div
+                style={{
+                  gridRowStart: previewLayout.gridRowStart,
+                  gridRowEnd: previewLayout.gridRowEnd,
+                  gridColumnStart: previewLayout.gridColStart,
+                  gridColumnEnd: previewLayout.gridColEnd,
+                }}
+                className={`z-25 pointer-events-none transition-all duration-75 border ${previewLayout.roundedClass} ${previewLayout.borderClass} ${
+                  previewWall.isValid
+                    ? isP1Turn
+                      ? 'bg-blue-500/45 border-blue-400/80 shadow-md'
+                      : 'bg-rose-500/45 border-rose-400/80 shadow-md'
+                    : 'bg-red-500/35 border-red-400/70 shadow-md animate-pulse'
+                }`}
+              />
+            );
+          })()}
         </div>
       </div>
     </div>

@@ -19,11 +19,13 @@ import { OpponentLeftModal } from '@/components/modals/OpponentLeftModal';
 import { SettingsModal } from '@/components/modals/SettingsModal';
 import { MainMenu } from '@/components/menu/MainMenu';
 import { useAuth } from '@/lib/auth/AuthContext';
+import { useTheme } from '@/lib/theme/ThemeContext';
 import { sounds } from '@/lib/audio/sounds';
-import { Users, Bot, Globe, ArrowLeft, RefreshCw, Settings } from 'lucide-react';
+import { Users, Bot, Globe, ArrowLeft, RefreshCw, Settings, Sun, Moon } from 'lucide-react';
 
 export default function GamePage() {
   const { user, profile } = useAuth();
+  const { theme, toggleTheme } = useTheme();
   const [currentView, setCurrentView] = useState<'menu' | 'game'>('menu');
   const [mode, setMode] = useState<GameMode>('local');
   const [gameState, setGameState] = useState<GameState>(() => createInitialGameState('local'));
@@ -828,46 +830,60 @@ export default function GamePage() {
   }
 
   return (
-    <main className="h-full h-[100dvh] flex flex-col justify-between items-center px-2 py-1 sm:py-2 max-w-md mx-auto overflow-hidden">
+    <main className="h-full h-[100dvh] flex flex-col justify-between items-center px-2 py-1 sm:py-2 max-w-md mx-auto overflow-hidden bg-slate-50 dark:bg-slate-950 text-slate-800 dark:text-zinc-100">
       {/* 1. Mobile Top Bar */}
       <header className="w-full flex items-center justify-between gap-2 pt-safe pb-1">
         <button
           type="button"
           onClick={handleRequestExitToMenu}
-          className="flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 text-zinc-300 hover:text-white text-xs font-semibold tap-bounce shadow-sm"
+          className="flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-white dark:bg-zinc-900 hover:bg-slate-100 dark:hover:bg-zinc-800 border border-slate-200 dark:border-zinc-800 text-slate-700 dark:text-zinc-300 hover:text-slate-900 dark:hover:text-white text-xs font-semibold tap-bounce shadow-sm"
         >
-          <ArrowLeft className="w-3.5 h-3.5 text-sky-400" />
+          <ArrowLeft className="w-3.5 h-3.5 text-sky-500 dark:text-sky-400" />
           <span>Menu</span>
         </button>
 
         {/* Mode Indicator Chip */}
-        <div className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-zinc-900/90 border border-zinc-800 text-xs font-semibold text-zinc-200 shadow-sm">
+        <div className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-white dark:bg-zinc-900/90 border border-slate-200 dark:border-zinc-800 text-xs font-semibold text-slate-800 dark:text-zinc-200 shadow-sm">
           {mode === 'ai' ? (
             <>
-              <Bot className="w-3.5 h-3.5 text-rose-400" />
+              <Bot className="w-3.5 h-3.5 text-rose-500 dark:text-rose-400" />
               <span>vs AI Bot</span>
             </>
           ) : mode === 'local' ? (
             <>
-              <Users className="w-3.5 h-3.5 text-blue-400" />
+              <Users className="w-3.5 h-3.5 text-blue-500 dark:text-blue-400" />
               <span>Pass & Play</span>
             </>
           ) : (
             <>
-              <Globe className="w-3.5 h-3.5 text-emerald-400" />
+              <Globe className="w-3.5 h-3.5 text-emerald-500 dark:text-emerald-400" />
               <span>Online Match</span>
             </>
           )}
         </div>
 
-        {/* Action Buttons: Reset (offline) and Settings (logged in) */}
+        {/* Action Buttons: Theme, Reset (offline) and Settings (logged in) */}
         <div className="flex items-center gap-1.5">
+          {/* In-Game Theme Switcher */}
+          <button
+            type="button"
+            onClick={toggleTheme}
+            title={theme === 'dark' ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
+            className="flex items-center justify-center p-1.5 rounded-xl bg-white dark:bg-zinc-900 hover:bg-slate-100 dark:hover:bg-zinc-800 border border-slate-200 dark:border-zinc-800 text-slate-700 dark:text-zinc-300 text-xs font-semibold tap-bounce shadow-sm"
+          >
+            {theme === 'dark' ? (
+              <Sun className="w-3.5 h-3.5 text-amber-500" />
+            ) : (
+              <Moon className="w-3.5 h-3.5 text-slate-700" />
+            )}
+          </button>
+
           {!isOnlineMode && (
             <button
               type="button"
               onClick={handleRestart}
               title="Restart Match"
-              className="flex items-center gap-1 px-2.5 py-1 rounded-xl bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 text-zinc-400 hover:text-zinc-200 text-xs font-semibold tap-bounce shadow-sm"
+              className="flex items-center gap-1 px-2.5 py-1 rounded-xl bg-white dark:bg-zinc-900 hover:bg-slate-100 dark:hover:bg-zinc-800 border border-slate-200 dark:border-zinc-800 text-slate-600 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-zinc-200 text-xs font-semibold tap-bounce shadow-sm"
             >
               <RefreshCw className="w-3.5 h-3.5" />
               <span className="hidden sm:inline">Reset</span>
@@ -878,28 +894,27 @@ export default function GamePage() {
               type="button"
               onClick={() => setShowSettings(true)}
               title="Player Settings"
-              className="flex items-center justify-center p-1.5 rounded-xl bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 text-zinc-400 hover:text-sky-300 text-xs font-semibold tap-bounce shadow-sm"
+              className="flex items-center justify-center p-1.5 rounded-xl bg-white dark:bg-zinc-900 hover:bg-slate-100 dark:hover:bg-zinc-800 border border-slate-200 dark:border-zinc-800 text-slate-600 dark:text-zinc-400 hover:text-sky-600 dark:hover:text-sky-300 text-xs font-semibold tap-bounce shadow-sm"
             >
               <Settings className="w-3.5 h-3.5" />
             </button>
           )}
-          {isOnlineMode && !user && <div className="w-[30px]" />}
         </div>
       </header>
 
       {/* Online room banner if active */}
       {isOnlineMode && roomCode && (
-        <div className="w-full px-2 py-1 rounded-lg bg-slate-900/80 border border-slate-800 flex items-center justify-between text-[11px] text-slate-300">
+        <div className="w-full px-2 py-1 rounded-lg bg-slate-100 dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800 flex items-center justify-between text-[11px] text-slate-700 dark:text-slate-300">
           <div className="flex items-center gap-1.5 truncate">
-            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
+            <span className="w-2 h-2 rounded-full bg-emerald-500 dark:bg-emerald-400 animate-ping" />
             <span>
-              Room: <strong className="font-mono text-amber-400">{roomCode}</strong>
+              Room: <strong className="font-mono text-amber-500 dark:text-amber-400">{roomCode}</strong>
             </span>
           </div>
           <button
             type="button"
             onClick={() => setShowLobby(true)}
-            className="text-sky-400 font-semibold"
+            className="text-sky-600 dark:text-sky-400 font-semibold"
           >
             Details
           </button>

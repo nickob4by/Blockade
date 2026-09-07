@@ -2,8 +2,9 @@
 
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '@/lib/auth/AuthContext';
+import { useTheme } from '@/lib/theme/ThemeContext';
 import { sounds } from '@/lib/audio/sounds';
-import { X, Settings, User, Check, Loader2, Sparkles, Smile } from 'lucide-react';
+import { X, Settings, User, Check, Loader2, Sparkles, Smile, Sun, Moon } from 'lucide-react';
 
 interface SettingsModalProps {
   isOpen: boolean;
@@ -31,6 +32,7 @@ const EMOJI_CATEGORIES = [
 
 export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
   const { profile, updateProfile } = useAuth();
+  const { theme, setTheme } = useTheme();
   const [name, setName] = useState(profile.name || '');
   const [selectedEmoji, setSelectedEmoji] = useState(profile.emoji || '');
   const [customInput, setCustomInput] = useState('');
@@ -100,29 +102,29 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-fadeIn">
-      <div className="relative w-full max-w-md max-h-[90vh] overflow-y-auto p-5 sm:p-6 rounded-2xl bg-zinc-900 border border-zinc-800 shadow-2xl space-y-5">
+      <div className="relative w-full max-w-md max-h-[90vh] overflow-y-auto p-5 sm:p-6 rounded-2xl bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 shadow-2xl space-y-5 text-slate-800 dark:text-zinc-100">
         {/* Header */}
-        <div className="flex items-center justify-between pb-3 border-b border-zinc-800">
+        <div className="flex items-center justify-between pb-3 border-b border-slate-200 dark:border-zinc-800">
           <div className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-xl bg-sky-500/20 text-sky-400 border border-sky-400/30 flex items-center justify-center shadow-sm">
+            <div className="w-8 h-8 rounded-xl bg-sky-500/20 text-sky-500 dark:text-sky-400 border border-sky-400/30 flex items-center justify-center shadow-sm">
               <Settings className="w-4 h-4" />
             </div>
             <div>
-              <h3 className="text-base font-bold text-white leading-none">Player Settings</h3>
-              <span className="text-[11px] text-zinc-400">Customize your name & pawn icon</span>
+              <h3 className="text-base font-bold text-slate-900 dark:text-white leading-none">Player Settings</h3>
+              <span className="text-[11px] text-slate-500 dark:text-zinc-400">Customize your name & pawn icon</span>
             </div>
           </div>
           <button
             type="button"
             onClick={onClose}
-            className="p-1.5 rounded-lg text-zinc-400 hover:text-white hover:bg-zinc-800 transition-colors"
+            className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 dark:text-zinc-400 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-zinc-800 transition-colors"
           >
             <X className="w-5 h-5" />
           </button>
         </div>
 
         {error && (
-          <div className="p-3 rounded-xl bg-red-950/80 border border-red-500/50 text-red-200 text-xs">
+          <div className="p-3 rounded-xl bg-red-100 dark:bg-red-950/80 border border-red-300 dark:border-red-500/50 text-red-700 dark:text-red-200 text-xs">
             {error}
           </div>
         )}
@@ -130,7 +132,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
         <form onSubmit={handleSave} className="space-y-4">
           {/* Display Name Input */}
           <div>
-            <label className="block text-xs font-semibold text-zinc-400 mb-1.5">
+            <label className="block text-xs font-semibold text-slate-700 dark:text-zinc-400 mb-1.5">
               Display Nickname
             </label>
             <input
@@ -139,26 +141,59 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
               onChange={(e) => setName(e.target.value.slice(0, 16))}
               placeholder="Your nickname"
               required
-              className="w-full px-3.5 py-2.5 rounded-xl bg-zinc-950 border border-zinc-800 text-white text-sm focus:outline-none focus:border-sky-400 transition-colors"
+              className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 dark:bg-zinc-950 border border-slate-200 dark:border-zinc-800 text-slate-900 dark:text-white text-sm focus:outline-none focus:border-sky-500 transition-colors"
             />
           </div>
 
+          {/* Theme Mode Switcher */}
+          <div>
+            <label className="block text-xs font-semibold text-slate-700 dark:text-zinc-400 mb-1.5">
+              Appearance Theme
+            </label>
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                onClick={() => setTheme('light')}
+                className={`py-2 px-3 rounded-xl border flex items-center justify-center gap-2 text-xs font-bold transition-all tap-bounce ${
+                  theme === 'light'
+                    ? 'bg-sky-500/15 border-sky-500 text-sky-600 dark:text-sky-400 shadow-sm'
+                    : 'bg-slate-50 dark:bg-zinc-950 border-slate-200 dark:border-zinc-800 text-slate-600 dark:text-zinc-400'
+                }`}
+              >
+                <Sun className="w-4 h-4 text-amber-500" />
+                <span>Light Mode</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setTheme('dark')}
+                className={`py-2 px-3 rounded-xl border flex items-center justify-center gap-2 text-xs font-bold transition-all tap-bounce ${
+                  theme === 'dark'
+                    ? 'bg-sky-500/15 border-sky-500 text-sky-600 dark:text-sky-400 shadow-sm'
+                    : 'bg-slate-50 dark:bg-zinc-950 border-slate-200 dark:border-zinc-800 text-slate-600 dark:text-zinc-400'
+                }`}
+              >
+                <Moon className="w-4 h-4 text-sky-400" />
+                <span>Dark Mode</span>
+              </button>
+            </div>
+          </div>
+
           {/* Live Pawn Preview */}
-          <div className="p-4 rounded-xl bg-zinc-950/80 border border-zinc-800/90 space-y-2">
+          <div className="p-4 rounded-xl bg-slate-50 dark:bg-zinc-950/80 border border-slate-200 dark:border-zinc-800/90 space-y-2">
             <div className="flex items-center justify-between">
-              <span className="text-xs font-semibold text-zinc-400">Pawn Icon Preview</span>
+              <span className="text-xs font-semibold text-slate-600 dark:text-zinc-400">Pawn Icon Preview</span>
               <button
                 type="button"
                 onClick={handleResetToGeneric}
                 className={`text-[11px] font-semibold transition-colors ${
-                  !selectedEmoji ? 'text-sky-400 font-bold' : 'text-zinc-500 hover:text-zinc-300'
+                  !selectedEmoji ? 'text-sky-600 dark:text-sky-400 font-bold' : 'text-slate-400 dark:text-zinc-500 hover:text-slate-600 dark:hover:text-zinc-300'
                 }`}
               >
                 Reset to Generic Icon
               </button>
             </div>
 
-            <div className="flex items-center justify-around py-3 bg-zinc-900/50 rounded-lg border border-zinc-800/40">
+            <div className="flex items-center justify-around py-3 bg-white/90 dark:bg-zinc-900/50 rounded-lg border border-slate-200 dark:border-zinc-800/40 shadow-sm">
               {/* Blue Theme Preview */}
               <div className="flex flex-col items-center gap-1.5">
                 {selectedEmoji ? (
@@ -167,7 +202,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
                       className="text-3xl select-none leading-none"
                       style={{
                         filter:
-                          'drop-shadow(0 3px 6px rgba(0,0,0,0.85)) drop-shadow(0 0 10px rgba(56,189,248,0.9)) drop-shadow(0 0 2px rgba(255,255,255,0.95))',
+                          'drop-shadow(0 2px 3px rgba(0,0,0,0.35)) drop-shadow(0 0 3px rgba(56,189,248,0.5))',
                       }}
                     >
                       {selectedEmoji}
@@ -178,7 +213,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
                     <User className="w-5 h-5 text-white/90 drop-shadow" />
                   </div>
                 )}
-                <span className="text-[10px] font-bold text-blue-400">Player 1 (Blue)</span>
+                <span className="text-[10px] font-bold text-blue-500 dark:text-blue-400">Player 1 (Blue)</span>
               </div>
 
               {/* Rose Theme Preview */}
@@ -189,7 +224,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
                       className="text-3xl select-none leading-none"
                       style={{
                         filter:
-                          'drop-shadow(0 3px 6px rgba(0,0,0,0.85)) drop-shadow(0 0 10px rgba(244,63,94,0.9)) drop-shadow(0 0 2px rgba(255,255,255,0.95))',
+                          'drop-shadow(0 2px 3px rgba(0,0,0,0.35)) drop-shadow(0 0 3px rgba(244,63,94,0.5))',
                       }}
                     >
                       {selectedEmoji}
@@ -200,7 +235,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
                     <User className="w-5 h-5 text-white/90 drop-shadow" />
                   </div>
                 )}
-                <span className="text-[10px] font-bold text-rose-400">Player 2 (Rose)</span>
+                <span className="text-[10px] font-bold text-rose-500 dark:text-rose-400">Player 2 (Rose)</span>
               </div>
             </div>
           </div>
@@ -208,11 +243,11 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
           {/* Emoji Selection Section */}
           <div className="space-y-2.5">
             <div className="flex items-center justify-between">
-              <span className="text-xs font-semibold text-zinc-300 flex items-center gap-1.5">
-                <Smile className="w-3.5 h-3.5 text-amber-400" />
+              <span className="text-xs font-semibold text-slate-700 dark:text-zinc-300 flex items-center gap-1.5">
+                <Smile className="w-3.5 h-3.5 text-amber-500" />
                 Choose Pawn Emoji
               </span>
-              <span className="text-[10px] text-zinc-500">Tap to select</span>
+              <span className="text-[10px] text-slate-400 dark:text-zinc-500">Tap to select</span>
             </div>
 
             {/* Category tabs */}
@@ -224,8 +259,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
                   onClick={() => setActiveCategory(idx)}
                   className={`px-2.5 py-1 rounded-lg text-xs font-semibold whitespace-nowrap transition-colors ${
                     activeCategory === idx
-                      ? 'bg-sky-500/20 text-sky-300 border border-sky-500/40'
-                      : 'bg-zinc-800/60 text-zinc-400 hover:text-zinc-200 border border-transparent'
+                      ? 'bg-sky-500/20 text-sky-600 dark:text-sky-300 border border-sky-500/40'
+                      : 'bg-slate-100 dark:bg-zinc-800/60 text-slate-600 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-zinc-200 border border-transparent'
                   }`}
                 >
                   {cat.name}
@@ -234,7 +269,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
             </div>
 
             {/* Emoji Grid */}
-            <div className="grid grid-cols-5 gap-2 p-2.5 rounded-xl bg-zinc-950 border border-zinc-800/80 max-h-36 overflow-y-auto">
+            <div className="grid grid-cols-5 gap-2 p-2.5 rounded-xl bg-slate-50 dark:bg-zinc-950 border border-slate-200 dark:border-zinc-800/80 max-h-36 overflow-y-auto">
               {EMOJI_CATEGORIES[activeCategory].emojis.map((emoji) => {
                 const isSelected = selectedEmoji === emoji;
                 return (
@@ -244,8 +279,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
                     onClick={() => handleSelectEmoji(emoji)}
                     className={`h-11 rounded-xl flex items-center justify-center text-xl transition-all tap-bounce ${
                       isSelected
-                        ? 'bg-sky-500/25 border-2 border-sky-400 scale-105 shadow-md shadow-sky-500/20'
-                        : 'bg-zinc-900 hover:bg-zinc-850 border border-zinc-800/80 hover:border-zinc-700'
+                        ? 'bg-sky-500/25 border-2 border-sky-500 dark:border-sky-400 scale-105 shadow-md shadow-sky-500/20'
+                        : 'bg-white dark:bg-zinc-900 hover:bg-slate-100 dark:hover:bg-zinc-850 border border-slate-200 dark:border-zinc-800/80 hover:border-slate-300 dark:hover:border-zinc-700'
                     }`}
                   >
                     {emoji}
@@ -261,7 +296,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
                 value={customInput}
                 onChange={(e) => handleCustomEmojiChange(e.target.value)}
                 placeholder="Type or paste any custom emoji..."
-                className="flex-1 px-3 py-2 rounded-xl bg-zinc-950 border border-zinc-800 text-xs text-white focus:outline-none focus:border-sky-400"
+                className="flex-1 px-3 py-2 rounded-xl bg-slate-50 dark:bg-zinc-950 border border-slate-200 dark:border-zinc-800 text-xs text-slate-900 dark:text-white focus:outline-none focus:border-sky-500"
               />
             </div>
           </div>

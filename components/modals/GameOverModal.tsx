@@ -55,7 +55,7 @@ export const GameOverModal: React.FC<GameOverModalProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-sm animate-fadeIn">
-      <div className="relative w-full max-w-md p-6 sm:p-8 rounded-2xl bg-zinc-900 border border-zinc-800 shadow-2xl text-center">
+      <div className="relative w-full max-w-md p-6 sm:p-8 rounded-2xl bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 shadow-2xl text-center">
         {/* Victory Badge */}
         <div
           className={`absolute -top-12 left-1/2 -translate-x-1/2 w-24 h-24 rounded-full flex items-center justify-center shadow-xl border-2 border-white/80 ${
@@ -68,12 +68,12 @@ export const GameOverModal: React.FC<GameOverModalProps> = ({
         </div>
 
         <div className="mt-8">
-          <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-amber-500/20 text-amber-300 border border-amber-500/30 mb-2">
-            <Sparkles className="w-3.5 h-3.5 text-amber-400" />
+          <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-amber-500/20 text-amber-600 dark:text-amber-300 border border-amber-500/30 mb-2">
+            <Sparkles className="w-3.5 h-3.5 text-amber-500 dark:text-amber-400" />
             Victory!
           </div>
 
-          <h2 className="text-2xl sm:text-3xl font-extrabold text-white">
+          <h2 className="text-2xl sm:text-3xl font-extrabold text-slate-900 dark:text-white">
             {gameState.mode === 'online'
               ? isClientWinner
                 ? 'You Won!'
@@ -81,19 +81,19 @@ export const GameOverModal: React.FC<GameOverModalProps> = ({
               : `${winningPlayer.name} Wins!`}
           </h2>
 
-          <p className="text-sm text-zinc-400 mt-2">
+          <p className="text-sm text-slate-500 dark:text-zinc-400 mt-2">
             Successfully crossed to the other side of the grid!
           </p>
 
           {/* Match summary stats */}
-          <div className="grid grid-cols-2 gap-3 my-6 p-3.5 rounded-xl bg-zinc-800/60 border border-zinc-700/60 text-xs">
+          <div className="grid grid-cols-2 gap-3 my-6 p-3.5 rounded-xl bg-slate-100 dark:bg-zinc-800/60 border border-slate-200 dark:border-zinc-700/60 text-xs">
             <div>
-              <div className="text-zinc-400">Total Turns</div>
-              <div className="text-lg font-bold text-zinc-100">{totalMoves}</div>
+              <div className="text-slate-500 dark:text-zinc-400">Total Turns</div>
+              <div className="text-lg font-bold text-slate-900 dark:text-zinc-100">{totalMoves}</div>
             </div>
             <div>
-              <div className="text-zinc-400">Walls Placed</div>
-              <div className="text-lg font-bold text-amber-300">{wallsPlacedByWinner}</div>
+              <div className="text-slate-500 dark:text-zinc-400">Walls Placed</div>
+              <div className="text-lg font-bold text-amber-600 dark:text-amber-300">{wallsPlacedByWinner}</div>
             </div>
           </div>
 
@@ -123,7 +123,7 @@ export const GameOverModal: React.FC<GameOverModalProps> = ({
                     ? winner === 1
                       ? 'bg-blue-600 hover:bg-blue-500 text-white'
                       : 'bg-rose-600 hover:bg-rose-500 text-white'
-                    : 'bg-zinc-800 hover:bg-zinc-700 text-zinc-200 border border-zinc-700/60'
+                    : 'bg-slate-100 hover:bg-slate-200 dark:bg-zinc-800 dark:hover:bg-zinc-700 text-slate-800 dark:text-zinc-200 border border-slate-200 dark:border-zinc-700/60'
                 }`}
               >
                 <ArrowLeft className="w-4 h-4" />
