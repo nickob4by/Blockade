@@ -59,22 +59,39 @@ function sanitizeGroups(groups: FriendGroup[], userId: string, userName: string)
       if (typeof g.name === 'string' && (g.name.includes('Blockade Warriors') || g.name.includes('Quoridor Champions'))) return false;
       return true;
     })
-    .map((g) => ({
-      ...g,
-      members: Array.isArray(g.members)
-        ? g.members
-            .filter((m) => m && typeof m === 'object' && !DUMMY_MEMBER_IDS.includes(m.id))
-            .map((m) => {
-              const mName = m.name || 'Player';
-              const isYou = m.id === userId || mName.toLowerCase() === (userName || '').toLowerCase();
-              return {
-                ...m,
-                isYou,
-                name: m.id === userId ? userName : mName,
-              };
-            })
-        : [],
-    }));
+    .map((g) => {
+      const memberMap = new Map<string, GroupMember>();
+      if (Array.isArray(g.members)) {
+        g.members
+          .filter((m) => m && typeof m === 'object' && !DUMMY_MEMBER_IDS.includes(m.id))
+          .forEach((m) => {
+            const rawName = (m.name || 'Player').trim();
+            const key = rawName.toLowerCase();
+            const existing = memberMap.get(key);
+            if (!existing) {
+              memberMap.set(key, m);
+            } else {
+              // Prefer real user UUID over guest_... id
+              if (existing.id.startsWith('guest_') && !m.id.startsWith('guest_')) {
+                memberMap.set(key, m);
+              }
+            }
+          });
+      }
+
+      return {
+        ...g,
+        members: Array.from(memberMap.values()).map((m) => {
+          const mName = m.name || 'Player';
+          const isYou = m.id === userId || mName.toLowerCase() === (userName || '').toLowerCase();
+          return {
+            ...m,
+            isYou,
+            name: m.id === userId ? userName : mName,
+          };
+        }),
+      };
+    });
 }
 
 export function getUserGroups(userId: string, userName: string): FriendGroup[] {
@@ -106,6 +123,13 @@ export function saveUserGroups(userId: string, groups: FriendGroup[]): void {
 
   // Also cache in known groups map
   groups.forEach((g) => saveKnownGroup(g));
+
+  // Notify listeners that groups updated
+  try {
+    window.dispatchEvent(new CustomEvent('blockade_groups_updated', { detail: { userId } }));
+  } catch {
+    // Ignore
+  }
 }
 
 export function getKnownGroupsMap(): Record<string, FriendGroup> {
@@ -161,7 +185,9 @@ export async function fetchUserGroupsAsync(
   if (typeof fetch === 'undefined') return local;
 
   try {
-    const res = await fetch(`/api/groups?userId=${encodeURIComponent(userId)}`);
+    const res = await fetch(
+      `/api/groups?userId=${encodeURIComponent(userId)}&userName=${encodeURIComponent(userName)}`
+    );
     if (res.ok) {
       const data = await res.json();
       if (data.success && Array.isArray(data.groups)) {
@@ -437,9 +463,44 @@ export interface GroupPresenceSubscription {
   unsubscribe: () => void;
 }
 
+interface PresenceListener {
+  id: string;
+  onUpdate: (presences: Record<string, { name: string; status: MemberStatus; emoji?: string }>) => void;
+  onMemberJoined?: (member: GroupMember) => void;
+}
+
+interface GroupChannelRegistryEntry {
+  channel: RealtimeChannel;
+  listeners: Map<string, PresenceListener>;
+  user: { id: string; name: string; status: MemberStatus; emoji?: string };
+}
+
+const groupChannelRegistry = new Map<string, GroupChannelRegistryEntry>();
+
+function extractPresences(channel: RealtimeChannel): Record<string, { name: string; status: MemberStatus; emoji?: string }> {
+  try {
+    const rawState = channel.presenceState();
+    const result: Record<string, { name: string; status: MemberStatus; emoji?: string }> = {};
+    Object.entries(rawState).forEach(([key, items]) => {
+      if (Array.isArray(items) && items.length > 0) {
+        const item: any = items[0];
+        result[key] = {
+          name: item.name || 'Player',
+          status: item.status || 'online',
+          emoji: item.emoji,
+        };
+      }
+    });
+    return result;
+  } catch {
+    return {};
+  }
+}
+
 /**
  * Subscribes to real-time presence for a specific group channel.
- * Updates dynamic presence (online/in_game) when other players join or leave.
+ * Uses a reference-counted channel registry so background presence and UI modals
+ * share the same channel without killing each other or creating duplicate subscriptions.
  */
 export function subscribeToGroupPresence(
   groupCode: string,
@@ -466,109 +527,166 @@ export function subscribeToGroupPresence(
     };
   }
 
-  const channelName = `group_presence:${groupCode.trim().toLowerCase()}`;
+  const topicKey = groupCode.trim().toLowerCase();
+  const channelName = `group_presence:${topicKey}`;
+  const listenerId = Math.random().toString(36).substring(2, 9);
 
-  // Safely clean up any existing channel with the same topic before re-creating
-  try {
-    const existingChannels = supabase.getChannels();
-    const existing = existingChannels.find(
-      (c) => c.topic === channelName || c.topic === `realtime:${channelName}`
-    );
-    if (existing) {
-      supabase.removeChannel(existing);
-    }
-  } catch {
-    // Ignore channel cleanup errors
-  }
+  let entry = groupChannelRegistry.get(topicKey);
 
-  const channel = supabase.channel(channelName, {
-    config: {
-      presence: {
-        key: user.id,
-      },
-      broadcast: {
-        self: false,
-      },
-    },
-  });
-
-  const handleSync = () => {
-    const rawState = channel.presenceState();
-    const result: Record<string, { name: string; status: MemberStatus; emoji?: string }> = {};
-
-    Object.entries(rawState).forEach(([key, items]) => {
-      if (Array.isArray(items) && items.length > 0) {
-        const item: any = items[0];
-        result[key] = {
-          name: item.name || 'Player',
-          status: item.status || 'online',
-          emoji: item.emoji,
-        };
+  const dispatchSync = (channel: RealtimeChannel) => {
+    const current = groupChannelRegistry.get(topicKey);
+    if (!current) return;
+    const presences = extractPresences(channel);
+    current.listeners.forEach((l) => {
+      try {
+        l.onUpdate(presences);
+      } catch {
+        // Ignore callback error
       }
     });
-
-    onPresenceUpdate(result);
   };
 
-  channel
-    .on('presence', { event: 'sync' }, handleSync)
-    .on('presence', { event: 'join' }, handleSync)
-    .on('presence', { event: 'leave' }, handleSync)
-    .on('broadcast', { event: 'group_event' }, ({ payload }) => {
-      if (payload?.type === 'MEMBER_JOINED' && payload.member && onMemberJoined) {
-        onMemberJoined(payload.member);
-      }
-    })
-    .subscribe(async (status) => {
-      if (status === 'SUBSCRIBED') {
-        await channel.track({
+  if (!entry) {
+    const channel = supabase.channel(channelName, {
+      config: {
+        presence: {
+          key: user.id,
+        },
+        broadcast: {
+          self: false,
+        },
+      },
+    });
+
+    entry = {
+      channel,
+      listeners: new Map(),
+      user: { ...user },
+    };
+    groupChannelRegistry.set(topicKey, entry);
+
+    channel
+      .on('presence', { event: 'sync' }, () => dispatchSync(channel))
+      .on('presence', { event: 'join' }, () => dispatchSync(channel))
+      .on('presence', { event: 'leave' }, () => dispatchSync(channel))
+      .on('broadcast', { event: 'group_event' }, ({ payload }) => {
+        if (payload?.type === 'MEMBER_JOINED' && payload.member) {
+          const cur = groupChannelRegistry.get(topicKey);
+          cur?.listeners.forEach((l) => {
+            if (l.onMemberJoined) {
+              try {
+                l.onMemberJoined(payload.member);
+              } catch {}
+            }
+          });
+        }
+      })
+      .subscribe(async (status) => {
+        if (status === 'SUBSCRIBED') {
+          try {
+            await channel.track({
+              userId: user.id,
+              name: user.name,
+              emoji: user.emoji,
+              status: user.status,
+              updatedAt: new Date().toISOString(),
+            });
+          } catch {
+            // Ignore track error
+          }
+        }
+      });
+  } else {
+    // Channel already active: update track if user info or status changed
+    if (
+      entry.user.status !== user.status ||
+      entry.user.name !== user.name ||
+      entry.user.emoji !== user.emoji
+    ) {
+      entry.user = { ...user };
+      entry.channel
+        .track({
           userId: user.id,
           name: user.name,
           emoji: user.emoji,
           status: user.status,
           updatedAt: new Date().toISOString(),
-        });
-      }
-    });
+        })
+        .catch(() => {});
+    }
+  }
+
+  // Register this listener
+  entry.listeners.set(listenerId, {
+    id: listenerId,
+    onUpdate: onPresenceUpdate,
+    onMemberJoined,
+  });
+
+  // Provide initial presence state immediately if available
+  const initialPresences = extractPresences(entry.channel);
+  if (Object.keys(initialPresences).length > 0) {
+    try {
+      onPresenceUpdate(initialPresences);
+    } catch {}
+  }
 
   const updateStatus = async (newStatus: MemberStatus) => {
     user.status = newStatus;
-    try {
-      await channel.track({
-        userId: user.id,
-        name: user.name,
-        emoji: user.emoji,
-        status: newStatus,
-        updatedAt: new Date().toISOString(),
-      });
-    } catch {
-      // Ignore
+    const currentEntry = groupChannelRegistry.get(topicKey);
+    if (currentEntry) {
+      currentEntry.user.status = newStatus;
+      try {
+        await currentEntry.channel.track({
+          userId: user.id,
+          name: user.name,
+          emoji: user.emoji,
+          status: newStatus,
+          updatedAt: new Date().toISOString(),
+        });
+      } catch {
+        // Ignore
+      }
     }
   };
 
   const broadcastMemberJoined = async (member: GroupMember) => {
-    try {
-      await channel.send({
-        type: 'broadcast',
-        event: 'group_event',
-        payload: { type: 'MEMBER_JOINED', member },
-      });
-    } catch {
-      // Ignore
+    const currentEntry = groupChannelRegistry.get(topicKey);
+    if (currentEntry) {
+      try {
+        await currentEntry.channel.send({
+          type: 'broadcast',
+          event: 'group_event',
+          payload: { type: 'MEMBER_JOINED', member },
+        });
+      } catch {
+        // Ignore
+      }
+    }
+  };
+
+  const unsubscribe = () => {
+    const currentEntry = groupChannelRegistry.get(topicKey);
+    if (!currentEntry) return;
+
+    currentEntry.listeners.delete(listenerId);
+
+    // Only tear down channel if all listeners have unsubscribed
+    if (currentEntry.listeners.size === 0) {
+      groupChannelRegistry.delete(topicKey);
+      try {
+        currentEntry.channel.unsubscribe();
+        supabase.removeChannel(currentEntry.channel);
+      } catch {
+        // Ignore
+      }
     }
   };
 
   return {
-    channel,
+    channel: entry.channel,
     updateStatus,
     broadcastMemberJoined,
-    unsubscribe: () => {
-      try {
-        channel.unsubscribe();
-        supabase.removeChannel(channel);
-      } catch {
-        // Ignore
-      }
-    },
+    unsubscribe,
   };
 }

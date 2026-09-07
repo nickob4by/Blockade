@@ -125,3 +125,53 @@ test('Friend Groups - Member Persistence When Offline or Disconnected', () => {
   assert.equal(karyl.name, 'Karyl');
 });
 
+test('Friend Groups - Deduplicate Guest and Real Account by Username', () => {
+  global.localStorage.clear();
+  const created = createGroup('user_real_1', 'karyl', 'Alpha Team');
+
+  const { persistMemberIntoGroup } = require('../lib/groups/groupService');
+  // Simulate an old guest entry with same name
+  persistMemberIntoGroup(
+    created.id,
+    {
+      id: 'guest_old123',
+      name: 'karyl',
+      role: 'member',
+      status: 'offline',
+      lastActive: '1d ago',
+    },
+    'user_real_1',
+    'karyl'
+  );
+
+  const groups = getUserGroups('user_real_1', 'karyl');
+  const group = groups.find((g) => g.id === created.id);
+  assert.ok(group);
+
+  const karylMembers = group.members.filter((m) => m.name.toLowerCase() === 'karyl');
+  assert.equal(karylMembers.length, 1, 'Should deduplicate member entries having the same username');
+  assert.equal(karylMembers[0].id, 'user_real_1', 'Should retain the real user ID rather than guest ID');
+});
+
+test('Friend Groups - Safe Channel Registry Reference Counting', () => {
+  const { subscribeToGroupPresence } = require('../lib/groups/groupService');
+  const sub1 = subscribeToGroupPresence(
+    'GRP-99',
+    { id: 'user_1', name: 'User 1', status: 'online' },
+    () => {}
+  );
+  const sub2 = subscribeToGroupPresence(
+    'GRP-99',
+    { id: 'user_1', name: 'User 1', status: 'online' },
+    () => {}
+  );
+
+  assert.ok(sub1, 'First subscription must succeed');
+  assert.ok(sub2, 'Second subscription must succeed and share connection');
+
+  // Unsubscribing sub2 should not throw or break sub1
+  assert.doesNotThrow(() => sub2.unsubscribe());
+  assert.doesNotThrow(() => sub1.unsubscribe());
+});
+
+

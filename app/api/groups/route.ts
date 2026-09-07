@@ -41,22 +41,36 @@ function sanitizeGroupsMap(raw: Record<string, FriendGroup>): Record<string, Fri
       return;
     }
 
-    const members = Array.isArray(g.members)
-      ? g.members
-          .filter((m) => m && typeof m === 'object' && !DUMMY_IDS.includes(m.id))
-          .map((m) => ({
+    const memberMap = new Map<string, GroupMember>();
+    if (Array.isArray(g.members)) {
+      g.members
+        .filter((m) => m && typeof m === 'object' && !DUMMY_IDS.includes(m.id))
+        .forEach((m) => {
+          const mName = (m.name || 'Player').trim();
+          const key = mName.toLowerCase();
+          const existing = memberMap.get(key);
+          const sanitized: GroupMember = {
             id: m.id,
-            name: m.name || 'Player',
+            name: mName,
             emoji: m.emoji,
             role: m.role || 'member',
             status: m.status || 'offline',
             lastActive: m.lastActive || 'Recently',
-          }))
-      : [];
+          };
+          if (!existing) {
+            memberMap.set(key, sanitized);
+          } else {
+            // Replace guest_ with real user UUID if available
+            if (existing.id.startsWith('guest_') && !m.id.startsWith('guest_')) {
+              memberMap.set(key, sanitized);
+            }
+          }
+        });
+    }
 
     clean[id] = {
       ...g,
-      members,
+      members: Array.from(memberMap.values()),
     };
   });
 
@@ -144,6 +158,7 @@ export async function GET(request: Request) {
     const { searchParams } = new URL(request.url);
     const code = searchParams.get('code')?.trim().toUpperCase();
     const userId = searchParams.get('userId')?.trim();
+    const userName = searchParams.get('userName')?.trim().toLowerCase();
 
     const groups = await loadGroups();
 
@@ -155,9 +170,12 @@ export async function GET(request: Request) {
       return NextResponse.json({ success: true, group });
     }
 
-    if (userId) {
+    if (userId || userName) {
       const userGroups = Object.values(groups).filter((g) =>
-        g.members.some((m) => m.id === userId)
+        g.members.some((m) =>
+          (userId && m.id === userId) ||
+          (userName && m.name && m.name.toLowerCase() === userName)
+        )
       );
       return NextResponse.json({ success: true, groups: userGroups });
     }

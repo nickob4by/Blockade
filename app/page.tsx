@@ -31,7 +31,14 @@ import {
   cancelChallenge,
   subscribeToUserChallenges,
 } from '@/lib/challenges/challengeService';
-import { GroupMember, FriendGroup } from '@/lib/groups/groupService';
+import {
+  GroupMember,
+  FriendGroup,
+  MemberStatus,
+  getUserGroups,
+  fetchUserGroupsAsync,
+  subscribeToGroupPresence,
+} from '@/lib/groups/groupService';
 import { Users, Bot, Globe, ArrowLeft, RefreshCw, Settings, Sun, Moon } from 'lucide-react';
 
 export default function GamePage() {
@@ -921,6 +928,82 @@ export default function GamePage() {
       unsubscribe();
     };
   }, [user?.id, profile.id, profile.name, profile.emoji, playerName, mode]);
+
+  // Active circles the player belongs to
+  const [userGroups, setUserGroups] = useState<FriendGroup[]>([]);
+
+  // Sync user circles on login, profile update, or group change
+  useEffect(() => {
+    const currentId = user?.id || profile.id;
+    if (!currentId) {
+      setUserGroups([]);
+      return;
+    }
+    const currentName = profile.name || playerName || 'Player 1';
+
+    const local = getUserGroups(currentId, currentName);
+    setUserGroups(local);
+
+    fetchUserGroupsAsync(currentId, currentName).then((remote) => {
+      if (remote && remote.length > 0) {
+        setUserGroups(remote);
+      }
+    });
+
+    const handleGroupsUpdated = () => {
+      setUserGroups(getUserGroups(currentId, currentName));
+    };
+
+    window.addEventListener('blockade_groups_updated', handleGroupsUpdated);
+    window.addEventListener('storage', handleGroupsUpdated);
+    return () => {
+      window.removeEventListener('blockade_groups_updated', handleGroupsUpdated);
+      window.removeEventListener('storage', handleGroupsUpdated);
+    };
+  }, [user?.id, profile.id, profile.name, playerName]);
+
+  // Continuously maintain dynamic presence (online vs in_game) across all groups the user belongs to
+  useEffect(() => {
+    const currentId = user?.id || profile.id;
+    if (!currentId || !profile.name) return;
+
+    if (userGroups.length === 0) return;
+
+    const currentName = profile.name;
+    const currentStatus: MemberStatus =
+      currentView === 'game' && gameState.status === 'playing'
+        ? 'in_game'
+        : 'online';
+
+    const subscriptions: { unsubscribe: () => void }[] = [];
+
+    userGroups.forEach((group) => {
+      if (!group || !group.code || typeof group.code !== 'string') return;
+      const sub = subscribeToGroupPresence(
+        group.code,
+        {
+          id: currentId,
+          name: currentName,
+          emoji: profile.emoji || undefined,
+          status: currentStatus,
+        },
+        () => {} // Background sync
+      );
+      subscriptions.push(sub);
+    });
+
+    return () => {
+      subscriptions.forEach((s) => s.unsubscribe());
+    };
+  }, [
+    user?.id,
+    profile.id,
+    profile.name,
+    profile.emoji,
+    currentView,
+    gameState.status,
+    userGroups,
+  ]);
 
   // Broadcast player departure on window unload / close
   useEffect(() => {
