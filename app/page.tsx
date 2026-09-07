@@ -113,6 +113,23 @@ export default function GamePage() {
     waitingForOpponentRef.current = waitingForOpponent;
   }, [waitingForOpponent]);
 
+  const modeRef = useRef<GameMode>(mode);
+  useEffect(() => {
+    modeRef.current = mode;
+  }, [mode]);
+
+  const currentViewRef = useRef<'menu' | 'game'>(currentView);
+  useEffect(() => {
+    currentViewRef.current = currentView;
+  }, [currentView]);
+
+  const roomCodeRef = useRef<string | null>(roomCode);
+  useEffect(() => {
+    roomCodeRef.current = roomCode;
+  }, [roomCode]);
+
+  const handledChallengesRef = useRef<Set<string>>(new Set());
+
   // Clean exit after match closure / opponent left
   const handleExitAfterOpponentLeft = useCallback(() => {
     setOpponentLeftInfo(null);
@@ -827,9 +844,29 @@ export default function GamePage() {
     []
   );
 
+  // Clean close for outgoing challenge modal
+  const handleCloseOutgoingChallenge = useCallback(() => {
+    setOutgoingChallenge(null);
+    setOutgoingStatus('waiting');
+    if (channelLeaveRef.current) {
+      channelLeaveRef.current();
+      channelLeaveRef.current = null;
+    }
+    if (handshakeIntervalRef.current) {
+      clearInterval(handshakeIntervalRef.current);
+      handshakeIntervalRef.current = null;
+    }
+    setWaitingForOpponent(false);
+    setRoomCode(null);
+    setMode('local');
+    setGameState(createInitialGameState('local'));
+    setCurrentView('menu');
+  }, []);
+
   // Accept incoming challenge
   const handleAcceptIncomingChallenge = useCallback(
     async (challenge: MatchChallenge) => {
+      handledChallengesRef.current.add(challenge.id);
       const currentId = user?.id || profile.id || 'guest_user';
       const currentName = profile.name || playerName || 'Player 2';
 
@@ -857,6 +894,7 @@ export default function GamePage() {
   // Decline incoming challenge
   const handleDeclineIncomingChallenge = useCallback(
     async (challenge: MatchChallenge) => {
+      handledChallengesRef.current.add(challenge.id);
       const currentId = user?.id || profile.id || 'guest_user';
       const currentName = profile.name || playerName || 'Player 2';
 
@@ -869,6 +907,13 @@ export default function GamePage() {
       );
 
       setIncomingChallenge(null);
+      // Ensure local state is clean
+      setWaitingForOpponent(false);
+      setRoomCode(null);
+      if (modeRef.current === 'online' && (!roomCodeRef.current || waitingForOpponentRef.current)) {
+        setMode('local');
+        setGameState(createInitialGameState('local'));
+      }
     },
     [user?.id, profile.id, profile.name, profile.emoji, playerName]
   );
@@ -882,8 +927,23 @@ export default function GamePage() {
       { id: currentId, name: currentName },
       (payload) => {
         if (payload.type === 'CHALLENGE_INVITE') {
-          // If already in an active playing online game, decline automatically
-          if (mode === 'online' && gameStateRef.current.status === 'playing') {
+          // If already declined or accepted this exact challenge ID, ignore
+          if (handledChallengesRef.current.has(payload.challenge.id)) {
+            return;
+          }
+          if (incomingChallengeRef.current && incomingChallengeRef.current.id === payload.challenge.id) {
+            return;
+          }
+
+          // Only decline automatically if player is CURRENTLY actively playing an online game on the board
+          const isActivelyPlayingLiveGame =
+            currentViewRef.current === 'game' &&
+            modeRef.current === 'online' &&
+            Boolean(roomCodeRef.current) &&
+            !waitingForOpponentRef.current &&
+            gameStateRef.current.status === 'playing';
+
+          if (isActivelyPlayingLiveGame) {
             respondToChallenge(
               payload.challenge,
               'declined',
@@ -893,6 +953,7 @@ export default function GamePage() {
             );
             return;
           }
+
           setIncomingChallenge(payload.challenge);
         } else if (payload.type === 'CHALLENGE_RESPONSE') {
           if (outgoingChallengeRef.current && outgoingChallengeRef.current.id === payload.challengeId) {
@@ -914,6 +975,9 @@ export default function GamePage() {
               }
               setWaitingForOpponent(false);
               setRoomCode(null);
+              setMode('local');
+              setGameState(createInitialGameState('local'));
+              setCurrentView('menu');
             }
           }
         } else if (payload.type === 'CHALLENGE_CANCEL') {
@@ -927,7 +991,7 @@ export default function GamePage() {
     return () => {
       unsubscribe();
     };
-  }, [user?.id, profile.id, profile.name, profile.emoji, playerName, mode]);
+  }, [user?.id, profile.id, profile.name, profile.emoji, playerName]);
 
   // Active circles the player belongs to
   const [userGroups, setUserGroups] = useState<FriendGroup[]>([]);
@@ -1088,6 +1152,7 @@ export default function GamePage() {
 
         {/* Incoming Challenge Notification Modal */}
         <IncomingChallengeModal
+          key={incomingChallenge?.id || 'none'}
           challenge={incomingChallenge}
           onAccept={handleAcceptIncomingChallenge}
           onDecline={handleDeclineIncomingChallenge}
@@ -1098,7 +1163,7 @@ export default function GamePage() {
           challenge={outgoingChallenge}
           status={outgoingStatus}
           onCancel={handleCancelOutgoingChallenge}
-          onClose={() => setOutgoingChallenge(null)}
+          onClose={handleCloseOutgoingChallenge}
         />
 
         <OnlineLobbyModal
@@ -1347,6 +1412,7 @@ export default function GamePage() {
 
       {/* Incoming Challenge Notification Modal */}
       <IncomingChallengeModal
+        key={incomingChallenge?.id || 'none'}
         challenge={incomingChallenge}
         onAccept={handleAcceptIncomingChallenge}
         onDecline={handleDeclineIncomingChallenge}
@@ -1357,7 +1423,7 @@ export default function GamePage() {
         challenge={outgoingChallenge}
         status={outgoingStatus}
         onCancel={handleCancelOutgoingChallenge}
-        onClose={() => setOutgoingChallenge(null)}
+        onClose={handleCloseOutgoingChallenge}
       />
 
       {/* Settings Modal */}

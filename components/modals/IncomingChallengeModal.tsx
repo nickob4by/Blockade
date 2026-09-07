@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { MatchChallenge } from '@/lib/challenges/challengeService';
 import { sounds } from '@/lib/audio/sounds';
 import { Swords, X, Check, Clock, Users } from 'lucide-react';
@@ -17,12 +17,19 @@ export const IncomingChallengeModal: React.FC<IncomingChallengeModalProps> = ({
   onDecline,
 }) => {
   const [timeLeft, setTimeLeft] = useState<number>(30);
+  const onDeclineRef = useRef(onDecline);
+  useEffect(() => {
+    onDeclineRef.current = onDecline;
+  }, [onDecline]);
 
   useEffect(() => {
     if (!challenge) {
       setTimeLeft(30);
       return;
     }
+
+    // Always reset countdown to 30 when a new challenge arrives
+    setTimeLeft(30);
 
     // Play incoming challenge chime
     sounds.playChallenge();
@@ -31,7 +38,7 @@ export const IncomingChallengeModal: React.FC<IncomingChallengeModalProps> = ({
       setTimeLeft((prev) => {
         if (prev <= 1) {
           clearInterval(interval);
-          onDecline(challenge);
+          onDeclineRef.current(challenge);
           return 0;
         }
         return prev - 1;
@@ -39,7 +46,7 @@ export const IncomingChallengeModal: React.FC<IncomingChallengeModalProps> = ({
     }, 1000);
 
     return () => clearInterval(interval);
-  }, [challenge, onDecline]);
+  }, [challenge?.id]);
 
   if (!challenge) return null;
 
