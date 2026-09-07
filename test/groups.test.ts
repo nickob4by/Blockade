@@ -5,6 +5,7 @@ import {
   getInitialStarterGroups,
   createGroup,
   joinGroupByCode,
+  joinGroupByCodeAsync,
   leaveGroup,
 } from '../lib/groups/groupService';
 
@@ -173,5 +174,56 @@ test('Friend Groups - Safe Channel Registry Reference Counting', () => {
   assert.doesNotThrow(() => sub2.unsubscribe());
   assert.doesNotThrow(() => sub1.unsubscribe());
 });
+
+test('Friend Groups - Guests Cannot Create Groups', () => {
+  global.localStorage.clear();
+
+  // Starting with guest_
+  assert.throws(
+    () => createGroup('guest_12345', 'Guest Player', 'Secret Club'),
+    /You must be signed in to create a group/,
+    'Should throw error when guest_ attempts to create a group'
+  );
+
+  // guest_user
+  assert.throws(
+    () => createGroup('guest_user', 'Guest Player', 'Secret Club'),
+    /You must be signed in to create a group/,
+    'Should throw error when guest_user attempts to create a group'
+  );
+
+  // Empty userId
+  assert.throws(
+    () => createGroup('', 'Guest Player', 'Secret Club'),
+    /You must be signed in to create a group/,
+    'Should throw error when empty userId attempts to create a group'
+  );
+});
+
+test('Friend Groups - Guests Cannot Join Groups', async () => {
+  global.localStorage.clear();
+
+  // Create group with real authenticated user first
+  const group = createGroup('user_real_leader', 'Leader', 'Championship Clan');
+  assert.ok(group.code);
+
+  // Synchronous join attempt with guest ID
+  const guestSyncRes = joinGroupByCode('guest_abc', 'Guesty', group.code);
+  assert.equal(guestSyncRes.success, false);
+  assert.equal(guestSyncRes.error, 'You must be signed in to join a group.');
+
+  // Async join attempt with guest ID
+  const guestAsyncRes = await joinGroupByCodeAsync('guest_abc', 'Guesty', group.code);
+  assert.equal(guestAsyncRes.success, false);
+  assert.equal(guestAsyncRes.error, 'You must be signed in to join a group.');
+
+  // Verify group still only has the leader and no guests were added
+  const currentGroups = getUserGroups('user_real_leader', 'Leader');
+  const storedGroup = currentGroups.find((g) => g.id === group.id);
+  assert.ok(storedGroup);
+  assert.equal(storedGroup.members.length, 1);
+  assert.equal(storedGroup.members[0].id, 'user_real_leader');
+});
+
 
 

@@ -227,6 +227,10 @@ export function createGroup(
   groupName: string,
   userEmoji?: string
 ): FriendGroup {
+  if (!userId || userId.startsWith('guest_') || userId === 'guest_user') {
+    throw new Error('You must be signed in to create a group.');
+  }
+
   const cleanName = groupName.trim();
   const slug =
     cleanName
@@ -283,6 +287,13 @@ export function joinGroupByCode(
   inviteCode: string,
   userEmoji?: string
 ): { success: boolean; group?: FriendGroup; error?: string } {
+  if (!userId || userId.startsWith('guest_') || userId === 'guest_user') {
+    return {
+      success: false,
+      error: 'You must be signed in to join a group.',
+    };
+  }
+
   const code = inviteCode.trim().toUpperCase();
   const existing = getUserGroups(userId, userName);
 
@@ -341,6 +352,13 @@ export async function joinGroupByCodeAsync(
   inviteCode: string,
   userEmoji?: string
 ): Promise<{ success: boolean; group?: FriendGroup; error?: string }> {
+  if (!userId || userId.startsWith('guest_') || userId === 'guest_user') {
+    return {
+      success: false,
+      error: 'You must be signed in to join a group.',
+    };
+  }
+
   const code = inviteCode.trim().toUpperCase();
   const existing = getUserGroups(userId, userName);
 

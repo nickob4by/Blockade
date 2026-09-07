@@ -228,6 +228,13 @@ export const GroupsModal: React.FC<GroupsModalProps> = ({
   // Handle Create Group
   const handleCreateGroup = (e: React.FormEvent) => {
     e.preventDefault();
+    if (!user) {
+      setFeedbackMsg({ type: 'error', text: 'You must be signed in to create a group.' });
+      setAuthModalMode('signin');
+      setShowAuthModal(true);
+      return;
+    }
+
     const clean = groupNameInput.trim();
     if (!clean) {
       setFeedbackMsg({ type: 'error', text: 'Please enter a group name.' });
@@ -245,6 +252,13 @@ export const GroupsModal: React.FC<GroupsModalProps> = ({
   // Handle Join Group by Code
   const handleJoinGroup = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!user) {
+      setFeedbackMsg({ type: 'error', text: 'You must be signed in to join a group.' });
+      setAuthModalMode('signin');
+      setShowAuthModal(true);
+      return;
+    }
+
     const clean = groupCodeInput.trim().toUpperCase();
     if (!clean) {
       setFeedbackMsg({ type: 'error', text: 'Please enter a valid invite code.' });
@@ -444,14 +458,28 @@ export const GroupsModal: React.FC<GroupsModalProps> = ({
                       <div className="flex items-center justify-center gap-2 pt-1">
                         <button
                           type="button"
-                          onClick={() => setActiveTab('create')}
+                          onClick={() => {
+                            if (!user) {
+                              setAuthModalMode('signin');
+                              setShowAuthModal(true);
+                            } else {
+                              setActiveTab('create');
+                            }
+                          }}
                           className="px-4 py-2 rounded-xl bg-sky-500 hover:bg-sky-400 text-white font-bold text-xs shadow-md tap-bounce"
                         >
-                          + Create Group
+                          {!user ? 'Sign In to Create' : '+ Create Group'}
                         </button>
                         <button
                           type="button"
-                          onClick={() => setActiveTab('join')}
+                          onClick={() => {
+                            if (!user) {
+                              setAuthModalMode('signin');
+                              setShowAuthModal(true);
+                            } else {
+                              setActiveTab('join');
+                            }
+                          }}
                           className="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-zinc-800 dark:hover:bg-zinc-700 text-slate-700 dark:text-zinc-300 font-semibold text-xs border border-slate-200 dark:border-zinc-700/60 tap-bounce"
                         >
                           Join with Code
@@ -466,42 +494,32 @@ export const GroupsModal: React.FC<GroupsModalProps> = ({
                       </div>
 
                       {groups.map((group) => {
-                        const onlineCount = group.members.filter(
-                          (m) => m.status === 'online' || m.isYou
-                        ).length;
-
                         return (
                           <div
                             key={group.id}
-                            onClick={() => setSelectedGroupId(group.id)}
-                            className="group p-3 sm:p-3.5 rounded-2xl bg-slate-50 hover:bg-slate-100/90 dark:bg-zinc-950 dark:hover:bg-zinc-850/90 border border-slate-200 hover:border-sky-400 dark:border-zinc-800 dark:hover:border-sky-500/50 cursor-pointer transition-all duration-150 flex items-center justify-between gap-3 shadow-sm tap-bounce"
+                            onClick={() => {
+                              setSelectedGroupId(group.id);
+                              setFeedbackMsg(null);
+                            }}
+                            className="group p-3.5 rounded-2xl bg-slate-50 hover:bg-slate-100 dark:bg-zinc-950 dark:hover:bg-zinc-850 border border-slate-200 dark:border-zinc-800/80 hover:border-sky-400/50 dark:hover:border-sky-500/40 transition-all cursor-pointer flex items-center justify-between gap-3 tap-bounce shadow-sm"
                           >
                             <div className="flex items-center gap-3 min-w-0">
-                              <div className="w-10 h-10 rounded-xl bg-sky-500/10 border border-sky-400/30 flex items-center justify-center text-lg flex-shrink-0 group-hover:scale-105 transition-transform">
+                              <div className="w-10 h-10 rounded-xl bg-sky-500/10 border border-sky-400/30 flex items-center justify-center text-xl flex-shrink-0 group-hover:scale-105 transition-transform">
                                 {group.icon || '🛡️'}
                               </div>
                               <div className="min-w-0">
-                                {/* Group Name is primary */}
-                                <div className="font-bold text-sm text-slate-900 dark:text-zinc-100 group-hover:text-sky-600 dark:group-hover:text-white flex items-center gap-1.5 truncate">
-                                  <span className="truncate">{group.name}</span>
+                                <div className="font-bold text-xs sm:text-sm text-slate-900 dark:text-zinc-100 truncate group-hover:text-sky-600 dark:group-hover:text-sky-400 transition-colors">
+                                  {group.name}
                                 </div>
-                                <div className="flex items-center gap-2 mt-1 text-[11px] text-slate-500 dark:text-zinc-400 flex-wrap">
-                                  <span>
-                                    {group.members.length} {group.members.length === 1 ? 'member' : 'members'}
-                                  </span>
+                                <div className="flex items-center gap-2 mt-0.5 text-[11px] text-slate-500 dark:text-zinc-400">
+                                  <span>{group.members.length} members</span>
                                   <span>•</span>
-                                  <span className="text-emerald-600 dark:text-emerald-400 font-medium flex items-center gap-1">
-                                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 dark:bg-emerald-400" />
-                                    {onlineCount} Online
-                                  </span>
-                                  <span>•</span>
-                                  <span className="font-mono text-[10px] text-slate-600 dark:text-zinc-400 bg-slate-200/80 dark:bg-zinc-800 px-1.5 py-0.5 rounded border border-slate-300 dark:border-zinc-700/60">
+                                  <span className="font-mono text-slate-400 dark:text-zinc-500">
                                     {group.code}
                                   </span>
                                 </div>
                               </div>
                             </div>
-
                             <ChevronRight className="w-4 h-4 text-slate-400 dark:text-zinc-500 group-hover:text-sky-500 dark:group-hover:text-sky-400 group-hover:translate-x-0.5 transition-all flex-shrink-0" />
                           </div>
                         );
@@ -513,61 +531,133 @@ export const GroupsModal: React.FC<GroupsModalProps> = ({
 
               {/* Tab: Create Group */}
               {activeTab === 'create' && (
-                <form onSubmit={handleCreateGroup} className="space-y-3 p-1">
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-700 dark:text-zinc-300 mb-1">
-                      Group Name
-                    </label>
-                    <input
-                      type="text"
-                      required
-                      placeholder="e.g. Office Colleagues, Family Match"
-                      value={groupNameInput}
-                      onChange={(e) => setGroupNameInput(e.target.value)}
-                      className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 dark:bg-zinc-950 border border-slate-300 dark:border-zinc-800 text-xs text-slate-900 dark:text-zinc-100 placeholder-slate-400 dark:placeholder-zinc-500 focus:outline-none focus:border-sky-500 transition-colors"
-                    />
-                    <p className="text-[10px] text-slate-500 dark:text-zinc-500 mt-1">
-                      An invite code will be automatically generated so your friends can join this group.
+                !user ? (
+                  <div className="p-6 rounded-2xl bg-slate-50 dark:bg-zinc-950 border border-slate-200 dark:border-zinc-800 text-center space-y-3">
+                    <div className="w-12 h-12 mx-auto rounded-full bg-sky-500/10 flex items-center justify-center text-sky-600 dark:text-sky-400">
+                      <Lock className="w-6 h-6" />
+                    </div>
+                    <h4 className="font-bold text-sm text-slate-900 dark:text-zinc-100">
+                      Sign in to create a group
+                    </h4>
+                    <p className="text-xs text-slate-500 dark:text-zinc-400 max-w-xs mx-auto">
+                      You must have an account to create and manage friend circles.
                     </p>
+                    <div className="flex items-center justify-center gap-2 pt-1">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setAuthModalMode('signin');
+                          setShowAuthModal(true);
+                        }}
+                        className="px-4 py-2 rounded-xl bg-sky-500 hover:bg-sky-400 text-white font-bold text-xs shadow-md tap-bounce"
+                      >
+                        Sign In
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setAuthModalMode('signup');
+                          setShowAuthModal(true);
+                        }}
+                        className="px-4 py-2 rounded-xl bg-slate-200 hover:bg-slate-300 dark:bg-zinc-800 dark:hover:bg-zinc-700 text-slate-800 dark:text-zinc-200 font-bold text-xs tap-bounce"
+                      >
+                        Register
+                      </button>
+                    </div>
                   </div>
-                  <button
-                    type="submit"
-                    className="w-full py-2.5 rounded-xl bg-sky-500 hover:bg-sky-400 text-white font-bold text-xs flex items-center justify-center gap-1.5 tap-bounce shadow-md"
-                  >
-                    <Plus className="w-4 h-4" />
-                    Create Group & Open
-                  </button>
-                </form>
+                ) : (
+                  <form onSubmit={handleCreateGroup} className="space-y-3 p-1">
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-700 dark:text-zinc-300 mb-1">
+                        Group Name
+                      </label>
+                      <input
+                        type="text"
+                        required
+                        placeholder="e.g. Office Colleagues, Family Match"
+                        value={groupNameInput}
+                        onChange={(e) => setGroupNameInput(e.target.value)}
+                        className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 dark:bg-zinc-950 border border-slate-300 dark:border-zinc-800 text-xs text-slate-900 dark:text-zinc-100 placeholder-slate-400 dark:placeholder-zinc-500 focus:outline-none focus:border-sky-500 transition-colors"
+                      />
+                      <p className="text-[10px] text-slate-500 dark:text-zinc-500 mt-1">
+                        An invite code will be automatically generated so your friends can join this group.
+                      </p>
+                    </div>
+                    <button
+                      type="submit"
+                      className="w-full py-2.5 rounded-xl bg-sky-500 hover:bg-sky-400 text-white font-bold text-xs flex items-center justify-center gap-1.5 tap-bounce shadow-md"
+                    >
+                      <Plus className="w-4 h-4" />
+                      Create Group & Open
+                    </button>
+                  </form>
+                )
               )}
 
               {/* Tab: Join Code */}
               {activeTab === 'join' && (
-                <form onSubmit={handleJoinGroup} className="space-y-3 p-1">
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-700 dark:text-zinc-300 mb-1">
-                      Enter Group Invite Code
-                    </label>
-                    <input
-                      type="text"
-                      required
-                      placeholder="e.g. FAMILY-42"
-                      value={groupCodeInput}
-                      onChange={(e) => setGroupCodeInput(e.target.value.toUpperCase())}
-                      className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 dark:bg-zinc-950 border border-slate-300 dark:border-zinc-800 text-xs font-mono uppercase text-slate-900 dark:text-zinc-100 placeholder-slate-400 dark:placeholder-zinc-500 focus:outline-none focus:border-sky-500 transition-colors"
-                    />
-                    <p className="text-[10px] text-slate-500 dark:text-zinc-500 mt-1">
-                      Enter the invite code shared by the group creator.
+                !user ? (
+                  <div className="p-6 rounded-2xl bg-slate-50 dark:bg-zinc-950 border border-slate-200 dark:border-zinc-800 text-center space-y-3">
+                    <div className="w-12 h-12 mx-auto rounded-full bg-sky-500/10 flex items-center justify-center text-sky-600 dark:text-sky-400">
+                      <Lock className="w-6 h-6" />
+                    </div>
+                    <h4 className="font-bold text-sm text-slate-900 dark:text-zinc-100">
+                      Sign in to join a group
+                    </h4>
+                    <p className="text-xs text-slate-500 dark:text-zinc-400 max-w-xs mx-auto">
+                      You must have an account to join friend circles and challenge other players.
                     </p>
+                    <div className="flex items-center justify-center gap-2 pt-1">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setAuthModalMode('signin');
+                          setShowAuthModal(true);
+                        }}
+                        className="px-4 py-2 rounded-xl bg-sky-500 hover:bg-sky-400 text-white font-bold text-xs shadow-md tap-bounce"
+                      >
+                        Sign In
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setAuthModalMode('signup');
+                          setShowAuthModal(true);
+                        }}
+                        className="px-4 py-2 rounded-xl bg-slate-200 hover:bg-slate-300 dark:bg-zinc-800 dark:hover:bg-zinc-700 text-slate-800 dark:text-zinc-200 font-bold text-xs tap-bounce"
+                      >
+                        Register
+                      </button>
+                    </div>
                   </div>
-                  <button
-                    type="submit"
-                    disabled={isJoining}
-                    className="w-full py-2.5 rounded-xl bg-sky-500 hover:bg-sky-400 text-white font-bold text-xs flex items-center justify-center gap-1.5 tap-bounce shadow-md disabled:opacity-50"
-                  >
-                    <ArrowRight className="w-4 h-4" />
-                    {isJoining ? 'Joining Group...' : 'Join Group'}
-                  </button>
-                </form>
+                ) : (
+                  <form onSubmit={handleJoinGroup} className="space-y-3 p-1">
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-700 dark:text-zinc-300 mb-1">
+                        Enter Group Invite Code
+                      </label>
+                      <input
+                        type="text"
+                        required
+                        placeholder="e.g. FAMILY-42"
+                        value={groupCodeInput}
+                        onChange={(e) => setGroupCodeInput(e.target.value.toUpperCase())}
+                        className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 dark:bg-zinc-950 border border-slate-300 dark:border-zinc-800 text-xs font-mono uppercase text-slate-900 dark:text-zinc-100 placeholder-slate-400 dark:placeholder-zinc-500 focus:outline-none focus:border-sky-500 transition-colors"
+                      />
+                      <p className="text-[10px] text-slate-500 dark:text-zinc-500 mt-1">
+                        Enter the invite code shared by the group creator.
+                      </p>
+                    </div>
+                    <button
+                      type="submit"
+                      disabled={isJoining}
+                      className="w-full py-2.5 rounded-xl bg-sky-500 hover:bg-sky-400 text-white font-bold text-xs flex items-center justify-center gap-1.5 tap-bounce shadow-md disabled:opacity-50"
+                    >
+                      <ArrowRight className="w-4 h-4" />
+                      {isJoining ? 'Joining Group...' : 'Join Group'}
+                    </button>
+                  </form>
+                )
               )}
             </>
           )}

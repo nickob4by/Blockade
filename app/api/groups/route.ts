@@ -199,6 +199,10 @@ export async function POST(request: Request) {
         return NextResponse.json({ error: 'Invalid group data' }, { status: 400 });
       }
 
+      if (!group.createdBy || group.createdBy.startsWith('guest_') || group.createdBy === 'guest_user') {
+        return NextResponse.json({ error: 'You must be signed in to create a group.' }, { status: 401 });
+      }
+
       const cleanMembers = (group.members || []).filter((m) => !DUMMY_IDS.includes(m.id));
 
       const cleanGroup: FriendGroup = {
@@ -213,6 +217,10 @@ export async function POST(request: Request) {
 
     if (action === 'join') {
       const { code, member } = body as { code: string; member: GroupMember };
+      if (!member || !member.id || member.id.startsWith('guest_') || member.id === 'guest_user') {
+        return NextResponse.json({ error: 'You must be signed in to join a group.' }, { status: 401 });
+      }
+
       const cleanCode = (code || '').trim().toUpperCase();
       const group = Object.values(groups).find((g) => g.code.toUpperCase() === cleanCode);
 
