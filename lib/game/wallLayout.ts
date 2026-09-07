@@ -20,10 +20,12 @@ export interface WallLayout {
   gridColEnd: number;
   roundedClass: string;
   borderClass: string;
+  shadowClass: string;
   marginRight?: string;
   marginLeft?: string;
   marginTop?: string;
   marginBottom?: string;
+  zIndex?: number;
 }
 
 /**
@@ -136,8 +138,8 @@ export function getMergedWallGroups(walls: Wall[]): MergedWallGroup[] {
  * Computes the exact grid tracks, corner rounding, border masking,
  * and visual connection offsets for a wall group or single wall segment.
  * 
- * Supports smooth rounded corners (`rounded-[6px]`) on open ends and
- * seamless visual corner connection for perpendicular and collinear walls.
+ * Uses explicit tactile wall classes (`wall-rounded-*`, `wall-slab-connected-bottom`)
+ * so that corners are visibly rounded and no dark crease/shadow is cast onto connected walls.
  */
 export function computeWallLayout(
   group: MergedWallGroup | { r: number; c: number; orientation: WallOrientation; placedBy?: 1 | 2 },
@@ -195,44 +197,42 @@ export function computeWallLayout(
       gridColStart = 2 * cStart;
     }
 
-    // Determine corner rounding
-    // Left end
-    let leftRounding = 'rounded-l-[6px]';
+    // Determine corner rounding using explicit CSS classes
+    let leftRounding = 'wall-rounded-l';
     if (hasLeftCollinear) {
-      leftRounding = 'rounded-l-none';
+      leftRounding = '';
     } else if (meetsVerticalLeft) {
       if (vLeftAbove && !vLeftBelow) {
         // Turns UP: outer corner is bottom-left
-        leftRounding = 'rounded-bl-[6px] rounded-tl-none';
+        leftRounding = 'wall-rounded-bl';
       } else if (vLeftBelow && !vLeftAbove) {
         // Turns DOWN: outer corner is top-left
-        leftRounding = 'rounded-tl-[6px] rounded-bl-none';
+        leftRounding = 'wall-rounded-tl';
       } else {
-        leftRounding = 'rounded-l-none';
+        leftRounding = '';
       }
     }
 
-    // Right end
-    let rightRounding = 'rounded-r-[6px]';
+    let rightRounding = 'wall-rounded-r';
     if (hasRightCollinear) {
-      rightRounding = 'rounded-r-none';
+      rightRounding = '';
     } else if (meetsVerticalRight) {
       if (vRightAbove && !vRightBelow) {
         // Turns UP: outer corner is bottom-right (as shown in user screenshot)
-        rightRounding = 'rounded-br-[6px] rounded-tr-none';
+        rightRounding = 'wall-rounded-br';
       } else if (vRightBelow && !vRightAbove) {
         // Turns DOWN: outer corner is top-right
-        rightRounding = 'rounded-tr-[6px] rounded-br-none';
+        rightRounding = 'wall-rounded-tr';
       } else {
-        rightRounding = 'rounded-r-none';
+        rightRounding = '';
       }
     }
 
-    let roundedClass = `${leftRounding} ${rightRounding}`;
+    let roundedClass = '';
     if (!meetsVerticalLeft && !meetsVerticalRight && !hasLeftCollinear && !hasRightCollinear) {
-      roundedClass = 'rounded-[6px]';
-    } else if (leftRounding === 'rounded-l-none' && rightRounding === 'rounded-r-none') {
-      roundedClass = 'rounded-none';
+      roundedClass = 'wall-rounded';
+    } else {
+      roundedClass = [leftRounding, rightRounding].filter(Boolean).join(' ');
     }
 
     // Border suppression for collinear walls
@@ -263,6 +263,7 @@ export function computeWallLayout(
       gridColEnd,
       roundedClass,
       borderClass,
+      shadowClass: 'wall-slab',
       marginRight,
       marginLeft,
     };
@@ -307,14 +308,14 @@ export function computeWallLayout(
     const connectTop = hasTopCollinear || meetsHorizontalTop;
     const connectBottom = hasBottomCollinear || meetsHorizontalBottom;
 
-    const topRounding = connectTop ? 'rounded-t-none' : 'rounded-t-[6px]';
-    const bottomRounding = connectBottom ? 'rounded-b-none' : 'rounded-b-[6px]';
+    const topRounding = connectTop ? '' : 'wall-rounded-t';
+    const bottomRounding = connectBottom ? '' : 'wall-rounded-b';
 
-    let roundedClass = `${topRounding} ${bottomRounding}`;
+    let roundedClass = '';
     if (!connectTop && !connectBottom) {
-      roundedClass = 'rounded-[6px]';
-    } else if (connectTop && connectBottom) {
-      roundedClass = 'rounded-none';
+      roundedClass = 'wall-rounded';
+    } else {
+      roundedClass = [topRounding, bottomRounding].filter(Boolean).join(' ');
     }
 
     let borderClass = '';
@@ -326,14 +327,20 @@ export function computeWallLayout(
       borderClass = 'border-b-0';
     }
 
+    // Suppress downward shadow on V when connecting to H at bottom to eliminate dark shadow crease
+    const shadowClass = connectBottom ? 'wall-slab-connected-bottom' : 'wall-slab';
+
     let marginBottom: string | undefined;
     let marginTop: string | undefined;
+    let zIndex: number | undefined;
 
     if (hasBottomCollinear || meetsHorizontalBottom) {
-      marginBottom = '-1px';
+      marginBottom = '-2px';
+      zIndex = 22; // Paint above H's top edge to seamlessly cover the border
     }
     if (hasTopCollinear || meetsHorizontalTop) {
-      marginTop = '-1px';
+      marginTop = '-2px';
+      zIndex = 22;
     }
 
     return {
@@ -343,8 +350,10 @@ export function computeWallLayout(
       gridColEnd,
       roundedClass,
       borderClass,
+      shadowClass,
       marginBottom,
       marginTop,
+      zIndex,
     };
   }
 }

@@ -45,9 +45,9 @@ test('Wall Layout - computeWallLayout for collinear same-player wall has no inte
   // Extends across Groove 3 (line 8 to 9) to touch P1 at line 9
   assert.equal(layout.gridColEnd, 9);
 
-  // Touching P1 on the right: border-r-0, rounded-r-none, rounded-l-[6px]
+  // Touching P1 on the right: border-r-0, rounded-l-6px
   assert.equal(layout.borderClass, 'border-r-0');
-  assert.equal(layout.roundedClass, 'rounded-l-[6px] rounded-r-none');
+  assert.equal(layout.roundedClass, 'wall-rounded-l');
   // Negative margin on right for micro-overlap
   assert.equal(layout.marginRight, '-1px');
 });
@@ -69,7 +69,7 @@ test('Wall Layout - getMergedWallGroups merges collinear same-player vertical wa
   assert.equal(layout.gridColEnd, 7);
   assert.equal(layout.gridRowStart, 3);
   assert.equal(layout.gridRowEnd, 10);
-  assert.equal(layout.roundedClass, 'rounded-[6px]');
+  assert.equal(layout.roundedClass, 'wall-rounded');
 });
 
 test('Wall Layout - Perpendicular corner connection seamlessly bridges the intersection and rounds outer corner', () => {
@@ -92,10 +92,12 @@ test('Wall Layout - Perpendicular corner connection seamlessly bridges the inter
   // H spans into Groove 3 (line 9 instead of line 8) to seamlessly fill the corner intersection!
   assert.equal(hLayout.gridColEnd, 9);
   // Outer corner is rounded at bottom-right, open end is rounded at left
-  assert.equal(hLayout.roundedClass, 'rounded-l-[6px] rounded-br-[6px] rounded-tr-none');
+  assert.equal(hLayout.roundedClass, 'wall-rounded-l wall-rounded-br');
 
-  // V meets H at the bottom: rounded-t-[6px] rounded-b-none, border-b-0, marginBottom: -1px
-  assert.equal(vLayout.roundedClass, 'rounded-t-[6px] rounded-b-none');
+  // V meets H at the bottom: rounded-t-[6px], border-b-0, marginBottom: -2px, wall-slab-connected-bottom (no downward shadow!)
+  assert.equal(vLayout.roundedClass, 'wall-rounded-t');
   assert.equal(vLayout.borderClass, 'border-b-0');
-  assert.equal(vLayout.marginBottom, '-1px');
+  assert.equal(vLayout.shadowClass, 'wall-slab-connected-bottom');
+  assert.equal(vLayout.marginBottom, '-2px');
+  assert.equal(vLayout.zIndex, 22);
 });

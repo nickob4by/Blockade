@@ -319,8 +319,9 @@ export const GameBoard = forwardRef<GameBoardHandle, GameBoardProps>(({
                   marginLeft: layout.marginLeft,
                   marginTop: layout.marginTop,
                   marginBottom: layout.marginBottom,
+                  zIndex: layout.zIndex ?? 20,
                 }}
-                className={`z-20 pointer-events-none self-stretch h-full w-full border wall-slab ${layout.roundedClass} ${layout.borderClass} ${
+                className={`pointer-events-none self-stretch h-full w-full border ${layout.shadowClass || 'wall-slab'} ${layout.roundedClass} ${layout.borderClass} ${
                   group.isLatest ? 'animate-wall-slam' : ''
                 } ${
                   isP1Wall
@@ -383,8 +384,9 @@ export const GameBoard = forwardRef<GameBoardHandle, GameBoardProps>(({
                   marginLeft: previewLayout.marginLeft,
                   marginTop: previewLayout.marginTop,
                   marginBottom: previewLayout.marginBottom,
+                  zIndex: previewLayout.zIndex ?? 25,
                 }}
-                className={`z-25 pointer-events-none self-stretch h-full w-full transition-all duration-75 border ${previewLayout.roundedClass} ${previewLayout.borderClass} ${
+                className={`pointer-events-none self-stretch h-full w-full transition-all duration-75 border ${previewLayout.shadowClass || 'shadow-md'} ${previewLayout.roundedClass} ${previewLayout.borderClass} ${
                   previewWall.isValid
                     ? isP1Turn
                       ? 'bg-blue-500/45 border-blue-400/80 shadow-md'
