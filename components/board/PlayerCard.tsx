@@ -1,6 +1,5 @@
 import React from 'react';
 import { PlayerState, Wall } from '@/lib/game/types';
-import { findShortestPath } from '@/lib/game/pathfinding';
 import { Shield, Sparkles } from 'lucide-react';
 
 interface PlayerCardProps {
@@ -13,12 +12,9 @@ interface PlayerCardProps {
 export const PlayerCard: React.FC<PlayerCardProps> = ({
   player,
   isCurrentTurn,
-  walls,
   isClientPlayer,
 }) => {
   const isP1 = player.id === 1;
-  const path = findShortestPath(player.position, player.targetRow, walls);
-  const stepsToGoal = path ? path.length - 1 : null;
 
   return (
     <div
@@ -70,10 +66,7 @@ export const PlayerCard: React.FC<PlayerCardProps> = ({
             )}
           </div>
           <span className="text-[10px] text-zinc-400 leading-tight">
-            Goal: Row {isP1 ? '1 (Top)' : '9 (Bottom)'}
-            {stepsToGoal !== null && (
-              <span className="text-zinc-500 ml-1.5">• {stepsToGoal} steps</span>
-            )}
+            Target: {isP1 ? 'Top Row (Row 1)' : 'Bottom Row (Row 9)'}
           </span>
         </div>
       </div>
