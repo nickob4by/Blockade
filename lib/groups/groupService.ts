@@ -54,6 +54,7 @@ function sanitizeGroups(groups: FriendGroup[], userId: string, userName: string)
   return groups
     .filter((g) => {
       if (!g || typeof g !== 'object') return false;
+      if (!g.code || typeof g.code !== 'string') return false;
       if (g.id === 'group_warriors' || g.id === 'group_champions') return false;
       if (typeof g.name === 'string' && (g.name.includes('Blockade Warriors') || g.name.includes('Quoridor Champions'))) return false;
       return true;
@@ -118,7 +119,7 @@ export function getKnownGroupsMap(): Record<string, FriendGroup> {
 }
 
 export function saveKnownGroup(group: FriendGroup): void {
-  if (typeof window === 'undefined' || !group || !group.code) return;
+  if (typeof window === 'undefined' || !group || !group.code || typeof group.code !== 'string') return;
   try {
     const all = getKnownGroupsMap();
     all[group.code.toUpperCase()] = group;
@@ -132,7 +133,7 @@ export function saveKnownGroup(group: FriendGroup): void {
  * Fetch group details from server with complete members list.
  */
 export async function fetchRemoteGroup(code: string): Promise<FriendGroup | null> {
-  if (typeof fetch === 'undefined') return null;
+  if (!code || typeof code !== 'string' || typeof fetch === 'undefined') return null;
   try {
     const clean = code.trim().toUpperCase();
     const res = await fetch(`/api/groups?code=${encodeURIComponent(clean)}`);
@@ -446,6 +447,15 @@ export function subscribeToGroupPresence(
   onPresenceUpdate: (presences: Record<string, { name: string; status: MemberStatus; emoji?: string }>) => void,
   onMemberJoined?: (member: GroupMember) => void
 ): GroupPresenceSubscription {
+  if (!groupCode || typeof groupCode !== 'string' || !user || !user.id) {
+    return {
+      channel: null,
+      updateStatus: async () => {},
+      broadcastMemberJoined: async () => {},
+      unsubscribe: () => {},
+    };
+  }
+
   const supabase = getSupabaseClient();
   if (!supabase) {
     return {
@@ -456,7 +466,21 @@ export function subscribeToGroupPresence(
     };
   }
 
-  const channelName = `group_presence:${groupCode.toLowerCase()}`;
+  const channelName = `group_presence:${groupCode.trim().toLowerCase()}`;
+
+  // Safely clean up any existing channel with the same topic before re-creating
+  try {
+    const existingChannels = supabase.getChannels();
+    const existing = existingChannels.find(
+      (c) => c.topic === channelName || c.topic === `realtime:${channelName}`
+    );
+    if (existing) {
+      supabase.removeChannel(existing);
+    }
+  } catch {
+    // Ignore channel cleanup errors
+  }
+
   const channel = supabase.channel(channelName, {
     config: {
       presence: {
@@ -539,7 +563,12 @@ export function subscribeToGroupPresence(
     updateStatus,
     broadcastMemberJoined,
     unsubscribe: () => {
-      channel.unsubscribe();
+      try {
+        channel.unsubscribe();
+        supabase.removeChannel(channel);
+      } catch {
+        // Ignore
+      }
     },
   };
 }

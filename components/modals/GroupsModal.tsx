@@ -93,7 +93,7 @@ export const GroupsModal: React.FC<GroupsModalProps> = ({
 
   // Subscribe to real-time presence when a group is selected and sync full remote member list
   useEffect(() => {
-    if (!selectedGroup) {
+    if (!selectedGroup || !selectedGroup.code || typeof selectedGroup.code !== 'string') {
       setLivePresences({});
       return;
     }
@@ -122,8 +122,8 @@ export const GroupsModal: React.FC<GroupsModalProps> = ({
         // Broadcast listener: add new member in real-time
         setGroups((prev) =>
           prev.map((g) => {
-            if (g.code.toUpperCase() === selectedGroup.code.toUpperCase()) {
-              if (!g.members.some((m) => m.id === newMember.id)) {
+            if (g.code && g.code.toUpperCase() === selectedGroup.code.toUpperCase()) {
+              if (!g.members.some((m) => m && m.id === newMember.id)) {
                 return { ...g, members: [...g.members, newMember] };
               }
             }
@@ -136,7 +136,27 @@ export const GroupsModal: React.FC<GroupsModalProps> = ({
     return () => {
       sub.unsubscribe();
     };
-  }, [selectedGroup?.code, currentUserId, currentUserName, profile.emoji]);
+  }, [selectedGroup?.id, selectedGroup?.code, currentUserId, currentUserName, profile.emoji]);
+
+  // Safely persist members discovered via real-time presence into local & remote group roster
+  useEffect(() => {
+    if (!selectedGroup || !selectedGroup.id) return;
+    Object.entries(livePresences).forEach(([id, live]) => {
+      if (!live) return;
+      const alreadyIn = selectedGroup.members?.some((m) => m && m.id === id);
+      if (!alreadyIn) {
+        const discoveredMember: GroupMember = {
+          id,
+          name: live.name || 'Player',
+          role: 'member',
+          status: live.status || 'online',
+          emoji: live.emoji,
+          lastActive: 'Active now',
+        };
+        persistMemberIntoGroup(selectedGroup.id, discoveredMember, currentUserId, currentUserName);
+      }
+    });
+  }, [livePresences, selectedGroup?.id, currentUserId, currentUserName]);
 
   // Calculate live members for selected group (only real users, no dummy mock bots)
   const resolvedMembers: GroupMember[] = useMemo(() => {
@@ -175,13 +195,12 @@ export const GroupsModal: React.FC<GroupsModalProps> = ({
     });
 
     // 2. Also include any real player who connected to this circle via presence
-    // and PERMANENTLY persist them into selectedGroup so they never disappear when logging out!
     Object.entries(livePresences).forEach(([id, live]) => {
       if (!live) return;
       if (!memberMap.has(id)) {
         const liveName = live.name || 'Player';
         const isYou = id === currentUserId || liveName.toLowerCase() === (currentUserName || '').toLowerCase();
-        const discoveredMember: GroupMember = {
+        memberMap.set(id, {
           id,
           name: liveName,
           role: 'member',
@@ -189,10 +208,7 @@ export const GroupsModal: React.FC<GroupsModalProps> = ({
           emoji: live.emoji,
           isYou,
           lastActive: live.status === 'in_game' ? 'Playing match' : 'Active now',
-        };
-
-        memberMap.set(id, discoveredMember);
-        persistMemberIntoGroup(selectedGroup.id, discoveredMember, currentUserId, currentUserName);
+        });
       }
     });
 

@@ -31,13 +31,7 @@ import {
   cancelChallenge,
   subscribeToUserChallenges,
 } from '@/lib/challenges/challengeService';
-import {
-  GroupMember,
-  FriendGroup,
-  MemberStatus,
-  getUserGroups,
-  subscribeToGroupPresence,
-} from '@/lib/groups/groupService';
+import { GroupMember, FriendGroup } from '@/lib/groups/groupService';
 import { Users, Bot, Globe, ArrowLeft, RefreshCw, Settings, Sun, Moon } from 'lucide-react';
 
 export default function GamePage() {
@@ -927,50 +921,6 @@ export default function GamePage() {
       unsubscribe();
     };
   }, [user?.id, profile.id, profile.name, profile.emoji, playerName, mode]);
-
-  // Track player dynamic presence (online vs in_game) across all groups the user belongs to
-  useEffect(() => {
-    const currentId = user?.id || profile.id || 'guest_user';
-    const currentName = profile.name || playerName || 'Player 1';
-    const userGroups = getUserGroups(currentId, currentName);
-
-    if (userGroups.length === 0) return;
-
-    // Status is in_game if currently playing a match, online otherwise
-    const currentStatus: MemberStatus =
-      currentView === 'game' && gameState.status === 'playing'
-        ? 'in_game'
-        : 'online';
-
-    const subscriptions: { unsubscribe: () => void }[] = [];
-
-    userGroups.forEach((group) => {
-      const sub = subscribeToGroupPresence(
-        group.code,
-        {
-          id: currentId,
-          name: currentName,
-          emoji: profile.emoji || undefined,
-          status: currentStatus,
-        },
-        () => {} // Background sync
-      );
-      subscriptions.push(sub);
-    });
-
-    return () => {
-      subscriptions.forEach((s) => s.unsubscribe());
-    };
-  }, [
-    user?.id,
-    profile.id,
-    profile.name,
-    profile.emoji,
-    playerName,
-    currentView,
-    gameState.status,
-    showGroups,
-  ]);
 
   // Broadcast player departure on window unload / close
   useEffect(() => {
