@@ -161,9 +161,9 @@ export const GameBoard = forwardRef<GameBoardHandle, GameBoardProps>(({
     : null;
 
   return (
-    <div className="relative flex flex-col items-center justify-center w-full">
+    <div className="relative flex flex-col items-center justify-center w-full pb-3 sm:pb-3.5">
       {/* Feedback banner */}
-      <div className="h-5 mb-1.5 flex items-center justify-center text-center">
+      <div className="h-5 mb-2 flex items-center justify-center text-center">
         {activeDrag ? (
           <span
             className={`inline-flex items-center gap-1.5 px-3 py-0.5 rounded-full text-[11px] font-semibold shadow-sm transition-colors ${
@@ -202,12 +202,12 @@ export const GameBoard = forwardRef<GameBoardHandle, GameBoardProps>(({
       {/* Main Board Outer Frame */}
       <div className="relative w-[94vw] max-w-[390px] aspect-square p-2.5 sm:p-3.5 rounded-2xl bg-zinc-900/95 border border-zinc-800 shadow-2xl backdrop-blur-md flex items-center justify-center">
         {/* Clean Goal Line Indicators */}
-        <div className="absolute -top-3.5 left-6 right-6 flex items-center justify-center pointer-events-none z-20">
+        <div className="absolute -top-2.5 left-6 right-6 flex items-center justify-center pointer-events-none z-20">
           <span className="text-[9px] font-extrabold uppercase tracking-wider text-sky-200 bg-gradient-to-r from-blue-950 via-blue-900 to-blue-950 px-3 py-0.5 rounded-full border border-sky-400/40 shadow-md">
             ▲ Player 1 Finish Line ▲
           </span>
         </div>
-        <div className="absolute -bottom-3.5 left-6 right-6 flex items-center justify-center pointer-events-none z-20">
+        <div className="absolute -bottom-2.5 left-6 right-6 flex items-center justify-center pointer-events-none z-20">
           <span className="text-[9px] font-extrabold uppercase tracking-wider text-rose-200 bg-gradient-to-r from-rose-950 via-rose-900 to-rose-950 px-3 py-0.5 rounded-full border border-rose-400/40 shadow-md">
             ▼ Player 2 Finish Line ▼
           </span>

@@ -441,7 +441,7 @@ export default function GamePage() {
       )}
 
       {/* 2. Middle Game Core: Opponent -> Board -> Player */}
-      <div className="w-full flex flex-col items-center justify-center gap-1.5 sm:gap-2 my-auto">
+      <div className="w-full flex flex-col items-center justify-center gap-2.5 sm:gap-3.5 my-auto">
         {/* Opponent Card (Top - Player 2) */}
         <PlayerCard
           player={gameState.players[2]}
