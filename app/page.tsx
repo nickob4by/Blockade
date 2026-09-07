@@ -509,13 +509,15 @@ export default function GamePage() {
     setupRealtimeRoom(clean, false, guestName || profile.name || 'Player 2');
   };
 
+  const isOnlineMode = mode === 'online' || Boolean(roomCode) || gameState.mode === 'online';
+
   const isMyTurn =
-    mode === 'local'
+    !isOnlineMode && mode === 'local'
       ? true
       : gameState.currentTurn === clientPlayerId && gameState.status === 'playing';
 
   const isPlayerInteractionDisabled =
-    mode === 'online' && gameState.currentTurn !== clientPlayerId;
+    isOnlineMode && gameState.currentTurn !== clientPlayerId;
 
   if (currentView === 'menu') {
     return (
@@ -630,7 +632,7 @@ export default function GamePage() {
         </div>
 
         {/* Action Button: Restart Match (hidden in online mode) */}
-        {mode !== 'online' ? (
+        {!isOnlineMode ? (
           <button
             type="button"
             onClick={handleRestart}
@@ -646,7 +648,7 @@ export default function GamePage() {
       </header>
 
       {/* Online room banner if active */}
-      {mode === 'online' && roomCode && (
+      {isOnlineMode && roomCode && (
         <div className="w-full px-2 py-1 rounded-lg bg-slate-900/80 border border-slate-800 flex items-center justify-between text-[11px] text-slate-300">
           <div className="flex items-center gap-1.5 truncate">
             <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
@@ -671,7 +673,7 @@ export default function GamePage() {
           player={gameState.players[2]}
           isCurrentTurn={gameState.currentTurn === 2}
           walls={gameState.walls}
-          isClientPlayer={mode === 'online' ? clientPlayerId === 2 : undefined}
+          isClientPlayer={isOnlineMode ? clientPlayerId === 2 : undefined}
         />
 
         {/* 9x9 Touch Game Board */}
@@ -692,7 +694,7 @@ export default function GamePage() {
           player={gameState.players[1]}
           isCurrentTurn={gameState.currentTurn === 1}
           walls={gameState.walls}
-          isClientPlayer={mode === 'online' ? clientPlayerId === 1 : undefined}
+          isClientPlayer={isOnlineMode ? clientPlayerId === 1 : undefined}
         />
       </div>
 
@@ -703,7 +705,7 @@ export default function GamePage() {
         selectedWall={selectedWall}
         onConfirmWall={handleConfirmWall}
         onCancelWall={handleCancelWall}
-        onRestart={handleRestart}
+        onRestart={!isOnlineMode ? handleRestart : undefined}
         onOpenRules={() => setShowRules(true)}
         wallsLeft={gameState.players[gameState.currentTurn].wallsLeft}
         currentTurn={gameState.currentTurn}

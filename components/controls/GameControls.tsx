@@ -17,7 +17,7 @@ import {
 interface GameControlsProps {
   orientation: WallOrientation;
   onToggleOrientation: () => void;
-  onRestart: () => void;
+  onRestart?: () => void;
   onOpenRules: () => void;
   wallsLeft: number;
 }
@@ -92,15 +92,17 @@ export const GameControls: React.FC<GameControlsProps> = ({
           )}
         </button>
 
-        <button
-          type="button"
-          onClick={onRestart}
-          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-rose-950/40 text-slate-300 hover:text-rose-300 border border-slate-700 hover:border-rose-500/40 text-xs sm:text-sm font-medium transition-colors"
-          title="Restart Game"
-        >
-          <RotateCcw className="w-3.5 h-3.5" />
-          <span>Reset</span>
-        </button>
+        {onRestart && (
+          <button
+            type="button"
+            onClick={onRestart}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-rose-950/40 text-slate-300 hover:text-rose-300 border border-slate-700 hover:border-rose-500/40 text-xs sm:text-sm font-medium transition-colors"
+            title="Restart Game"
+          >
+            <RotateCcw className="w-3.5 h-3.5" />
+            <span>Reset</span>
+          </button>
+        )}
       </div>
     </div>
   );

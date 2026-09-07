@@ -20,7 +20,7 @@ interface MobileControlsProps {
   selectedWall: { r: number; c: number; orientation: WallOrientation } | null;
   onConfirmWall: () => void;
   onCancelWall: () => void;
-  onRestart: () => void;
+  onRestart?: () => void;
   onOpenRules: () => void;
   wallsLeft: number;
   currentTurn: PlayerId;
@@ -146,14 +146,16 @@ export const MobileControls: React.FC<MobileControlsProps> = ({
               )}
             </button>
 
-            <button
-              type="button"
-              onClick={onRestart}
-              className="p-1.5 rounded-lg bg-zinc-800 hover:bg-red-950/40 text-zinc-300 hover:text-red-300 border border-zinc-700/60 tap-bounce"
-              title="Restart Match"
-            >
-              <RotateCcw className="w-3.5 h-3.5" />
-            </button>
+            {onRestart && (
+              <button
+                type="button"
+                onClick={onRestart}
+                className="p-1.5 rounded-lg bg-zinc-800 hover:bg-red-950/40 text-zinc-300 hover:text-red-300 border border-zinc-700/60 tap-bounce"
+                title="Restart Match"
+              >
+                <RotateCcw className="w-3.5 h-3.5" />
+              </button>
+            )}
           </div>
         </div>
       )}
