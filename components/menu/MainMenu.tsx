@@ -141,7 +141,7 @@ export const MainMenu: React.FC<MainMenuProps> = ({
                 className="flex items-center gap-1 px-3 py-1.5 rounded-full bg-sky-500 hover:bg-sky-400 text-white text-xs font-bold shadow-md transition-all tap-bounce"
               >
                 <UserPlus className="w-3.5 h-3.5" />
-                <span>Register</span>
+                <span>Sign Up</span>
               </button>
             </div>
           )}

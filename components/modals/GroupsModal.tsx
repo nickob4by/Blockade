@@ -382,7 +382,7 @@ export const GroupsModal: React.FC<GroupsModalProps> = ({
                   className="py-1.5 px-3 rounded-xl bg-sky-500 hover:bg-sky-400 text-white font-bold text-xs flex items-center justify-center gap-1.5 shadow-md tap-bounce transition-all"
                 >
                   <UserPlus className="w-3.5 h-3.5" />
-                  Register
+                  Sign Up
                 </button>
                 <button
                   type="button"
@@ -561,7 +561,7 @@ export const GroupsModal: React.FC<GroupsModalProps> = ({
                         }}
                         className="px-4 py-2 rounded-xl bg-slate-200 hover:bg-slate-300 dark:bg-zinc-800 dark:hover:bg-zinc-700 text-slate-800 dark:text-zinc-200 font-bold text-xs tap-bounce"
                       >
-                        Register
+                        Sign Up
                       </button>
                     </div>
                   </div>
@@ -626,7 +626,7 @@ export const GroupsModal: React.FC<GroupsModalProps> = ({
                         }}
                         className="px-4 py-2 rounded-xl bg-slate-200 hover:bg-slate-300 dark:bg-zinc-800 dark:hover:bg-zinc-700 text-slate-800 dark:text-zinc-200 font-bold text-xs tap-bounce"
                       >
-                        Register
+                        Sign Up
                       </button>
                     </div>
                   </div>

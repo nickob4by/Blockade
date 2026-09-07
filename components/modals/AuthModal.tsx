@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useAuth } from '@/lib/auth/AuthContext';
 import {
   X,
@@ -34,6 +34,25 @@ export const AuthModal: React.FC<AuthModalProps> = ({
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
+
+  // Sync mode and clear inputs whenever the modal opens or defaultMode changes
+  useEffect(() => {
+    if (isOpen) {
+      setMode(defaultMode);
+      setUsername('');
+      setPassword('');
+      setErrorMsg(null);
+      setSuccessMsg(null);
+    }
+  }, [isOpen, defaultMode]);
+
+  const handleSwitchMode = (newMode: 'signin' | 'signup') => {
+    setMode(newMode);
+    setUsername('');
+    setPassword('');
+    setErrorMsg(null);
+    setSuccessMsg(null);
+  };
 
   if (!isOpen) return null;
 
@@ -103,11 +122,11 @@ export const AuthModal: React.FC<AuthModalProps> = ({
             </div>
             <div>
               <h3 className="text-base font-bold text-zinc-100">
-                {mode === 'signup' ? 'Create Account' : 'Sign In'}
+                {mode === 'signup' ? 'Sign Up' : 'Sign In'}
               </h3>
               <p className="text-[11px] text-zinc-400">
                 {mode === 'signup'
-                  ? 'Simple registration to play & save groups'
+                  ? 'Create an account to play & save groups'
                   : 'Welcome back to Blockade'}
               </p>
             </div>
@@ -125,24 +144,18 @@ export const AuthModal: React.FC<AuthModalProps> = ({
         <div className="flex items-center gap-1 p-1 mt-4 bg-zinc-950 rounded-xl border border-zinc-800/80 text-xs">
           <button
             type="button"
-            onClick={() => {
-              setMode('signup');
-              setErrorMsg(null);
-            }}
+            onClick={() => handleSwitchMode('signup')}
             className={`flex-1 py-1.5 rounded-lg font-semibold transition-all tap-bounce ${
               mode === 'signup'
                 ? 'bg-zinc-800 text-zinc-100 shadow-sm'
                 : 'text-zinc-400 hover:text-zinc-200'
             }`}
           >
-            Register
+            Sign Up
           </button>
           <button
             type="button"
-            onClick={() => {
-              setMode('signin');
-              setErrorMsg(null);
-            }}
+            onClick={() => handleSwitchMode('signin')}
             className={`flex-1 py-1.5 rounded-lg font-semibold transition-all tap-bounce ${
               mode === 'signin'
                 ? 'bg-zinc-800 text-zinc-100 shadow-sm'
@@ -168,21 +181,46 @@ export const AuthModal: React.FC<AuthModalProps> = ({
             </div>
           )}
 
-          <form onSubmit={handleSubmit} className="space-y-3">
+          <form
+            key={`${mode}-${isOpen ? 'open' : 'closed'}`}
+            onSubmit={handleSubmit}
+            autoComplete="off"
+            className="space-y-3"
+          >
             <div>
               <label className="block text-xs font-semibold text-zinc-300 mb-1">
                 Username / Player Name
               </label>
               <div className="relative">
-                <User className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500" />
+                <User className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500 pointer-events-none" />
                 <input
                   type="text"
+                  name="blockade_user"
+                  id="blockade_user"
                   required
+                  autoComplete="off"
+                  autoCorrect="off"
+                  autoCapitalize="none"
+                  spellCheck={false}
+                  data-lpignore="true"
+                  data-1p-ignore="true"
+                  data-form-type="other"
                   placeholder="e.g. Nicko"
                   value={username}
                   onChange={(e) => setUsername(e.target.value)}
-                  className="w-full pl-9 pr-3 py-2 rounded-xl bg-zinc-950 border border-zinc-800 text-xs text-zinc-100 placeholder-zinc-500 focus:outline-none focus:border-sky-500"
+                  className="w-full pl-9 pr-8 py-2 rounded-xl bg-zinc-950 border border-zinc-800 text-xs text-zinc-100 placeholder-zinc-500 focus:outline-none focus:border-sky-500"
                 />
+                {username && (
+                  <button
+                    type="button"
+                    onClick={() => setUsername('')}
+                    tabIndex={-1}
+                    aria-label="Clear username"
+                    className="absolute right-2.5 top-1/2 -translate-y-1/2 p-0.5 text-zinc-500 hover:text-zinc-300 rounded-full hover:bg-zinc-800 transition-colors"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                )}
               </div>
             </div>
 
@@ -191,15 +229,35 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                 Password
               </label>
               <div className="relative">
-                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500" />
+                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500 pointer-events-none" />
                 <input
                   type="password"
+                  name="blockade_pass"
+                  id="blockade_pass"
                   required
+                  autoComplete="new-password"
+                  autoCorrect="off"
+                  autoCapitalize="none"
+                  spellCheck={false}
+                  data-lpignore="true"
+                  data-1p-ignore="true"
+                  data-form-type="other"
                   placeholder="At least 6 characters"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  className="w-full pl-9 pr-3 py-2 rounded-xl bg-zinc-950 border border-zinc-800 text-xs text-zinc-100 placeholder-zinc-500 focus:outline-none focus:border-sky-500"
+                  className="w-full pl-9 pr-8 py-2 rounded-xl bg-zinc-950 border border-zinc-800 text-xs text-zinc-100 placeholder-zinc-500 focus:outline-none focus:border-sky-500"
                 />
+                {password && (
+                  <button
+                    type="button"
+                    onClick={() => setPassword('')}
+                    tabIndex={-1}
+                    aria-label="Clear password"
+                    className="absolute right-2.5 top-1/2 -translate-y-1/2 p-0.5 text-zinc-500 hover:text-zinc-300 rounded-full hover:bg-zinc-800 transition-colors"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                )}
               </div>
             </div>
 
@@ -238,7 +296,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
               ) : mode === 'signup' ? (
                 <>
                   <UserPlus className="w-4 h-4" />
-                  Create Account
+                  Sign Up
                 </>
               ) : (
                 <>
@@ -281,10 +339,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
               Already have an account?{' '}
               <button
                 type="button"
-                onClick={() => {
-                  setMode('signin');
-                  setErrorMsg(null);
-                }}
+                onClick={() => handleSwitchMode('signin')}
                 className="text-sky-400 font-semibold hover:underline"
               >
                 Sign In
@@ -295,13 +350,10 @@ export const AuthModal: React.FC<AuthModalProps> = ({
               New player?{' '}
               <button
                 type="button"
-                onClick={() => {
-                  setMode('signup');
-                  setErrorMsg(null);
-                }}
+                onClick={() => handleSwitchMode('signup')}
                 className="text-sky-400 font-semibold hover:underline"
               >
-                Register
+                Sign Up
               </button>
             </span>
           )}
