@@ -129,6 +129,11 @@ export default function GamePage() {
   // Reset / Restart Game
   const handleRestart = useCallback(() => {
     const newState = createInitialGameState(mode);
+    const p1Name = gameState.players[1]?.name || playerName.trim() || profile.name || 'Player 1';
+    newState.players[1].name = p1Name;
+    if (gameState.players[2]?.name) {
+      newState.players[2].name = gameState.players[2].name;
+    }
     setGameState(newState);
     setSelectedWall(null);
     setActiveDrag(null);
@@ -140,12 +145,27 @@ export default function GamePage() {
         state: newState,
       });
     }
-  }, [mode]);
+  }, [mode, gameState.players, playerName, profile.name]);
 
-  // Keep playerName in sync with profile
+  // Keep playerName in sync with profile and initial game state
   useEffect(() => {
     if (profile.name) {
       setPlayerName(profile.name);
+      setGameState((prev) => {
+        if (prev.players[1].name === 'Player 1') {
+          return {
+            ...prev,
+            players: {
+              ...prev.players,
+              1: {
+                ...prev.players[1],
+                name: profile.name!,
+              },
+            },
+          };
+        }
+        return prev;
+      });
     }
   }, [profile.name]);
 
@@ -180,7 +200,9 @@ export default function GamePage() {
     }
 
     setMode(newMode);
-    setGameState(createInitialGameState(newMode));
+    const initial = createInitialGameState(newMode);
+    initial.players[1].name = playerName.trim() || profile.name || 'Player 1';
+    setGameState(initial);
     setClientPlayerId(1);
     setSelectedWall(null);
     setActiveDrag(null);
@@ -467,7 +489,7 @@ export default function GamePage() {
       // Initialize base game state for online match
       const baseState = createInitialGameState('online');
       baseState.players[1].name = isHostRole ? currentName : 'Host';
-      baseState.players[2].name = !isHostRole ? currentName : 'Guest';
+      baseState.players[2].name = !isHostRole ? currentName : 'Waiting for opponent...';
       setGameState(baseState);
 
       let hasSynced = false;
@@ -486,6 +508,10 @@ export default function GamePage() {
                   ...prev,
                   players: {
                     ...prev.players,
+                    1: {
+                      ...prev.players[1],
+                      name: currentName || prev.players[1].name || 'Player 1',
+                    },
                     2: {
                       ...prev.players[2],
                       name: payload.playerName || 'Player 2',
@@ -520,7 +546,20 @@ export default function GamePage() {
               clearInterval(handshakeIntervalRef.current);
               handshakeIntervalRef.current = null;
             }
-            setGameState(payload.state);
+            const stateToApply: GameState = {
+              ...payload.state,
+              players: {
+                ...payload.state.players,
+                2: {
+                  ...payload.state.players[2],
+                  name:
+                    !isHostRole
+                      ? currentName || payload.state.players[2]?.name || 'Player 2'
+                      : payload.state.players[2]?.name || 'Player 2',
+                },
+              },
+            };
+            setGameState(stateToApply);
             setWaitingForOpponent(false);
             setShowLobby(false);
             sounds.playWall();
@@ -600,7 +639,9 @@ export default function GamePage() {
     const code = generateRoomCode();
     setWaitingForOpponent(true);
     setIsHost(true);
-    setupRealtimeRoom(code, true, hostName || profile.name || 'Player 1');
+    const effectiveName = hostName.trim() || playerName.trim() || profile.name || 'Player 1';
+    setPlayerName(effectiveName);
+    setupRealtimeRoom(code, true, effectiveName);
   };
 
   // Online: Join Room
@@ -608,7 +649,9 @@ export default function GamePage() {
     const clean = code.trim().toUpperCase();
     setWaitingForOpponent(true);
     setIsHost(false);
-    setupRealtimeRoom(clean, false, guestName || profile.name || 'Player 2');
+    const effectiveName = guestName.trim() || playerName.trim() || profile.name || 'Player 2';
+    setPlayerName(effectiveName);
+    setupRealtimeRoom(clean, false, effectiveName);
   };
 
   // Broadcast player departure on window unload / close
@@ -644,6 +687,9 @@ export default function GamePage() {
   const isPlayerInteractionDisabled =
     (isOnlineMode && gameState.currentTurn !== clientPlayerId) ||
     opponentLeftInfo !== null;
+
+  const opponentPlayerId: PlayerId = clientPlayerId === 1 ? 2 : 1;
+  const isFlipped = clientPlayerId === 2;
 
   if (currentView === 'menu') {
     return (
@@ -802,12 +848,13 @@ export default function GamePage() {
 
       {/* 2. Middle Game Core: Opponent -> Board -> Player */}
       <div className="w-full flex flex-col items-center justify-center gap-5 sm:gap-6 my-auto">
-        {/* Opponent Card (Top - Player 2) */}
+        {/* Opponent Card (Top) */}
         <PlayerCard
-          player={gameState.players[2]}
-          isCurrentTurn={gameState.currentTurn === 2}
+          player={gameState.players[opponentPlayerId]}
+          isCurrentTurn={gameState.currentTurn === opponentPlayerId}
           walls={gameState.walls}
-          isClientPlayer={isOnlineMode ? clientPlayerId === 2 : undefined}
+          isClientPlayer={false}
+          targetDescription="Bottom Row"
         />
 
         {/* 9x9 Touch Game Board */}
@@ -821,14 +868,16 @@ export default function GamePage() {
           setSelectedWall={setSelectedWall}
           activeDrag={activeDrag}
           disabled={isPlayerInteractionDisabled}
+          isFlipped={isFlipped}
         />
 
-        {/* Client Player Card (Bottom - Player 1) */}
+        {/* Client Player Card (Bottom) */}
         <PlayerCard
-          player={gameState.players[1]}
-          isCurrentTurn={gameState.currentTurn === 1}
+          player={gameState.players[clientPlayerId]}
+          isCurrentTurn={gameState.currentTurn === clientPlayerId}
           walls={gameState.walls}
-          isClientPlayer={isOnlineMode ? clientPlayerId === 1 : undefined}
+          isClientPlayer={isOnlineMode ? true : undefined}
+          targetDescription="Top Row"
         />
       </div>
 

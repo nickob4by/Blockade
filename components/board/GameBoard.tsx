@@ -29,6 +29,7 @@ interface GameBoardProps {
   setSelectedWall: (wall: { r: number; c: number; orientation: WallOrientation } | null) => void;
   activeDrag: ActiveDragInfo | null;
   disabled?: boolean;
+  isFlipped?: boolean;
 }
 
 export const GameBoard = forwardRef<GameBoardHandle, GameBoardProps>(({
@@ -40,6 +41,7 @@ export const GameBoard = forwardRef<GameBoardHandle, GameBoardProps>(({
   setSelectedWall,
   activeDrag,
   disabled = false,
+  isFlipped = false,
 }, ref) => {
   const innerGridRef = useRef<HTMLDivElement>(null);
   const [validationError, setValidationError] = useState<string | null>(null);
@@ -63,15 +65,20 @@ export const GameBoard = forwardRef<GameBoardHandle, GameBoardProps>(({
         return null;
       }
 
-      const normX = Math.max(0, Math.min(1, (x - rect.left) / rect.width));
-      const normY = Math.max(0, Math.min(1, (y - rect.top) / rect.height));
+      let normX = Math.max(0, Math.min(1, (x - rect.left) / rect.width));
+      let normY = Math.max(0, Math.min(1, (y - rect.top) / rect.height));
+
+      if (isFlipped) {
+        normX = 1 - normX;
+        normY = 1 - normY;
+      }
 
       const c = Math.max(0, Math.min(7, Math.round(normX * 9 - 1)));
       const r = Math.max(0, Math.min(7, Math.round(normY * 9 - 1)));
 
       return { r, c };
     },
-  }));
+  }), [isFlipped]);
 
   // Compute valid pawn moves for the active player
   const validPawnMoves = isMyTurn
@@ -205,21 +212,34 @@ export const GameBoard = forwardRef<GameBoardHandle, GameBoardProps>(({
       <div className="relative w-[94vw] max-w-[390px] aspect-square p-2.5 sm:p-3.5 rounded-2xl bg-zinc-900/95 border border-zinc-800 shadow-2xl backdrop-blur-md flex items-center justify-center">
         {/* Clean Goal Line Indicators */}
         <div className="absolute -top-2.5 left-6 right-6 flex items-center justify-center pointer-events-none z-20">
-          <span className="text-[9px] font-extrabold uppercase tracking-wider text-sky-200 bg-gradient-to-r from-blue-950 via-blue-900 to-blue-950 px-3 py-0.5 rounded-full border border-sky-400/40 shadow-md">
-            ▲ Player 1 Finish Line ▲
+          <span
+            className={`text-[9px] font-extrabold uppercase tracking-wider px-3 py-0.5 rounded-full border shadow-md ${
+              isFlipped
+                ? 'text-rose-200 bg-gradient-to-r from-rose-950 via-rose-900 to-rose-950 border-rose-400/40'
+                : 'text-sky-200 bg-gradient-to-r from-blue-950 via-blue-900 to-blue-950 border-sky-400/40'
+            }`}
+          >
+            {isFlipped ? '▲ Player 2 Finish Line ▲' : '▲ Player 1 Finish Line ▲'}
           </span>
         </div>
         <div className="absolute -bottom-2.5 left-6 right-6 flex items-center justify-center pointer-events-none z-20">
-          <span className="text-[9px] font-extrabold uppercase tracking-wider text-rose-200 bg-gradient-to-r from-rose-950 via-rose-900 to-rose-950 px-3 py-0.5 rounded-full border border-rose-400/40 shadow-md">
-            ▼ Player 2 Finish Line ▼
+          <span
+            className={`text-[9px] font-extrabold uppercase tracking-wider px-3 py-0.5 rounded-full border shadow-md ${
+              isFlipped
+                ? 'text-sky-200 bg-gradient-to-r from-blue-950 via-blue-900 to-blue-950 border-sky-400/40'
+                : 'text-rose-200 bg-gradient-to-r from-rose-950 via-rose-900 to-rose-950 border-rose-400/40'
+            }`}
+          >
+            {isFlipped ? '▼ Player 1 Finish Line ▼' : '▼ Player 2 Finish Line ▼'}
           </span>
         </div>
 
         {/* 17x17 CSS Grid: 9 Cells + 8 Grooves */}
         <div
           ref={innerGridRef}
-          className="relative w-full h-full grid select-none touch-manipulation"
+          className="relative w-full h-full grid select-none touch-manipulation transition-transform duration-300"
           style={{
+            transform: isFlipped ? 'rotate(180deg)' : undefined,
             gridTemplateColumns:
               'repeat(8, 1fr clamp(6px, 1.8vw, 10px)) 1fr',
             gridTemplateRows:
@@ -288,14 +308,20 @@ export const GameBoard = forwardRef<GameBoardHandle, GameBoardProps>(({
                 >
                   {/* Pawn 1 */}
                   {isP1 && (
-                    <div className="w-[82%] h-[82%] rounded-full bg-gradient-to-b from-blue-500 to-blue-600 border border-blue-300/50 shadow-tactile-p1 tactile-pawn flex items-center justify-center font-bold text-[11px] sm:text-xs text-white pawn-transition animate-pawn-land">
+                    <div
+                      style={{ transform: isFlipped ? 'rotate(180deg)' : undefined }}
+                      className="w-[82%] h-[82%] rounded-full bg-gradient-to-b from-blue-500 to-blue-600 border border-blue-300/50 shadow-tactile-p1 tactile-pawn flex items-center justify-center font-bold text-[11px] sm:text-xs text-white pawn-transition animate-pawn-land"
+                    >
                       P1
                     </div>
                   )}
 
                   {/* Pawn 2 */}
                   {isP2 && (
-                    <div className="w-[82%] h-[82%] rounded-full bg-gradient-to-b from-rose-500 to-rose-600 border border-rose-300/50 shadow-tactile-p2 tactile-pawn flex items-center justify-center font-bold text-[11px] sm:text-xs text-white pawn-transition animate-pawn-land">
+                    <div
+                      style={{ transform: isFlipped ? 'rotate(180deg)' : undefined }}
+                      className="w-[82%] h-[82%] rounded-full bg-gradient-to-b from-rose-500 to-rose-600 border border-rose-300/50 shadow-tactile-p2 tactile-pawn flex items-center justify-center font-bold text-[11px] sm:text-xs text-white pawn-transition animate-pawn-land"
+                    >
                       P2
                     </div>
                   )}

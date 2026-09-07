@@ -7,12 +7,14 @@ interface PlayerCardProps {
   isCurrentTurn: boolean;
   walls: Wall[];
   isClientPlayer?: boolean;
+  targetDescription?: string;
 }
 
 export const PlayerCard: React.FC<PlayerCardProps> = ({
   player,
   isCurrentTurn,
   isClientPlayer,
+  targetDescription,
 }) => {
   const isP1 = player.id === 1;
 
@@ -66,7 +68,7 @@ export const PlayerCard: React.FC<PlayerCardProps> = ({
             )}
           </div>
           <span className="text-[10px] text-zinc-400 leading-tight">
-            Target: {isP1 ? 'Top Row (Row 1)' : 'Bottom Row (Row 9)'}
+            Target: {targetDescription ?? (isP1 ? 'Top Row (Row 1)' : 'Bottom Row (Row 9)')}
           </span>
         </div>
       </div>
