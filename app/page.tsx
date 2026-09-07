@@ -629,16 +629,20 @@ export default function GamePage() {
           )}
         </div>
 
-        {/* Action Button: Restart Match */}
-        <button
-          type="button"
-          onClick={handleRestart}
-          title="Restart Match"
-          className="flex items-center gap-1 px-2.5 py-1 rounded-xl bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 text-zinc-400 hover:text-zinc-200 text-xs font-semibold tap-bounce shadow-sm"
-        >
-          <RefreshCw className="w-3.5 h-3.5" />
-          <span className="hidden sm:inline">Reset</span>
-        </button>
+        {/* Action Button: Restart Match (hidden in online mode) */}
+        {mode !== 'online' ? (
+          <button
+            type="button"
+            onClick={handleRestart}
+            title="Restart Match"
+            className="flex items-center gap-1 px-2.5 py-1 rounded-xl bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 text-zinc-400 hover:text-zinc-200 text-xs font-semibold tap-bounce shadow-sm"
+          >
+            <RefreshCw className="w-3.5 h-3.5" />
+            <span className="hidden sm:inline">Reset</span>
+          </button>
+        ) : (
+          <div className="w-[70px]" />
+        )}
       </header>
 
       {/* Online room banner if active */}
