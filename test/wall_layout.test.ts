@@ -45,9 +45,9 @@ test('Wall Layout - computeWallLayout for collinear same-player wall has no inte
   // Extends across Groove 3 (line 8 to 9) to touch P1 at line 9
   assert.equal(layout.gridColEnd, 9);
 
-  // Touching P1 on the right: border-r-0, rounded-r-none, rounded-l-[3px]
+  // Touching P1 on the right: border-r-0, rounded-r-none, rounded-l-[6px]
   assert.equal(layout.borderClass, 'border-r-0');
-  assert.equal(layout.roundedClass, 'rounded-r-none rounded-l-[3px]');
+  assert.equal(layout.roundedClass, 'rounded-l-[6px] rounded-r-none');
   // Negative margin on right for micro-overlap
   assert.equal(layout.marginRight, '-1px');
 });
@@ -69,13 +69,17 @@ test('Wall Layout - getMergedWallGroups merges collinear same-player vertical wa
   assert.equal(layout.gridColEnd, 7);
   assert.equal(layout.gridRowStart, 3);
   assert.equal(layout.gridRowEnd, 10);
-  assert.equal(layout.roundedClass, 'rounded-[3px]');
+  assert.equal(layout.roundedClass, 'rounded-[6px]');
 });
 
-test('Wall Layout - Perpendicular corner connection flattens touching borders and rounds', () => {
+test('Wall Layout - Perpendicular corner connection seamlessly bridges the intersection and rounds outer corner', () => {
+  // Scenario precisely matching user screenshot:
+  // 2 horizontal walls at (r=6, c=0) and (r=6, c=2) merged from c=0 to c=2
+  // Vertical wall at (r=5, c=3) in Groove 3, directly above Groove 6
   const walls: Wall[] = [
-    { r: 0, c: 0, orientation: 'H', placedBy: 1 },
-    { r: 0, c: 1, orientation: 'V', placedBy: 1 },
+    { r: 6, c: 0, orientation: 'H', placedBy: 1 },
+    { r: 6, c: 2, orientation: 'H', placedBy: 1 },
+    { r: 5, c: 3, orientation: 'V', placedBy: 1 },
   ];
 
   const groups = getMergedWallGroups(walls);
@@ -85,11 +89,13 @@ test('Wall Layout - Perpendicular corner connection flattens touching borders an
   const hLayout = computeWallLayout(hGroup, walls);
   const vLayout = computeWallLayout(vGroup, walls);
 
-  // H touches V on H's right end
-  assert.equal(hLayout.borderClass, 'border-r-0');
-  assert.equal(hLayout.roundedClass, 'rounded-r-none rounded-l-[3px]');
-  assert.equal(hLayout.marginRight, '-1px');
+  // H spans into Groove 3 (line 9 instead of line 8) to seamlessly fill the corner intersection!
+  assert.equal(hLayout.gridColEnd, 9);
+  // Outer corner is rounded at bottom-right, open end is rounded at left
+  assert.equal(hLayout.roundedClass, 'rounded-l-[6px] rounded-br-[6px] rounded-tr-none');
 
-  // Both should render cleanly
-  assert.ok(vLayout);
+  // V meets H at the bottom: rounded-t-[6px] rounded-b-none, border-b-0, marginBottom: -1px
+  assert.equal(vLayout.roundedClass, 'rounded-t-[6px] rounded-b-none');
+  assert.equal(vLayout.borderClass, 'border-b-0');
+  assert.equal(vLayout.marginBottom, '-1px');
 });

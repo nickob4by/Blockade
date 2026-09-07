@@ -134,14 +134,16 @@ export function getMergedWallGroups(walls: Wall[]): MergedWallGroup[] {
 
 /**
  * Computes the exact grid tracks, corner rounding, border masking,
- * and micro-overlap offsets for a wall group or single wall segment.
+ * and visual connection offsets for a wall group or single wall segment.
+ * 
+ * Supports smooth rounded corners (`rounded-[6px]`) on open ends and
+ * seamless visual corner connection for perpendicular and collinear walls.
  */
 export function computeWallLayout(
   group: MergedWallGroup | { r: number; c: number; orientation: WallOrientation; placedBy?: 1 | 2 },
   allWalls: Wall[]
 ): WallLayout {
   const isH = group.orientation === 'H';
-  const placedBy = 'placedBy' in group ? group.placedBy : undefined;
   const rStart = 'rStart' in group ? group.rStart : group.r;
   const rEnd = 'rEnd' in group ? group.rEnd : group.r;
   const cStart = 'cStart' in group ? group.cStart : group.c;
@@ -152,7 +154,7 @@ export function computeWallLayout(
   if (isH) {
     const gridRowStart = 2 * r + 2;
     const gridRowEnd = 2 * r + 3;
-    const gridColStart = 2 * cStart + 1;
+    let gridColStart = 2 * cStart + 1;
     let gridColEnd = 2 * cEnd + 4;
 
     // Collinear horizontal neighbors
@@ -163,66 +165,94 @@ export function computeWallLayout(
       (w) => w.orientation === 'H' && w.r === r && w.c === cStart - 2
     );
 
-    // If there is an adjacent horizontal wall directly to the right, span across the groove track
-    if (hasRightCollinear) {
+    // Perpendicular vertical walls meeting at the right end (Groove cEnd + 1)
+    const vRightAbove = allWalls.some(
+      (w) => w.orientation === 'V' && w.c === cEnd + 1 && (w.r === r - 1 || w.r === r)
+    );
+    const vRightBelow = allWalls.some(
+      (w) => w.orientation === 'V' && w.c === cEnd + 1 && (w.r === r + 1 || w.r === r)
+    );
+    const meetsVerticalRight = vRightAbove || vRightBelow;
+
+    // Perpendicular vertical walls meeting at the left end (Groove cStart - 1)
+    const vLeftAbove = allWalls.some(
+      (w) => w.orientation === 'V' && w.c === cStart - 1 && (w.r === r - 1 || w.r === r)
+    );
+    const vLeftBelow = allWalls.some(
+      (w) => w.orientation === 'V' && w.c === cStart - 1 && (w.r === r + 1 || w.r === r)
+    );
+    const meetsVerticalLeft = vLeftAbove || vLeftBelow;
+
+    // If there is an adjacent horizontal wall OR a vertical wall to the right,
+    // span across Groove cEnd + 1 (into line 2 * cEnd + 5) to seamlessly connect the corner!
+    if (hasRightCollinear || meetsVerticalRight) {
       gridColEnd = 2 * cEnd + 5;
     }
 
-    // Perpendicular vertical walls meeting at either end
-    const meetsVerticalLeft = allWalls.some(
-      (w) =>
-        w.orientation === 'V' &&
-        w.c === cStart - 1 &&
-        (w.r === r || w.r === r - 1 || w.r === r + 1)
-    );
-    const meetsVerticalRight = allWalls.some(
-      (w) =>
-        w.orientation === 'V' &&
-        w.c === cEnd + 1 &&
-        (w.r === r || w.r === r - 1 || w.r === r + 1)
-    );
+    // If there is an adjacent horizontal wall OR a vertical wall to the left,
+    // span across Groove cStart - 1 (starting at line 2 * cStart) to seamlessly connect the corner!
+    if (hasLeftCollinear || meetsVerticalLeft) {
+      gridColStart = 2 * cStart;
+    }
 
-    // Same-player perpendicular vertical wall meetings (for micro-overlap fusing)
-    const meetsSamePlayerLeft = allWalls.some(
-      (w) =>
-        w.placedBy === placedBy &&
-        w.orientation === 'V' &&
-        w.c === cStart - 1 &&
-        (w.r === r || w.r === r - 1 || w.r === r + 1)
-    );
-    const meetsSamePlayerRight = allWalls.some(
-      (w) =>
-        w.placedBy === placedBy &&
-        w.orientation === 'V' &&
-        w.c === cEnd + 1 &&
-        (w.r === r || w.r === r - 1 || w.r === r + 1)
-    );
+    // Determine corner rounding
+    // Left end
+    let leftRounding = 'rounded-l-[6px]';
+    if (hasLeftCollinear) {
+      leftRounding = 'rounded-l-none';
+    } else if (meetsVerticalLeft) {
+      if (vLeftAbove && !vLeftBelow) {
+        // Turns UP: outer corner is bottom-left
+        leftRounding = 'rounded-bl-[6px] rounded-tl-none';
+      } else if (vLeftBelow && !vLeftAbove) {
+        // Turns DOWN: outer corner is top-left
+        leftRounding = 'rounded-tl-[6px] rounded-bl-none';
+      } else {
+        leftRounding = 'rounded-l-none';
+      }
+    }
 
-    const connectRight = hasRightCollinear || meetsVerticalRight;
-    const connectLeft = hasLeftCollinear || meetsVerticalLeft;
+    // Right end
+    let rightRounding = 'rounded-r-[6px]';
+    if (hasRightCollinear) {
+      rightRounding = 'rounded-r-none';
+    } else if (meetsVerticalRight) {
+      if (vRightAbove && !vRightBelow) {
+        // Turns UP: outer corner is bottom-right (as shown in user screenshot)
+        rightRounding = 'rounded-br-[6px] rounded-tr-none';
+      } else if (vRightBelow && !vRightAbove) {
+        // Turns DOWN: outer corner is top-right
+        rightRounding = 'rounded-tr-[6px] rounded-br-none';
+      } else {
+        rightRounding = 'rounded-r-none';
+      }
+    }
 
-    let roundedClass = 'rounded-[3px]';
-    let borderClass = '';
-
-    if (connectLeft && connectRight) {
+    let roundedClass = `${leftRounding} ${rightRounding}`;
+    if (!meetsVerticalLeft && !meetsVerticalRight && !hasLeftCollinear && !hasRightCollinear) {
+      roundedClass = 'rounded-[6px]';
+    } else if (leftRounding === 'rounded-l-none' && rightRounding === 'rounded-r-none') {
       roundedClass = 'rounded-none';
+    }
+
+    // Border suppression for collinear walls
+    let borderClass = '';
+    if (hasLeftCollinear && hasRightCollinear) {
       borderClass = 'border-x-0';
-    } else if (connectLeft) {
-      roundedClass = 'rounded-l-none rounded-r-[3px]';
+    } else if (hasLeftCollinear) {
       borderClass = 'border-l-0';
-    } else if (connectRight) {
-      roundedClass = 'rounded-r-none rounded-l-[3px]';
+    } else if (hasRightCollinear) {
       borderClass = 'border-r-0';
     }
 
-    // Micro-overlap by 1px to seamlessly eliminate subpixel seams
+    // Micro-overlap by 1px to eliminate subpixel gaps
     let marginRight: string | undefined;
     let marginLeft: string | undefined;
 
-    if (hasRightCollinear || meetsSamePlayerRight) {
+    if (hasRightCollinear) {
       marginRight = '-1px';
     }
-    if (meetsSamePlayerLeft) {
+    if (hasLeftCollinear) {
       marginLeft = '-1px';
     }
 
@@ -238,7 +268,7 @@ export function computeWallLayout(
     };
   } else {
     // Vertical wall
-    const gridRowStart = 2 * rStart + 1;
+    let gridRowStart = 2 * rStart + 1;
     let gridRowEnd = 2 * rEnd + 4;
     const gridColStart = 2 * c + 2;
     const gridColEnd = 2 * c + 3;
@@ -255,8 +285,12 @@ export function computeWallLayout(
     if (hasBottomCollinear) {
       gridRowEnd = 2 * rEnd + 5;
     }
+    if (hasTopCollinear) {
+      gridRowStart = 2 * rStart;
+    }
 
     // Perpendicular horizontal walls meeting at either end
+    // (Note: H extends across into the groove intersection, so V meets H's top or bottom edge)
     const meetsHorizontalTop = allWalls.some(
       (w) =>
         w.orientation === 'H' &&
@@ -270,47 +304,35 @@ export function computeWallLayout(
         (w.c === c || w.c === c - 1 || w.c === c + 1)
     );
 
-    // Same-player perpendicular horizontal wall meetings (for micro-overlap fusing)
-    const meetsSamePlayerTop = allWalls.some(
-      (w) =>
-        w.placedBy === placedBy &&
-        w.orientation === 'H' &&
-        w.r === rStart - 1 &&
-        (w.c === c || w.c === c - 1 || w.c === c + 1)
-    );
-    const meetsSamePlayerBottom = allWalls.some(
-      (w) =>
-        w.placedBy === placedBy &&
-        w.orientation === 'H' &&
-        w.r === rEnd + 1 &&
-        (w.c === c || w.c === c - 1 || w.c === c + 1)
-    );
-
-    const connectBottom = hasBottomCollinear || meetsHorizontalBottom;
     const connectTop = hasTopCollinear || meetsHorizontalTop;
+    const connectBottom = hasBottomCollinear || meetsHorizontalBottom;
 
-    let roundedClass = 'rounded-[3px]';
-    let borderClass = '';
+    const topRounding = connectTop ? 'rounded-t-none' : 'rounded-t-[6px]';
+    const bottomRounding = connectBottom ? 'rounded-b-none' : 'rounded-b-[6px]';
 
-    if (connectTop && connectBottom) {
+    let roundedClass = `${topRounding} ${bottomRounding}`;
+    if (!connectTop && !connectBottom) {
+      roundedClass = 'rounded-[6px]';
+    } else if (connectTop && connectBottom) {
       roundedClass = 'rounded-none';
+    }
+
+    let borderClass = '';
+    if (connectTop && connectBottom) {
       borderClass = 'border-y-0';
     } else if (connectTop) {
-      roundedClass = 'rounded-t-none rounded-b-[3px]';
       borderClass = 'border-t-0';
     } else if (connectBottom) {
-      roundedClass = 'rounded-b-none rounded-t-[3px]';
       borderClass = 'border-b-0';
     }
 
-    // Micro-overlap by 1px to seamlessly eliminate subpixel seams
     let marginBottom: string | undefined;
     let marginTop: string | undefined;
 
-    if (hasBottomCollinear || meetsSamePlayerBottom) {
+    if (hasBottomCollinear || meetsHorizontalBottom) {
       marginBottom = '-1px';
     }
-    if (meetsSamePlayerTop) {
+    if (hasTopCollinear || meetsHorizontalTop) {
       marginTop = '-1px';
     }
 
