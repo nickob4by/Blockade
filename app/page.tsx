@@ -10,7 +10,7 @@ import { subscribeToGameRoom, RealtimePayload } from '@/lib/supabase/realtime';
 import { GameBoard, GameBoardHandle, ActiveDragInfo } from '@/components/board/GameBoard';
 import { PlayerCard } from '@/components/board/PlayerCard';
 import { MobileControls } from '@/components/controls/MobileControls';
-import { GameOverModal } from '@/components/modals/GameOverModal';
+import { GameOverModal, RematchStatus } from '@/components/modals/GameOverModal';
 import { RulesModal } from '@/components/modals/RulesModal';
 import { OnlineLobbyModal } from '@/components/modals/OnlineLobbyModal';
 import { SupabaseConfigModal } from '@/components/modals/SupabaseConfigModal';
@@ -128,11 +128,25 @@ export default function GamePage() {
     roomCodeRef.current = roomCode;
   }, [roomCode]);
 
+  const [rematchStatus, setRematchStatus] = useState<RematchStatus>('idle');
+  const rematchStatusRef = useRef<RematchStatus>('idle');
+  useEffect(() => {
+    rematchStatusRef.current = rematchStatus;
+  }, [rematchStatus]);
+
   const handledChallengesRef = useRef<Set<string>>(new Set());
 
   // Clean exit after match closure / opponent left
   const handleExitAfterOpponentLeft = useCallback(() => {
     setOpponentLeftInfo(null);
+    setRematchStatus('idle');
+    if (modeRef.current === 'online' && realtimeBroadcastRef.current) {
+      realtimeBroadcastRef.current({
+        type: 'PLAYER_LEFT',
+        playerId: clientPlayerId,
+        playerName: profile.name || playerName || (clientPlayerId === 1 ? 'Player 1' : 'Player 2'),
+      });
+    }
     if (channelLeaveRef.current) {
       channelLeaveRef.current();
       channelLeaveRef.current = null;
@@ -146,7 +160,7 @@ export default function GamePage() {
     setMode('local');
     setGameState(createInitialGameState('local'));
     setCurrentView('menu');
-  }, []);
+  }, [clientPlayerId, playerName, profile.name]);
 
   // Clean cancel / close handler for online multiplayer lobby
   const handleCloseOnlineLobby = useCallback(() => {
@@ -174,14 +188,14 @@ export default function GamePage() {
       setRoomCode(null);
       setMode('local');
       setGameState(createInitialGameState('local'));
-      setCurrentView('menu');
     }
   }, [waitingForOpponent, mode, gameState.status, clientPlayerId, profile.name, playerName]);
 
   // Handle opponent departure notification
   const handleOpponentLeft = useCallback((leftPlayerId: PlayerId, customName?: string) => {
-    // If the game has already concluded with a winner, don't disrupt victory screen
+    // If the game has already concluded with a winner, update rematch state without disrupting victory screen
     if (gameStateRef.current.winner) {
+      setRematchStatus('opponent_left');
       return;
     }
 
@@ -212,6 +226,7 @@ export default function GamePage() {
 
   // Reset / Restart Game
   const handleRestart = useCallback(() => {
+    setRematchStatus('idle');
     const newState = createInitialGameState(mode);
     const p1Name = gameState.players[1]?.name || playerName.trim() || profile.name || 'Player 1';
     newState.players[1].name = p1Name;
@@ -235,6 +250,65 @@ export default function GamePage() {
       });
     }
   }, [mode, gameState.players, playerName, profile.name, profile.emoji]);
+
+  // Rematch action handlers for online multiplayer
+  const handleRequestRematch = useCallback(() => {
+    if (modeRef.current !== 'online' || !realtimeBroadcastRef.current) return;
+    setRematchStatus('requested');
+    const myName = profile.name || playerName || (clientPlayerId === 1 ? 'Player 1' : 'Player 2');
+    realtimeBroadcastRef.current({
+      type: 'REMATCH_REQUEST',
+      requestedBy: clientPlayerId,
+      requesterName: myName,
+    });
+  }, [clientPlayerId, playerName, profile.name]);
+
+  const handleAcceptRematch = useCallback(() => {
+    if (modeRef.current !== 'online') return;
+    setRematchStatus('accepted');
+    const myName = profile.name || playerName || (clientPlayerId === 1 ? 'Player 1' : 'Player 2');
+    if (realtimeBroadcastRef.current) {
+      realtimeBroadcastRef.current({
+        type: 'REMATCH_RESPONSE',
+        respondedBy: clientPlayerId,
+        accepted: true,
+        responderName: myName,
+      });
+    }
+    if (clientPlayerId === 1) {
+      handleRestart();
+    } else if (realtimeBroadcastRef.current) {
+      realtimeBroadcastRef.current({
+        type: 'RESTART_GAME',
+        requestedBy: clientPlayerId,
+      });
+    }
+  }, [clientPlayerId, handleRestart, playerName, profile.name]);
+
+  const handleDeclineRematch = useCallback(() => {
+    if (modeRef.current !== 'online') return;
+    setRematchStatus('declined');
+    const myName = profile.name || playerName || (clientPlayerId === 1 ? 'Player 1' : 'Player 2');
+    if (realtimeBroadcastRef.current) {
+      realtimeBroadcastRef.current({
+        type: 'REMATCH_RESPONSE',
+        respondedBy: clientPlayerId,
+        accepted: false,
+        responderName: myName,
+      });
+    }
+  }, [clientPlayerId, playerName, profile.name]);
+
+  const handleCancelRematch = useCallback(() => {
+    if (modeRef.current !== 'online') return;
+    setRematchStatus('idle');
+    if (realtimeBroadcastRef.current) {
+      realtimeBroadcastRef.current({
+        type: 'REMATCH_CANCEL',
+        requestedBy: clientPlayerId,
+      });
+    }
+  }, [clientPlayerId]);
 
   // Keep playerName and emoji in sync with profile and active game state
   useEffect(() => {
@@ -689,6 +763,7 @@ export default function GamePage() {
             setWaitingForOpponent(false);
             setShowLobby(false);
             setOutgoingChallenge(null);
+            setRematchStatus('idle');
             setCurrentView('game');
             sounds.playWall();
           } else if (payload.type === 'MOVE_PAWN') {
@@ -706,6 +781,38 @@ export default function GamePage() {
             );
           } else if (payload.type === 'RESTART_GAME') {
             handleRestart();
+          } else if (payload.type === 'REMATCH_REQUEST') {
+            // If local player already clicked Request Rematch, auto-accept mutual request!
+            if (rematchStatusRef.current === 'requested') {
+              setRematchStatus('accepted');
+              sounds.playWin();
+              broadcast({
+                type: 'REMATCH_RESPONSE',
+                respondedBy: isHostRole ? 1 : 2,
+                accepted: true,
+                responderName: currentName,
+              });
+              if (isHostRole) {
+                handleRestart();
+              }
+            } else {
+              setRematchStatus('received');
+              sounds.playChallenge();
+            }
+          } else if (payload.type === 'REMATCH_RESPONSE') {
+            if (payload.accepted) {
+              setRematchStatus('accepted');
+              if (isHostRole) {
+                handleRestart();
+              }
+            } else {
+              setRematchStatus('declined');
+              sounds.playAlert();
+            }
+          } else if (payload.type === 'REMATCH_CANCEL') {
+            if (rematchStatusRef.current === 'received') {
+              setRematchStatus('idle');
+            }
           } else if (payload.type === 'PLAYER_LEFT') {
             if (payload.playerId !== (isHostRole ? 1 : 2)) {
               handleOpponentLeft(payload.playerId, payload.playerName);
@@ -1352,6 +1459,12 @@ export default function GamePage() {
         onRestart={handleRestart}
         onExitToMenu={handleExitAfterOpponentLeft}
         clientPlayerId={mode === 'online' ? clientPlayerId : undefined}
+        rematchStatus={rematchStatus}
+        onRequestRematch={handleRequestRematch}
+        onAcceptRematch={handleAcceptRematch}
+        onDeclineRematch={handleDeclineRematch}
+        onCancelRematch={handleCancelRematch}
+        opponentName={gameState.players[opponentPlayerId]?.name || 'Opponent'}
       />
 
       <OpponentLeftModal

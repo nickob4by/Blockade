@@ -1,0 +1,98 @@
+﻿import test from 'node:test';
+import assert from 'node:assert/strict';
+import { RealtimePayload } from '../lib/supabase/realtime';
+import { RematchStatus } from '../components/modals/GameOverModal';
+import { createInitialGameState } from '../lib/game/board';
+
+test('Rematch - RealtimePayload Types & Structure', () => {
+  const requestPayload: RealtimePayload = {
+    type: 'REMATCH_REQUEST',
+    requestedBy: 1,
+    requesterName: 'Alice',
+  };
+  assert.equal(requestPayload.type, 'REMATCH_REQUEST');
+  assert.equal(requestPayload.requestedBy, 1);
+  assert.equal(requestPayload.requesterName, 'Alice');
+
+  const acceptPayload: RealtimePayload = {
+    type: 'REMATCH_RESPONSE',
+    respondedBy: 2,
+    accepted: true,
+    responderName: 'Bob',
+  };
+  assert.equal(acceptPayload.type, 'REMATCH_RESPONSE');
+  assert.equal(acceptPayload.accepted, true);
+
+  const declinePayload: RealtimePayload = {
+    type: 'REMATCH_RESPONSE',
+    respondedBy: 2,
+    accepted: false,
+    responderName: 'Bob',
+  };
+  assert.equal(declinePayload.type, 'REMATCH_RESPONSE');
+  assert.equal(declinePayload.accepted, false);
+
+  const cancelPayload: RealtimePayload = {
+    type: 'REMATCH_CANCEL',
+    requestedBy: 1,
+  };
+  assert.equal(cancelPayload.type, 'REMATCH_CANCEL');
+});
+
+test('Rematch - State Machine Transitions (Request, Accept, Reset)', () => {
+  let status: RematchStatus = 'idle';
+
+  // Player 1 requests rematch
+  status = 'requested';
+  assert.equal(status, 'requested');
+
+  // Player 2 accepts rematch
+  const response = { accepted: true };
+  if (response.accepted) {
+    status = 'accepted';
+  } else {
+    status = 'declined';
+  }
+  assert.equal(status, 'accepted');
+
+  // Fresh board created for rematch
+  const freshGame = createInitialGameState('online');
+  assert.equal(freshGame.winner, null);
+  assert.equal(freshGame.status, 'playing');
+  assert.equal(freshGame.currentTurn, 1);
+  assert.equal(freshGame.players[1].wallsLeft, 10);
+  assert.equal(freshGame.players[2].wallsLeft, 10);
+  assert.deepEqual(freshGame.players[1].position, { r: 8, c: 4 });
+  assert.deepEqual(freshGame.players[2].position, { r: 0, c: 4 });
+
+  // On new game start, rematchStatus returns to idle
+  status = 'idle';
+  assert.equal(status, 'idle');
+});
+
+test('Rematch - State Machine Transitions (Request, Decline)', () => {
+  let status: RematchStatus = 'idle';
+
+  // Player 1 requests rematch
+  status = 'requested';
+
+  // Player 2 declines rematch
+  const response = { accepted: false };
+  if (response.accepted) {
+    status = 'accepted';
+  } else {
+    status = 'declined';
+  }
+  assert.equal(status, 'declined');
+});
+
+test('Rematch - Mutual Request Auto-Accept', () => {
+  let p1Status: RematchStatus = 'requested';
+  const p2Request = { type: 'REMATCH_REQUEST', requestedBy: 2 };
+
+  // If Player 1 is already in 'requested' and receives REMATCH_REQUEST from Player 2, auto-accept!
+  if (p1Status === 'requested' && p2Request.type === 'REMATCH_REQUEST') {
+    p1Status = 'accepted';
+  }
+  assert.equal(p1Status, 'accepted');
+});

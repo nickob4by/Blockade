@@ -11,7 +11,10 @@ export type RealtimePayload =
   | { type: 'PLACE_WALL'; playerId: PlayerId; r: number; c: number; orientation: WallOrientation }
   | { type: 'RESTART_GAME'; requestedBy: PlayerId }
   | { type: 'CHAT_EMOTE'; playerId: PlayerId; emote: string }
-  | { type: 'PLAYER_LEFT'; playerId: PlayerId; playerName?: string };
+  | { type: 'PLAYER_LEFT'; playerId: PlayerId; playerName?: string }
+  | { type: 'REMATCH_REQUEST'; requestedBy: PlayerId; requesterName: string }
+  | { type: 'REMATCH_RESPONSE'; respondedBy: PlayerId; accepted: boolean; responderName?: string }
+  | { type: 'REMATCH_CANCEL'; requestedBy: PlayerId };
 
 export interface PresenceInfo {
   playerId: PlayerId;

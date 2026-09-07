@@ -4,13 +4,38 @@ import React, { useEffect } from 'react';
 import confetti from 'canvas-confetti';
 import { GameState, PlayerId } from '@/lib/game/types';
 import { sounds } from '@/lib/audio/sounds';
-import { Trophy, RotateCcw, Sparkles, ArrowLeft } from 'lucide-react';
+import {
+  Trophy,
+  RotateCcw,
+  Sparkles,
+  ArrowLeft,
+  Loader2,
+  Check,
+  X,
+  XCircle,
+  AlertCircle,
+  Swords,
+} from 'lucide-react';
+
+export type RematchStatus =
+  | 'idle'
+  | 'requested'
+  | 'received'
+  | 'declined'
+  | 'accepted'
+  | 'opponent_left';
 
 interface GameOverModalProps {
   gameState: GameState;
   onRestart: () => void;
   onExitToMenu?: () => void;
   clientPlayerId?: PlayerId;
+  rematchStatus?: RematchStatus;
+  onRequestRematch?: () => void;
+  onAcceptRematch?: () => void;
+  onDeclineRematch?: () => void;
+  onCancelRematch?: () => void;
+  opponentName?: string;
 }
 
 export const GameOverModal: React.FC<GameOverModalProps> = ({
@@ -18,6 +43,12 @@ export const GameOverModal: React.FC<GameOverModalProps> = ({
   onRestart,
   onExitToMenu,
   clientPlayerId,
+  rematchStatus = 'idle',
+  onRequestRematch,
+  onAcceptRematch,
+  onDeclineRematch,
+  onCancelRematch,
+  opponentName,
 }) => {
   const winner = gameState.winner;
   if (!winner) return null;
@@ -98,7 +129,8 @@ export const GameOverModal: React.FC<GameOverModalProps> = ({
           </div>
 
           {/* Action buttons */}
-          <div className="space-y-2 mt-4">
+          <div className="space-y-3 mt-4">
+            {/* Non-online mode: Simple Play Again */}
             {gameState.mode !== 'online' && (
               <button
                 type="button"
@@ -114,17 +146,100 @@ export const GameOverModal: React.FC<GameOverModalProps> = ({
               </button>
             )}
 
+            {/* Online mode: Interactive Rematch Flow */}
+            {gameState.mode === 'online' && (
+              <>
+                {/* Rematch Request Received: Prompt user to Accept or Decline */}
+                {rematchStatus === 'received' && (
+                  <div className="p-4 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-slate-800 dark:text-zinc-100 text-sm space-y-3 animate-fadeIn">
+                    <div className="font-semibold text-emerald-600 dark:text-emerald-400 flex items-center justify-center gap-1.5">
+                      <Swords className="w-4 h-4" />
+                      <span>{opponentName || 'Opponent'} wants a rematch!</span>
+                    </div>
+                    <div className="flex gap-2">
+                      <button
+                        type="button"
+                        onClick={onAcceptRematch}
+                        className="flex-1 py-2.5 px-3 rounded-xl font-bold text-white bg-emerald-600 hover:bg-emerald-500 text-sm flex items-center justify-center gap-1.5 shadow-sm transition-transform active:scale-95"
+                      >
+                        <Check className="w-4 h-4" />
+                        Accept
+                      </button>
+                      <button
+                        type="button"
+                        onClick={onDeclineRematch}
+                        className="flex-1 py-2.5 px-3 rounded-xl font-medium text-slate-700 dark:text-zinc-300 bg-slate-200 hover:bg-slate-300 dark:bg-zinc-800 dark:hover:bg-zinc-700 text-sm flex items-center justify-center gap-1.5 transition-transform active:scale-95"
+                      >
+                        <X className="w-4 h-4" />
+                        Decline
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {/* Rematch Requested: Waiting for opponent */}
+                {rematchStatus === 'requested' && (
+                  <div className="space-y-2">
+                    <div className="p-3.5 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-700 dark:text-amber-400 text-sm flex items-center justify-center gap-2 animate-fadeIn">
+                      <Loader2 className="w-4 h-4 animate-spin text-amber-500" />
+                      <span>Waiting for {opponentName || 'opponent'} to respond...</span>
+                    </div>
+                    {onCancelRematch && (
+                      <button
+                        type="button"
+                        onClick={onCancelRematch}
+                        className="w-full py-2 px-3 rounded-xl font-medium text-xs sm:text-sm text-slate-600 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-white transition-colors"
+                      >
+                        Cancel Rematch Request
+                      </button>
+                    )}
+                  </div>
+                )}
+
+                {/* Rematch Accepted: Starting game */}
+                {rematchStatus === 'accepted' && (
+                  <div className="p-3.5 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-700 dark:text-emerald-400 text-sm flex items-center justify-center gap-2 animate-fadeIn">
+                    <Loader2 className="w-4 h-4 animate-spin text-emerald-500" />
+                    <span>Starting rematch...</span>
+                  </div>
+                )}
+
+                {/* Rematch Declined */}
+                {rematchStatus === 'declined' && (
+                  <div className="p-3.5 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-700 dark:text-rose-400 text-sm flex items-center justify-center gap-2 animate-fadeIn">
+                    <XCircle className="w-4 h-4 text-rose-500" />
+                    <span>{opponentName || 'Opponent'} declined the rematch.</span>
+                  </div>
+                )}
+
+                {/* Opponent Left Room */}
+                {rematchStatus === 'opponent_left' && (
+                  <div className="p-3.5 rounded-xl bg-slate-500/10 border border-slate-500/30 text-slate-700 dark:text-zinc-400 text-sm flex items-center justify-center gap-2 animate-fadeIn">
+                    <AlertCircle className="w-4 h-4 text-slate-400" />
+                    <span>{opponentName || 'Opponent'} left the room.</span>
+                  </div>
+                )}
+
+                {/* Idle: Show Request Rematch Button */}
+                {rematchStatus === 'idle' && onRequestRematch && (
+                  <button
+                    type="button"
+                    onClick={onRequestRematch}
+                    className="w-full py-3 px-4 rounded-xl font-bold text-white text-sm sm:text-base flex items-center justify-center gap-2 shadow-sm transition-transform active:scale-95 bg-emerald-600 hover:bg-emerald-500"
+                  >
+                    <RotateCcw className="w-4 h-4" />
+                    Request Rematch
+                  </button>
+                )}
+              </>
+            )}
+
+            {/* Return to Menu Button */}
             {onExitToMenu && (
               <button
                 type="button"
                 onClick={onExitToMenu}
-                className={`w-full py-3 px-4 rounded-xl font-bold text-sm sm:text-base flex items-center justify-center gap-2 shadow-sm transition-transform active:scale-95 ${
-                  gameState.mode === 'online'
-                    ? winner === 1
-                      ? 'bg-blue-600 hover:bg-blue-500 text-white'
-                      : 'bg-rose-600 hover:bg-rose-500 text-white'
-                    : 'bg-slate-100 hover:bg-slate-200 dark:bg-zinc-800 dark:hover:bg-zinc-700 text-slate-800 dark:text-zinc-200 border border-slate-200 dark:border-zinc-700/60'
-                }`}
+                className="w-full py-3 px-4 rounded-xl font-bold text-sm sm:text-base flex items-center justify-center gap-2 shadow-sm transition-transform active:scale-95 bg-slate-100 hover:bg-slate-200 dark:bg-zinc-800 dark:hover:bg-zinc-700 text-slate-800 dark:text-zinc-200 border border-slate-200 dark:border-zinc-700/60"
               >
                 <ArrowLeft className="w-4 h-4" />
                 Return to Menu
