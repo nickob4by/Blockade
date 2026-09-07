@@ -163,37 +163,35 @@ export const GameBoard = forwardRef<GameBoardHandle, GameBoardProps>(({
   return (
     <div className="relative flex flex-col items-center justify-center w-full">
       {/* Feedback banner */}
-      <div className="h-5 mb-1 flex items-center justify-center text-center">
+      <div className="h-5 mb-1.5 flex items-center justify-center text-center">
         {activeDrag ? (
           <span
-            className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold shadow-md transition-colors ${
+            className={`inline-flex items-center gap-1.5 px-3 py-0.5 rounded-full text-[11px] font-semibold shadow-sm transition-colors ${
               activeDrag.snappedCoord
                 ? activeDrag.isValid
                   ? isP1Turn
-                    ? 'bg-sky-950/90 text-sky-300 border border-sky-500/60'
-                    : 'bg-rose-950/90 text-rose-300 border border-rose-500/60'
-                  : 'bg-rose-950/90 text-rose-300 border border-rose-500/60 animate-bounce'
-                : isP1Turn
-                ? 'bg-sky-950/80 text-sky-300 border border-sky-500/40'
-                : 'bg-rose-950/80 text-rose-300 border border-rose-500/40'
+                    ? 'bg-blue-950/80 text-blue-200 border border-blue-500/40'
+                    : 'bg-rose-950/80 text-rose-200 border border-rose-500/40'
+                  : 'bg-red-950/80 text-red-200 border border-red-500/40 animate-bounce'
+                : 'bg-zinc-800/90 text-zinc-300 border border-zinc-700/60'
             }`}
           >
             {activeDrag.snappedCoord
               ? activeDrag.isValid
-                ? 'Release to Place Wall ✓'
+                ? 'Release to place wall ✓'
                 : '⚠️ Cannot place wall here'
               : 'Drag over a grid line'}
           </span>
         ) : validationError ? (
-          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-rose-950/90 text-rose-300 border border-rose-500/60 animate-bounce shadow-md">
+          <span className="inline-flex items-center gap-1.5 px-3 py-0.5 rounded-full text-[11px] font-semibold bg-red-950/80 text-red-200 border border-red-500/40 shadow-sm animate-bounce">
             ⚠️ {validationError}
           </span>
         ) : selectedWall ? (
           <span
-            className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold border ${
+            className={`inline-flex items-center gap-1.5 px-3 py-0.5 rounded-full text-[11px] font-semibold border ${
               isP1Turn
-                ? 'bg-sky-950/80 text-sky-300 border-sky-500/40'
-                : 'bg-rose-950/80 text-rose-300 border-rose-500/40'
+                ? 'bg-blue-950/80 text-blue-200 border-blue-500/40'
+                : 'bg-rose-950/80 text-rose-200 border-rose-500/40'
             }`}
           >
             Tap slot again or press Confirm
@@ -202,15 +200,15 @@ export const GameBoard = forwardRef<GameBoardHandle, GameBoardProps>(({
       </div>
 
       {/* Main Board Outer Frame */}
-      <div className="relative w-[94vw] max-w-[390px] aspect-square p-2 sm:p-3 rounded-2xl bg-slate-900/95 border border-slate-700/80 shadow-2xl backdrop-blur-md flex items-center justify-center">
-        {/* Subtle Goal Line Indicators */}
-        <div className="absolute -top-2 left-6 right-6 flex items-center justify-center pointer-events-none">
-          <span className="text-[9px] font-extrabold uppercase tracking-widest text-sky-400/80 bg-slate-900 px-2 rounded border border-sky-400/30">
+      <div className="relative w-[94vw] max-w-[390px] aspect-square p-2.5 sm:p-3.5 rounded-2xl bg-zinc-900/95 border border-zinc-800 shadow-2xl backdrop-blur-md flex items-center justify-center">
+        {/* Clean Goal Line Indicators */}
+        <div className="absolute -top-2.5 left-6 right-6 flex items-center justify-center pointer-events-none">
+          <span className="text-[9px] font-bold uppercase tracking-wider text-blue-300 bg-zinc-900 px-2.5 py-0.5 rounded-full border border-blue-500/30 shadow-sm">
             ▲ P1 Goal (Top) ▲
           </span>
         </div>
-        <div className="absolute -bottom-2 left-6 right-6 flex items-center justify-center pointer-events-none">
-          <span className="text-[9px] font-extrabold uppercase tracking-widest text-rose-400/80 bg-slate-900 px-2 rounded border border-rose-400/30">
+        <div className="absolute -bottom-2.5 left-6 right-6 flex items-center justify-center pointer-events-none">
+          <span className="text-[9px] font-bold uppercase tracking-wider text-rose-300 bg-zinc-900 px-2.5 py-0.5 rounded-full border border-rose-500/30 shadow-sm">
             ▼ P2 Goal (Bottom) ▼
           </span>
         </div>
@@ -226,7 +224,7 @@ export const GameBoard = forwardRef<GameBoardHandle, GameBoardProps>(({
               'repeat(8, 1fr clamp(6px, 1.8vw, 10px)) 1fr',
           }}
         >
-          {/* 1. Render Cells (9x9) with player-themed movement highlights */}
+          {/* 1. Render Cells (9x9) with clean movement highlights */}
           {Array.from({ length: BOARD_SIZE }).map((_, r) =>
             Array.from({ length: BOARD_SIZE }).map((_, c) => {
               const coord: Coordinate = { r, c };
@@ -250,35 +248,35 @@ export const GameBoard = forwardRef<GameBoardHandle, GameBoardProps>(({
                     gridColumnStart: gridCol,
                     gridColumnEnd: gridCol + 1,
                   }}
-                  className={`relative w-full h-full rounded-md flex items-center justify-center transition-all duration-200 focus:outline-none tap-bounce ${
+                  className={`relative w-full h-full rounded-lg flex items-center justify-center transition-all duration-150 focus:outline-none tap-bounce ${
                     isValidMove
                       ? isP1Turn
-                        ? 'bg-sky-950/70 border-2 border-sky-400 shadow-[0_0_14px_rgba(56,189,248,0.5)] cursor-pointer hover:bg-sky-900/50'
-                        : 'bg-rose-950/70 border-2 border-rose-400 shadow-[0_0_14px_rgba(244,63,94,0.5)] cursor-pointer hover:bg-rose-900/50'
-                      : 'bg-slate-800/80 border border-slate-700/50'
+                        ? 'bg-blue-500/15 border-2 border-blue-400/60 cursor-pointer hover:bg-blue-500/25'
+                        : 'bg-rose-500/15 border-2 border-rose-400/60 cursor-pointer hover:bg-rose-500/25'
+                      : 'bg-zinc-800/80 border border-zinc-700/40 hover:border-zinc-700/70'
                   }`}
                 >
                   {/* Pawn 1 */}
                   {isP1 && (
-                    <div className="w-[84%] h-[84%] rounded-full bg-gradient-to-tr from-sky-600 via-sky-500 to-sky-300 border-2 border-white shadow-neon-p1 flex items-center justify-center font-black text-[10px] sm:text-xs text-white pawn-transition animate-pawn-land">
+                    <div className="w-[82%] h-[82%] rounded-full bg-gradient-to-b from-blue-500 to-blue-600 border border-blue-300/50 shadow-tactile-p1 tactile-pawn flex items-center justify-center font-bold text-[11px] sm:text-xs text-white pawn-transition animate-pawn-land">
                       P1
                     </div>
                   )}
 
                   {/* Pawn 2 */}
                   {isP2 && (
-                    <div className="w-[84%] h-[84%] rounded-full bg-gradient-to-tr from-rose-600 via-rose-500 to-rose-300 border-2 border-white shadow-neon-p2 flex items-center justify-center font-black text-[10px] sm:text-xs text-white pawn-transition animate-pawn-land">
+                    <div className="w-[82%] h-[82%] rounded-full bg-gradient-to-b from-rose-500 to-rose-600 border border-rose-300/50 shadow-tactile-p2 tactile-pawn flex items-center justify-center font-bold text-[11px] sm:text-xs text-white pawn-transition animate-pawn-land">
                       P2
                     </div>
                   )}
 
-                  {/* Player-themed move hint target dot */}
+                  {/* Clean move hint target dot */}
                   {isValidMove && !isP1 && !isP2 && (
                     <div
-                      className={`w-2.5 h-2.5 rounded-full animate-ping ${
+                      className={`w-2.5 h-2.5 rounded-full transition-transform ${
                         isP1Turn
-                          ? 'bg-sky-300 shadow-[0_0_8px_rgba(56,189,248,1)]'
-                          : 'bg-rose-300 shadow-[0_0_8px_rgba(244,63,94,1)]'
+                          ? 'bg-blue-400 shadow-sm'
+                          : 'bg-rose-400 shadow-sm'
                       }`}
                     />
                   )}
@@ -287,7 +285,7 @@ export const GameBoard = forwardRef<GameBoardHandle, GameBoardProps>(({
             })
           )}
 
-          {/* 2. Render Placed Walls with Player Theming and Slam Animation */}
+          {/* 2. Render Placed Walls with Modern Tactile Slabs */}
           {gameState.walls.map((wall, index) => {
             const isHorizontal = wall.orientation === 'H';
             const gridRowStart = isHorizontal ? 2 * wall.r + 2 : 2 * wall.r + 1;
@@ -306,12 +304,12 @@ export const GameBoard = forwardRef<GameBoardHandle, GameBoardProps>(({
                   gridColumnStart: gridColStart,
                   gridColumnEnd: gridColEnd,
                 }}
-                className={`z-20 rounded-full pointer-events-none transition-all duration-200 border ${
+                className={`z-20 rounded-full pointer-events-none transition-all duration-150 border wall-slab ${
                   isLatest ? 'animate-wall-slam' : ''
                 } ${
                   isP1Wall
-                    ? 'bg-gradient-to-r from-sky-500 via-sky-400 to-cyan-400 border-sky-200 glow-wall-p1'
-                    : 'bg-gradient-to-r from-rose-500 via-rose-400 to-pink-400 border-rose-200 glow-wall-p2'
+                    ? 'bg-blue-500 border-blue-300/40 shadow-tactile-md'
+                    : 'bg-rose-500 border-rose-300/40 shadow-tactile-md'
                 }`}
               />
             );
@@ -342,7 +340,7 @@ export const GameBoard = forwardRef<GameBoardHandle, GameBoardProps>(({
                 >
                   <span
                     className={`absolute -inset-2.5 sm:-inset-3 z-30 rounded-full ${
-                      isP1Turn ? 'active:bg-sky-400/25' : 'active:bg-rose-400/25'
+                      isP1Turn ? 'active:bg-blue-400/20' : 'active:bg-rose-400/20'
                     }`}
                   />
                 </button>
@@ -350,7 +348,7 @@ export const GameBoard = forwardRef<GameBoardHandle, GameBoardProps>(({
             })
           )}
 
-          {/* 4. Active Snapped Wall Preview (Matches active player's color) */}
+          {/* 4. Active Snapped Wall Preview */}
           {previewWall && (
             <div
               style={{
@@ -371,12 +369,12 @@ export const GameBoard = forwardRef<GameBoardHandle, GameBoardProps>(({
                     ? 2 * previewWall.c + 4
                     : 2 * previewWall.c + 3,
               }}
-              className={`z-25 rounded-full pointer-events-none transition-all duration-100 border-2 ${
+              className={`z-25 rounded-full pointer-events-none transition-all duration-75 border ${
                 previewWall.isValid
                   ? isP1Turn
-                    ? 'bg-sky-400/90 border-white shadow-[0_0_16px_rgba(56,189,248,0.9)]'
-                    : 'bg-rose-400/90 border-white shadow-[0_0_16px_rgba(244,63,94,0.9)]'
-                  : 'bg-rose-600/80 border-rose-200 shadow-[0_0_14px_rgba(244,63,94,0.8)] animate-pulse'
+                    ? 'bg-blue-500/45 border-blue-400/80 shadow-md'
+                    : 'bg-rose-500/45 border-rose-400/80 shadow-md'
+                  : 'bg-red-500/35 border-red-400/70 shadow-md animate-pulse'
               }`}
             />
           )}

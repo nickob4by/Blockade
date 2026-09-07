@@ -22,21 +22,21 @@ export const PlayerCard: React.FC<PlayerCardProps> = ({
 
   return (
     <div
-      className={`w-full flex items-center justify-between px-3 py-1.5 sm:py-2 rounded-xl border transition-all duration-200 ${
+      className={`w-full flex items-center justify-between px-3 py-1.5 sm:py-2 rounded-xl border transition-all duration-150 ${
         isCurrentTurn
           ? isP1
-            ? 'bg-sky-950/70 border-sky-400 shadow-[0_0_14px_rgba(56,189,248,0.3)] ring-1 ring-sky-400/50'
-            : 'bg-rose-950/70 border-rose-400 shadow-[0_0_14px_rgba(244,63,94,0.3)] ring-1 ring-rose-400/50'
-          : 'bg-slate-900/60 border-slate-800/80 opacity-80'
+            ? 'bg-zinc-900/90 border-blue-500/50 shadow-tactile-sm ring-1 ring-blue-500/20'
+            : 'bg-zinc-900/90 border-rose-500/50 shadow-tactile-sm ring-1 ring-rose-500/20'
+          : 'bg-zinc-900/60 border-zinc-800/80 opacity-75'
       }`}
     >
       {/* Player identity */}
       <div className="flex items-center gap-2 min-w-0">
         <div
-          className={`relative w-7 h-7 sm:w-8 sm:h-8 rounded-lg flex-shrink-0 flex items-center justify-center font-black text-xs text-white shadow-sm border ${
+          className={`relative w-7 h-7 sm:w-8 sm:h-8 rounded-lg flex-shrink-0 flex items-center justify-center font-bold text-xs text-white shadow-tactile-sm border ${
             isP1
-              ? 'bg-gradient-to-tr from-sky-600 to-sky-400 border-sky-300/60 glow-p1'
-              : 'bg-gradient-to-tr from-rose-600 to-rose-400 border-rose-300/60 glow-p2'
+              ? 'bg-blue-600 border-blue-400/40'
+              : 'bg-rose-600 border-rose-400/40'
           }`}
         >
           {isP1 ? 'P1' : 'P2'}
@@ -44,15 +44,15 @@ export const PlayerCard: React.FC<PlayerCardProps> = ({
 
         <div className="flex flex-col min-w-0">
           <div className="flex items-center gap-1.5 leading-tight">
-            <span className="font-bold text-xs sm:text-sm text-slate-100 truncate max-w-[110px] sm:max-w-none">
+            <span className="font-bold text-xs sm:text-sm text-zinc-100 truncate max-w-[110px] sm:max-w-none">
               {player.name}
             </span>
             {isClientPlayer && (
               <span
                 className={`text-[9px] font-bold px-1 rounded border ${
                   isP1
-                    ? 'bg-sky-950 text-sky-300 border-sky-500/50'
-                    : 'bg-rose-950 text-rose-300 border-rose-500/50'
+                    ? 'bg-blue-950 text-blue-300 border-blue-500/40'
+                    : 'bg-rose-950 text-rose-300 border-rose-500/40'
                 }`}
               >
                 YOU
@@ -60,8 +60,8 @@ export const PlayerCard: React.FC<PlayerCardProps> = ({
             )}
             {isCurrentTurn && (
               <span
-                className={`text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.2 rounded-full text-white flex items-center gap-0.5 animate-pulse ${
-                  isP1 ? 'bg-sky-500' : 'bg-rose-500'
+                className={`text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded-full text-white flex items-center gap-0.5 ${
+                  isP1 ? 'bg-blue-500' : 'bg-rose-500'
                 }`}
               >
                 <Sparkles className="w-2.5 h-2.5" />
@@ -69,38 +69,38 @@ export const PlayerCard: React.FC<PlayerCardProps> = ({
               </span>
             )}
           </div>
-          <span className="text-[10px] text-slate-400 leading-tight">
+          <span className="text-[10px] text-zinc-400 leading-tight">
             Goal: Row {isP1 ? '1 (Top)' : '9 (Bottom)'}
             {stepsToGoal !== null && (
-              <span className="text-slate-500 ml-1.5">• {stepsToGoal} steps</span>
+              <span className="text-zinc-500 ml-1.5">• {stepsToGoal} steps</span>
             )}
           </span>
         </div>
       </div>
 
-      {/* Remaining walls count & themed mini sticks */}
+      {/* Remaining walls count & clean mini pills */}
       <div className="flex flex-col items-end justify-center flex-shrink-0">
-        <div className="flex items-center gap-1 text-[11px] font-semibold text-slate-300">
-          <Shield className={`w-3 h-3 ${isP1 ? 'text-sky-400' : 'text-rose-400'}`} />
+        <div className="flex items-center gap-1 text-[11px] font-semibold text-zinc-300">
+          <Shield className={`w-3 h-3 ${isP1 ? 'text-blue-400' : 'text-rose-400'}`} />
           <span>
-            <strong className={`font-bold text-xs ${isP1 ? 'text-sky-300' : 'text-rose-300'}`}>
+            <strong className={`font-bold text-xs ${isP1 ? 'text-blue-300' : 'text-rose-300'}`}>
               {player.wallsLeft}
             </strong>
-            <span className="text-slate-500">/10</span>
+            <span className="text-zinc-500">/10</span>
           </span>
         </div>
 
-        {/* 10 player-colored mini wall bars */}
+        {/* 10 player-colored mini wall pills */}
         <div className="flex items-center gap-0.5 mt-0.5">
           {Array.from({ length: 10 }).map((_, i) => (
             <div
               key={i}
-              className={`w-1 h-2 rounded-full transition-colors ${
+              className={`w-1 h-2 rounded-sm transition-colors ${
                 i < player.wallsLeft
                   ? isP1
-                    ? 'bg-sky-400 shadow-[0_0_3px_rgba(56,189,248,0.7)]'
-                    : 'bg-rose-400 shadow-[0_0_3px_rgba(244,63,94,0.7)]'
-                  : 'bg-slate-800'
+                    ? 'bg-blue-400'
+                    : 'bg-rose-400'
+                  : 'bg-zinc-800'
               }`}
             />
           ))}

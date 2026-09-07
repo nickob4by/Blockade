@@ -53,13 +53,13 @@ export const GameOverModal: React.FC<GameOverModalProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-sm animate-fadeIn">
-      <div className="relative w-full max-w-md p-6 sm:p-8 rounded-2xl bg-slate-900 border border-slate-700 shadow-2xl text-center">
-        {/* Glow effect */}
+      <div className="relative w-full max-w-md p-6 sm:p-8 rounded-2xl bg-zinc-900 border border-zinc-800 shadow-2xl text-center">
+        {/* Victory Badge */}
         <div
-          className={`absolute -top-12 left-1/2 -translate-x-1/2 w-24 h-24 rounded-full flex items-center justify-center shadow-2xl border-2 border-white ${
+          className={`absolute -top-12 left-1/2 -translate-x-1/2 w-24 h-24 rounded-full flex items-center justify-center shadow-xl border-2 border-white/80 ${
             winner === 1
-              ? 'bg-gradient-to-tr from-sky-600 to-sky-400 shadow-neon-p1'
-              : 'bg-gradient-to-tr from-rose-600 to-rose-400 shadow-neon-p2'
+              ? 'bg-blue-600 shadow-tactile-p1'
+              : 'bg-rose-600 shadow-tactile-p2'
           }`}
         >
           <Trophy className="w-12 h-12 text-white animate-bounce" />
@@ -79,18 +79,18 @@ export const GameOverModal: React.FC<GameOverModalProps> = ({
               : `${winningPlayer.name} Wins!`}
           </h2>
 
-          <p className="text-sm text-slate-400 mt-2">
+          <p className="text-sm text-zinc-400 mt-2">
             Successfully crossed to the other side of the grid!
           </p>
 
           {/* Match summary stats */}
-          <div className="grid grid-cols-2 gap-3 my-6 p-3.5 rounded-xl bg-slate-800/60 border border-slate-700/60 text-xs">
+          <div className="grid grid-cols-2 gap-3 my-6 p-3.5 rounded-xl bg-zinc-800/60 border border-zinc-700/60 text-xs">
             <div>
-              <div className="text-slate-400">Total Turns</div>
-              <div className="text-lg font-bold text-slate-100">{totalMoves}</div>
+              <div className="text-zinc-400">Total Turns</div>
+              <div className="text-lg font-bold text-zinc-100">{totalMoves}</div>
             </div>
             <div>
-              <div className="text-slate-400">Walls Placed</div>
+              <div className="text-zinc-400">Walls Placed</div>
               <div className="text-lg font-bold text-amber-300">{wallsPlacedByWinner}</div>
             </div>
           </div>
@@ -99,10 +99,10 @@ export const GameOverModal: React.FC<GameOverModalProps> = ({
           <button
             type="button"
             onClick={onRestart}
-            className={`w-full py-3 px-4 rounded-xl font-bold text-white text-sm sm:text-base flex items-center justify-center gap-2 shadow-lg transition-transform active:scale-95 ${
+            className={`w-full py-3 px-4 rounded-xl font-bold text-white text-sm sm:text-base flex items-center justify-center gap-2 shadow-sm transition-transform active:scale-95 ${
               winner === 1
-                ? 'bg-sky-500 hover:bg-sky-400 shadow-sky-500/30'
-                : 'bg-rose-500 hover:bg-rose-400 shadow-rose-500/30'
+                ? 'bg-blue-600 hover:bg-blue-500'
+                : 'bg-rose-600 hover:bg-rose-500'
             }`}
           >
             <RotateCcw className="w-4 h-4" />

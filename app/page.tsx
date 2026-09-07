@@ -369,37 +369,37 @@ export default function GamePage() {
     <main className="h-full h-[100dvh] flex flex-col justify-between items-center px-2 py-1 sm:py-2 max-w-md mx-auto overflow-hidden">
       {/* 1. Mobile Top Bar */}
       <header className="w-full flex items-center justify-between gap-1.5 pt-safe pb-1">
-        <div className="flex items-center gap-1.5">
-          <div className="w-7 h-7 rounded-lg bg-gradient-to-tr from-amber-500 to-amber-300 flex items-center justify-center font-black text-slate-950 text-base shadow-neon-wall flex-shrink-0">
+        <div className="flex items-center gap-2">
+          <div className="w-7 h-7 rounded-lg bg-zinc-800 border border-zinc-700 flex items-center justify-center font-black text-zinc-100 text-sm shadow-sm flex-shrink-0">
             B
           </div>
-          <span className="font-black text-base tracking-tight text-white">
-            BLOCKADE
+          <span className="font-bold text-sm tracking-wider uppercase text-zinc-200">
+            Blockade
           </span>
         </div>
 
         {/* Mode Selector Tabs */}
-        <div className="flex items-center gap-0.5 p-0.5 bg-slate-900/90 rounded-xl border border-slate-800 text-[11px] font-bold">
+        <div className="flex items-center gap-0.5 p-0.5 bg-zinc-900/90 rounded-xl border border-zinc-800 text-[11px] font-semibold">
           <button
             type="button"
             onClick={() => handleSelectMode('local')}
-            className={`flex items-center gap-1 px-2 py-1 rounded-lg transition-all tap-bounce ${
+            className={`flex items-center gap-1 px-2.5 py-1 rounded-lg transition-all tap-bounce ${
               mode === 'local'
-                ? 'bg-slate-800 text-white shadow-sm'
-                : 'text-slate-400 hover:text-slate-200'
+                ? 'bg-zinc-800 text-zinc-100 shadow-sm'
+                : 'text-zinc-400 hover:text-zinc-200'
             }`}
           >
-            <Users className="w-3 h-3 text-sky-400" />
+            <Users className="w-3 h-3 text-blue-400" />
             <span>2P</span>
           </button>
 
           <button
             type="button"
             onClick={() => handleSelectMode('ai')}
-            className={`flex items-center gap-1 px-2 py-1 rounded-lg transition-all tap-bounce ${
+            className={`flex items-center gap-1 px-2.5 py-1 rounded-lg transition-all tap-bounce ${
               mode === 'ai'
-                ? 'bg-slate-800 text-white shadow-sm'
-                : 'text-slate-400 hover:text-slate-200'
+                ? 'bg-zinc-800 text-zinc-100 shadow-sm'
+                : 'text-zinc-400 hover:text-zinc-200'
             }`}
           >
             <Bot className="w-3 h-3 text-rose-400" />
@@ -409,10 +409,10 @@ export default function GamePage() {
           <button
             type="button"
             onClick={() => handleSelectMode('online')}
-            className={`flex items-center gap-1 px-2 py-1 rounded-lg transition-all tap-bounce ${
+            className={`flex items-center gap-1 px-2.5 py-1 rounded-lg transition-all tap-bounce ${
               mode === 'online'
-                ? 'bg-slate-800 text-white shadow-sm'
-                : 'text-slate-400 hover:text-slate-200'
+                ? 'bg-zinc-800 text-zinc-100 shadow-sm'
+                : 'text-zinc-400 hover:text-zinc-200'
             }`}
           >
             <Globe className="w-3 h-3 text-emerald-400" />
@@ -502,21 +502,21 @@ export default function GamePage() {
           className="fixed z-50 pointer-events-none transition-transform duration-75"
         >
           <div
-            className={`rounded-full shadow-2xl border-2 flex items-center justify-center transition-colors ${
+            className={`rounded-full shadow-2xl border flex items-center justify-center transition-all ${
               activeDrag.orientation === 'H' ? 'w-16 h-4' : 'w-4 h-16'
             } ${
               activeDrag.snappedCoord
                 ? activeDrag.isValid
                   ? gameState.currentTurn === 1
-                    ? 'bg-sky-400 border-white shadow-[0_0_22px_rgba(56,189,248,0.95)] scale-110'
-                    : 'bg-rose-400 border-white shadow-[0_0_22px_rgba(244,63,94,0.95)] scale-110'
-                  : 'bg-rose-600 border-rose-200 shadow-[0_0_20px_rgba(244,63,94,0.95)] scale-110 animate-pulse'
+                    ? 'bg-blue-500 border-white/70 shadow-tactile-md scale-105'
+                    : 'bg-rose-500 border-white/70 shadow-tactile-md scale-105'
+                  : 'bg-red-500 border-red-300 shadow-tactile-md scale-105 animate-pulse'
                 : gameState.currentTurn === 1
-                ? 'bg-sky-400/85 border-sky-200 glow-wall-p1 opacity-90'
-                : 'bg-rose-400/85 border-rose-200 glow-wall-p2 opacity-90'
+                ? 'bg-blue-500/80 border-blue-300/40 shadow-md opacity-90'
+                : 'bg-rose-500/80 border-rose-300/40 shadow-md opacity-90'
             }`}
           >
-            <span className="w-1.5 h-1.5 rounded-full bg-white/80" />
+            <span className="w-1.5 h-1.5 rounded-full bg-white/70" />
           </div>
         </div>
       )}

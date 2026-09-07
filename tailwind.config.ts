@@ -18,26 +18,27 @@ const config: Config = {
           border: "#475569",
         },
         player1: {
-          DEFAULT: "#38bdf8", // Sky blue
-          glow: "rgba(56, 189, 248, 0.4)",
-          dark: "#0284c7",
+          DEFAULT: "#2563eb", // Royal Sapphire Blue
+          light: "#3b82f6",
+          dark: "#1d4ed8",
         },
         player2: {
-          DEFAULT: "#f43f5e", // Rose red
-          glow: "rgba(244, 63, 94, 0.4)",
-          dark: "#e11d48",
+          DEFAULT: "#e11d48", // Coral Crimson
+          light: "#f43f5e",
+          dark: "#be123c",
         },
         wall: {
-          DEFAULT: "#eab308", // Amber / wood
-          hover: "rgba(234, 179, 8, 0.6)",
-          active: "#ca8a04",
+          DEFAULT: "#475569",
+          hover: "#64748b",
+          active: "#334155",
           invalid: "rgba(239, 68, 68, 0.7)",
         }
       },
       boxShadow: {
-        'neon-p1': '0 0 15px rgba(56, 189, 248, 0.6), inset 0 0 10px rgba(56, 189, 248, 0.4)',
-        'neon-p2': '0 0 15px rgba(244, 63, 94, 0.6), inset 0 0 10px rgba(244, 63, 94, 0.4)',
-        'neon-wall': '0 0 12px rgba(234, 179, 8, 0.7)',
+        'tactile-sm': '0 1px 3px 0 rgba(0, 0, 0, 0.3), 0 1px 2px -1px rgba(0, 0, 0, 0.3)',
+        'tactile-md': '0 4px 6px -1px rgba(0, 0, 0, 0.35), 0 2px 4px -2px rgba(0, 0, 0, 0.35)',
+        'tactile-p1': '0 4px 10px -2px rgba(37, 99, 235, 0.35)',
+        'tactile-p2': '0 4px 10px -2px rgba(225, 29, 72, 0.35)',
       },
       animation: {
         'pulse-subtle': 'pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite',

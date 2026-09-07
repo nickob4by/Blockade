@@ -45,7 +45,7 @@ Inspired by the classic game **Quoridor / Blockade**:
 
 - **Framework**: Next.js 15 (App Router)
 - **Language**: TypeScript
-- **Styling**: Tailwind CSS with custom neon glassmorphism & responsive CSS grid
+- **Styling**: Tailwind CSS with clean modern tactile aesthetic & responsive CSS grid
 - **Backend / Realtime**: Supabase (Realtime Broadcast channels)
 - **Audio**: Web Audio API Synthesizer (zero external audio file dependencies)
 - **Deployment**: Vercel
