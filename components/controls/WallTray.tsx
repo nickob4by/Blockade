@@ -1,12 +1,13 @@
 'use client';
 
 import React, { useRef, useState } from 'react';
-import { WallOrientation } from '@/lib/game/types';
+import { PlayerId, WallOrientation } from '@/lib/game/types';
 import { sounds } from '@/lib/audio/sounds';
 import { SplitSquareHorizontal, SplitSquareVertical, Move } from 'lucide-react';
 
 interface WallTrayProps {
   wallsLeft: number;
+  currentTurn: PlayerId;
   isMyTurn: boolean;
   onDragStart: (orientation: WallOrientation, startX: number, startY: number, isTouch: boolean) => void;
   onDragMove: (x: number, y: number) => void;
@@ -16,6 +17,7 @@ interface WallTrayProps {
 
 export const WallTray: React.FC<WallTrayProps> = ({
   wallsLeft,
+  currentTurn,
   isMyTurn,
   onDragStart,
   onDragMove,
@@ -26,6 +28,7 @@ export const WallTray: React.FC<WallTrayProps> = ({
   const activePointerId = useRef<number | null>(null);
 
   const canDrag = isMyTurn && wallsLeft > 0;
+  const isP1 = currentTurn === 1;
 
   const handlePointerDown = (
     e: React.PointerEvent<HTMLButtonElement>,
@@ -73,10 +76,10 @@ export const WallTray: React.FC<WallTrayProps> = ({
     <div className="w-full flex flex-col items-center gap-1">
       <div className="flex items-center justify-between w-full px-1">
         <span className="text-[10px] uppercase font-bold tracking-wider text-slate-400 flex items-center gap-1">
-          <Move className="w-3 h-3 text-amber-400" />
+          <Move className={`w-3 h-3 ${isP1 ? 'text-sky-400' : 'text-rose-400'}`} />
           Drag Wall onto Board
         </span>
-        <span className="text-[11px] font-semibold text-amber-300">
+        <span className={`text-[11px] font-semibold ${isP1 ? 'text-sky-300' : 'text-rose-300'}`}>
           {wallsLeft} <span className="text-slate-500 font-normal">left</span>
         </span>
       </div>
@@ -91,17 +94,27 @@ export const WallTray: React.FC<WallTrayProps> = ({
             !canDrag
               ? 'opacity-40 bg-slate-900 border-slate-800 cursor-not-allowed text-slate-500'
               : activeToken === 'H'
-              ? 'bg-amber-500/30 border-amber-400 shadow-[0_0_15px_rgba(251,191,36,0.5)] scale-98'
-              : 'bg-slate-900/90 hover:bg-slate-800 border-amber-500/40 text-amber-300 shadow-md active:scale-95'
+              ? isP1
+                ? 'bg-sky-500/30 border-sky-400 shadow-[0_0_15px_rgba(56,189,248,0.5)] scale-98'
+                : 'bg-rose-500/30 border-rose-400 shadow-[0_0_15px_rgba(244,63,94,0.5)] scale-98'
+              : isP1
+              ? 'bg-slate-900/90 hover:bg-slate-800 border-sky-500/40 text-sky-300 shadow-md active:scale-95'
+              : 'bg-slate-900/90 hover:bg-slate-800 border-rose-500/40 text-rose-300 shadow-md active:scale-95'
           }`}
           aria-label="Drag Horizontal Wall"
         >
-          <SplitSquareHorizontal className="w-4 h-4 text-amber-400 flex-shrink-0" />
+          <SplitSquareHorizontal className={`w-4 h-4 flex-shrink-0 ${isP1 ? 'text-sky-400' : 'text-rose-400'}`} />
           <div className="flex flex-col items-start leading-tight">
-            <span className="text-xs font-black tracking-wide text-amber-300">Horizontal</span>
+            <span className={`text-xs font-black tracking-wide ${isP1 ? 'text-sky-200' : 'text-rose-200'}`}>Horizontal</span>
             <span className="text-[9px] text-slate-400">Hold & Drag</span>
           </div>
-          <div className="w-6 h-1.5 rounded-full bg-gradient-to-r from-amber-400 to-amber-500 shadow-sm ml-auto flex-shrink-0" />
+          <div
+            className={`w-6 h-1.5 rounded-full shadow-sm ml-auto flex-shrink-0 ${
+              isP1
+                ? 'bg-gradient-to-r from-sky-400 to-cyan-400 shadow-[0_0_4px_rgba(56,189,248,0.8)]'
+                : 'bg-gradient-to-r from-rose-400 to-pink-400 shadow-[0_0_4px_rgba(244,63,94,0.8)]'
+            }`}
+          />
         </button>
 
         {/* Vertical Wall Handle */}
@@ -113,17 +126,27 @@ export const WallTray: React.FC<WallTrayProps> = ({
             !canDrag
               ? 'opacity-40 bg-slate-900 border-slate-800 cursor-not-allowed text-slate-500'
               : activeToken === 'V'
-              ? 'bg-amber-500/30 border-amber-400 shadow-[0_0_15px_rgba(251,191,36,0.5)] scale-98'
-              : 'bg-slate-900/90 hover:bg-slate-800 border-amber-500/40 text-amber-300 shadow-md active:scale-95'
+              ? isP1
+                ? 'bg-sky-500/30 border-sky-400 shadow-[0_0_15px_rgba(56,189,248,0.5)] scale-98'
+                : 'bg-rose-500/30 border-rose-400 shadow-[0_0_15px_rgba(244,63,94,0.5)] scale-98'
+              : isP1
+              ? 'bg-slate-900/90 hover:bg-slate-800 border-sky-500/40 text-sky-300 shadow-md active:scale-95'
+              : 'bg-slate-900/90 hover:bg-slate-800 border-rose-500/40 text-rose-300 shadow-md active:scale-95'
           }`}
           aria-label="Drag Vertical Wall"
         >
-          <SplitSquareVertical className="w-4 h-4 text-amber-400 flex-shrink-0" />
+          <SplitSquareVertical className={`w-4 h-4 flex-shrink-0 ${isP1 ? 'text-sky-400' : 'text-rose-400'}`} />
           <div className="flex flex-col items-start leading-tight">
-            <span className="text-xs font-black tracking-wide text-amber-300">Vertical</span>
+            <span className={`text-xs font-black tracking-wide ${isP1 ? 'text-sky-200' : 'text-rose-200'}`}>Vertical</span>
             <span className="text-[9px] text-slate-400">Hold & Drag</span>
           </div>
-          <div className="w-1.5 h-5 rounded-full bg-gradient-to-b from-amber-400 to-amber-500 shadow-sm ml-auto flex-shrink-0" />
+          <div
+            className={`w-1.5 h-5 rounded-full shadow-sm ml-auto flex-shrink-0 ${
+              isP1
+                ? 'bg-gradient-to-b from-sky-400 to-cyan-400 shadow-[0_0_4px_rgba(56,189,248,0.8)]'
+                : 'bg-gradient-to-b from-rose-400 to-pink-400 shadow-[0_0_4px_rgba(244,63,94,0.8)]'
+            }`}
+          />
         </button>
       </div>
     </div>

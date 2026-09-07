@@ -25,8 +25,8 @@ export const PlayerCard: React.FC<PlayerCardProps> = ({
       className={`w-full flex items-center justify-between px-3 py-1.5 sm:py-2 rounded-xl border transition-all duration-200 ${
         isCurrentTurn
           ? isP1
-            ? 'bg-sky-950/70 border-sky-400/80 shadow-[0_0_12px_rgba(56,189,248,0.25)] ring-1 ring-sky-400/40'
-            : 'bg-rose-950/70 border-rose-400/80 shadow-[0_0_12px_rgba(244,63,94,0.25)] ring-1 ring-rose-400/40'
+            ? 'bg-sky-950/70 border-sky-400 shadow-[0_0_14px_rgba(56,189,248,0.3)] ring-1 ring-sky-400/50'
+            : 'bg-rose-950/70 border-rose-400 shadow-[0_0_14px_rgba(244,63,94,0.3)] ring-1 ring-rose-400/50'
           : 'bg-slate-900/60 border-slate-800/80 opacity-80'
       }`}
     >
@@ -35,8 +35,8 @@ export const PlayerCard: React.FC<PlayerCardProps> = ({
         <div
           className={`relative w-7 h-7 sm:w-8 sm:h-8 rounded-lg flex-shrink-0 flex items-center justify-center font-black text-xs text-white shadow-sm border ${
             isP1
-              ? 'bg-gradient-to-tr from-sky-600 to-sky-400 border-sky-300/40'
-              : 'bg-gradient-to-tr from-rose-600 to-rose-400 border-rose-300/40'
+              ? 'bg-gradient-to-tr from-sky-600 to-sky-400 border-sky-300/60 glow-p1'
+              : 'bg-gradient-to-tr from-rose-600 to-rose-400 border-rose-300/60 glow-p2'
           }`}
         >
           {isP1 ? 'P1' : 'P2'}
@@ -48,7 +48,13 @@ export const PlayerCard: React.FC<PlayerCardProps> = ({
               {player.name}
             </span>
             {isClientPlayer && (
-              <span className="text-[9px] bg-slate-800 text-sky-300 font-bold px-1 rounded border border-slate-700">
+              <span
+                className={`text-[9px] font-bold px-1 rounded border ${
+                  isP1
+                    ? 'bg-sky-950 text-sky-300 border-sky-500/50'
+                    : 'bg-rose-950 text-rose-300 border-rose-500/50'
+                }`}
+              >
                 YOU
               </span>
             )}
@@ -72,24 +78,28 @@ export const PlayerCard: React.FC<PlayerCardProps> = ({
         </div>
       </div>
 
-      {/* Remaining walls count & mini sticks */}
+      {/* Remaining walls count & themed mini sticks */}
       <div className="flex flex-col items-end justify-center flex-shrink-0">
         <div className="flex items-center gap-1 text-[11px] font-semibold text-slate-300">
-          <Shield className="w-3 h-3 text-amber-400" />
+          <Shield className={`w-3 h-3 ${isP1 ? 'text-sky-400' : 'text-rose-400'}`} />
           <span>
-            <strong className="text-amber-300 font-bold text-xs">{player.wallsLeft}</strong>
+            <strong className={`font-bold text-xs ${isP1 ? 'text-sky-300' : 'text-rose-300'}`}>
+              {player.wallsLeft}
+            </strong>
             <span className="text-slate-500">/10</span>
           </span>
         </div>
 
-        {/* 10 mini wall bars */}
+        {/* 10 player-colored mini wall bars */}
         <div className="flex items-center gap-0.5 mt-0.5">
           {Array.from({ length: 10 }).map((_, i) => (
             <div
               key={i}
               className={`w-1 h-2 rounded-full transition-colors ${
                 i < player.wallsLeft
-                  ? 'bg-amber-400 shadow-[0_0_2px_rgba(251,191,36,0.6)]'
+                  ? isP1
+                    ? 'bg-sky-400 shadow-[0_0_3px_rgba(56,189,248,0.7)]'
+                    : 'bg-rose-400 shadow-[0_0_3px_rgba(244,63,94,0.7)]'
                   : 'bg-slate-800'
               }`}
             />

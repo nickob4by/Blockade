@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { WallOrientation } from '@/lib/game/types';
+import { PlayerId, WallOrientation } from '@/lib/game/types';
 import { WallTray } from './WallTray';
 import { sounds } from '@/lib/audio/sounds';
 import {
@@ -23,6 +23,7 @@ interface MobileControlsProps {
   onRestart: () => void;
   onOpenRules: () => void;
   wallsLeft: number;
+  currentTurn: PlayerId;
   isMyTurn: boolean;
   isValidWallPlacement: boolean;
   onDragStart: (orientation: WallOrientation, startX: number, startY: number, isTouch: boolean) => void;
@@ -40,6 +41,7 @@ export const MobileControls: React.FC<MobileControlsProps> = ({
   onRestart,
   onOpenRules,
   wallsLeft,
+  currentTurn,
   isMyTurn,
   isValidWallPlacement,
   onDragStart,
@@ -48,6 +50,7 @@ export const MobileControls: React.FC<MobileControlsProps> = ({
   isDragging,
 }) => {
   const [soundEnabled, setSoundEnabled] = React.useState(true);
+  const isP1 = currentTurn === 1;
 
   const handleToggleSound = () => {
     const isEnabled = sounds.toggleSound();
@@ -56,9 +59,10 @@ export const MobileControls: React.FC<MobileControlsProps> = ({
 
   return (
     <div className="w-full max-w-[400px] mx-auto px-1 py-1 pb-safe space-y-1.5">
-      {/* 1. Drag-and-Drop Wall Tray */}
+      {/* 1. Player-Themed Drag-and-Drop Wall Tray */}
       <WallTray
         wallsLeft={wallsLeft}
+        currentTurn={currentTurn}
         isMyTurn={isMyTurn}
         onDragStart={onDragStart}
         onDragMove={onDragMove}
@@ -69,7 +73,11 @@ export const MobileControls: React.FC<MobileControlsProps> = ({
       {/* 2. Action Bar / Secondary Controls */}
       {selectedWall && isMyTurn ? (
         /* Tap Selection Confirmation Bar */
-        <div className="flex items-center justify-between gap-2 p-1.5 rounded-xl bg-slate-900/95 border border-amber-500/50 shadow-lg animate-fadeIn">
+        <div
+          className={`flex items-center justify-between gap-2 p-1.5 rounded-xl bg-slate-900/95 border shadow-lg animate-fadeIn ${
+            isP1 ? 'border-sky-500/50 shadow-sky-500/10' : 'border-rose-500/50 shadow-rose-500/10'
+          }`}
+        >
           <button
             type="button"
             onClick={onCancelWall}
@@ -82,9 +90,13 @@ export const MobileControls: React.FC<MobileControlsProps> = ({
           <button
             type="button"
             onClick={onToggleOrientation}
-            className="flex-1 py-2 px-2.5 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 font-bold text-xs flex items-center justify-center gap-1 tap-bounce border border-amber-500/40"
+            className={`flex-1 py-2 px-2.5 rounded-lg font-bold text-xs flex items-center justify-center gap-1 tap-bounce border ${
+              isP1
+                ? 'bg-sky-500/20 hover:bg-sky-500/30 text-sky-300 border-sky-500/40'
+                : 'bg-rose-500/20 hover:bg-rose-500/30 text-rose-300 border-rose-500/40'
+            }`}
           >
-            <RefreshCw className="w-3.5 h-3.5 text-amber-400 animate-spin-reverse" />
+            <RefreshCw className={`w-3.5 h-3.5 animate-spin-reverse ${isP1 ? 'text-sky-400' : 'text-rose-400'}`} />
             Rotate ({selectedWall.orientation})
           </button>
 
@@ -94,7 +106,9 @@ export const MobileControls: React.FC<MobileControlsProps> = ({
             disabled={!isValidWallPlacement}
             className={`flex-[1.2] py-2 px-2.5 rounded-lg font-black text-xs flex items-center justify-center gap-1.5 tap-bounce shadow-md ${
               isValidWallPlacement
-                ? 'bg-emerald-500 hover:bg-emerald-400 text-white shadow-emerald-500/30'
+                ? isP1
+                  ? 'bg-sky-500 hover:bg-sky-400 text-white shadow-sky-500/30'
+                  : 'bg-rose-500 hover:bg-rose-400 text-white shadow-rose-500/30'
                 : 'bg-slate-800 text-slate-500 border border-slate-700 cursor-not-allowed'
             }`}
           >

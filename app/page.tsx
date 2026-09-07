@@ -482,6 +482,7 @@ export default function GamePage() {
         onRestart={handleRestart}
         onOpenRules={() => setShowRules(true)}
         wallsLeft={gameState.players[gameState.currentTurn].wallsLeft}
+        currentTurn={gameState.currentTurn}
         isMyTurn={isMyTurn}
         isValidWallPlacement={isValidWallPlacement}
         onDragStart={handleDragStart}
@@ -490,7 +491,7 @@ export default function GamePage() {
         isDragging={activeDrag !== null}
       />
 
-      {/* 4. Floating Dragged Token (Follows finger with 45px upward offset on touch) */}
+      {/* 4. Floating Dragged Token (Player-Themed with 45px upward offset on touch) */}
       {activeDrag && (
         <div
           style={{
@@ -506,9 +507,13 @@ export default function GamePage() {
             } ${
               activeDrag.snappedCoord
                 ? activeDrag.isValid
-                  ? 'bg-amber-400 border-white shadow-[0_0_20px_rgba(251,191,36,0.95)] scale-110'
-                  : 'bg-rose-500 border-rose-200 shadow-[0_0_20px_rgba(244,63,94,0.95)] scale-110'
-                : 'bg-amber-400/80 border-amber-200 shadow-neon-wall opacity-90'
+                  ? gameState.currentTurn === 1
+                    ? 'bg-sky-400 border-white shadow-[0_0_22px_rgba(56,189,248,0.95)] scale-110'
+                    : 'bg-rose-400 border-white shadow-[0_0_22px_rgba(244,63,94,0.95)] scale-110'
+                  : 'bg-rose-600 border-rose-200 shadow-[0_0_20px_rgba(244,63,94,0.95)] scale-110 animate-pulse'
+                : gameState.currentTurn === 1
+                ? 'bg-sky-400/85 border-sky-200 glow-wall-p1 opacity-90'
+                : 'bg-rose-400/85 border-rose-200 glow-wall-p2 opacity-90'
             }`}
           >
             <span className="w-1.5 h-1.5 rounded-full bg-white/80" />
