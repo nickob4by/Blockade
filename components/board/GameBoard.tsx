@@ -161,43 +161,45 @@ export const GameBoard = forwardRef<GameBoardHandle, GameBoardProps>(({
     : null;
 
   return (
-    <div className="relative flex flex-col items-center justify-center w-full pb-3 sm:pb-3.5">
-      {/* Feedback banner */}
-      <div className="h-5 mb-2 flex items-center justify-center text-center">
-        {activeDrag ? (
-          <span
-            className={`inline-flex items-center gap-1.5 px-3 py-0.5 rounded-full text-[11px] font-semibold shadow-sm transition-colors ${
-              activeDrag.snappedCoord
+    <div className="relative flex flex-col items-center justify-center w-full">
+      {/* Floating HUD Feedback Toast - 0px in-flow height to guarantee pixel-perfect spacing */}
+      {(activeDrag || validationError || selectedWall) && (
+        <div className="fixed top-12 sm:top-14 left-1/2 -translate-x-1/2 z-50 pointer-events-none transition-all duration-200 animate-fadeIn">
+          {activeDrag ? (
+            <span
+              className={`inline-flex items-center gap-1.5 px-3.5 py-1 rounded-full text-xs font-semibold shadow-2xl backdrop-blur-md transition-colors ${
+                activeDrag.snappedCoord
+                  ? activeDrag.isValid
+                    ? isP1Turn
+                      ? 'bg-blue-950/90 text-blue-200 border border-blue-500/50'
+                      : 'bg-rose-950/90 text-rose-200 border border-rose-500/50'
+                    : 'bg-red-950/90 text-red-200 border border-red-500/50 animate-bounce'
+                  : 'bg-zinc-900/90 text-zinc-300 border border-zinc-700/70'
+              }`}
+            >
+              {activeDrag.snappedCoord
                 ? activeDrag.isValid
-                  ? isP1Turn
-                    ? 'bg-blue-950/80 text-blue-200 border border-blue-500/40'
-                    : 'bg-rose-950/80 text-rose-200 border border-rose-500/40'
-                  : 'bg-red-950/80 text-red-200 border border-red-500/40 animate-bounce'
-                : 'bg-zinc-800/90 text-zinc-300 border border-zinc-700/60'
-            }`}
-          >
-            {activeDrag.snappedCoord
-              ? activeDrag.isValid
-                ? 'Release to place wall ✓'
-                : '⚠️ Cannot place wall here'
-              : 'Drag over a grid line'}
-          </span>
-        ) : validationError ? (
-          <span className="inline-flex items-center gap-1.5 px-3 py-0.5 rounded-full text-[11px] font-semibold bg-red-950/80 text-red-200 border border-red-500/40 shadow-sm animate-bounce">
-            ⚠️ {validationError}
-          </span>
-        ) : selectedWall ? (
-          <span
-            className={`inline-flex items-center gap-1.5 px-3 py-0.5 rounded-full text-[11px] font-semibold border ${
-              isP1Turn
-                ? 'bg-blue-950/80 text-blue-200 border-blue-500/40'
-                : 'bg-rose-950/80 text-rose-200 border-rose-500/40'
-            }`}
-          >
-            Tap slot again or press Confirm
-          </span>
-        ) : null}
-      </div>
+                  ? 'Release to place wall ✓'
+                  : '⚠️ Cannot place wall here'
+                : 'Drag over a grid line'}
+            </span>
+          ) : validationError ? (
+            <span className="inline-flex items-center gap-1.5 px-3.5 py-1 rounded-full text-xs font-semibold bg-red-950/90 text-red-200 border border-red-500/50 shadow-2xl backdrop-blur-md animate-bounce">
+              ⚠️ {validationError}
+            </span>
+          ) : selectedWall ? (
+            <span
+              className={`inline-flex items-center gap-1.5 px-3.5 py-1 rounded-full text-xs font-semibold border shadow-2xl backdrop-blur-md ${
+                isP1Turn
+                  ? 'bg-blue-950/90 text-blue-200 border-blue-500/50'
+                  : 'bg-rose-950/90 text-rose-200 border-rose-500/50'
+              }`}
+            >
+              Tap slot again or press Confirm
+            </span>
+          ) : null}
+        </div>
+      )}
 
       {/* Main Board Outer Frame */}
       <div className="relative w-[94vw] max-w-[390px] aspect-square p-2.5 sm:p-3.5 rounded-2xl bg-zinc-900/95 border border-zinc-800 shadow-2xl backdrop-blur-md flex items-center justify-center">
