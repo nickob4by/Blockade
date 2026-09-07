@@ -1,20 +1,14 @@
 'use client';
 
-import React, { useRef, useState, useEffect } from 'react';
+import React, { useRef, useState } from 'react';
 import { WallOrientation } from '@/lib/game/types';
 import { sounds } from '@/lib/audio/sounds';
 import { SplitSquareHorizontal, SplitSquareVertical, Move } from 'lucide-react';
 
-export interface DraggingWallInfo {
-  orientation: WallOrientation;
-  x: number;
-  y: number;
-}
-
 interface WallTrayProps {
   wallsLeft: number;
   isMyTurn: boolean;
-  onDragStart: (orientation: WallOrientation, startX: number, startY: number) => void;
+  onDragStart: (orientation: WallOrientation, startX: number, startY: number, isTouch: boolean) => void;
   onDragMove: (x: number, y: number) => void;
   onDragEnd: () => void;
   isDragging: boolean;
@@ -45,16 +39,16 @@ export const WallTray: React.FC<WallTrayProps> = ({
     e.preventDefault();
     e.stopPropagation();
 
-    // Visual feedback & sound
     sounds.playPickup();
     setActiveToken(orientation);
     activePointerId.current = e.pointerId;
 
-    // Trigger drag start
-    onDragStart(orientation, e.clientX, e.clientY);
+    const isTouch = e.pointerType === 'touch';
+    onDragStart(orientation, e.clientX, e.clientY, isTouch);
 
     const handlePointerMove = (moveEvent: PointerEvent) => {
       if (activePointerId.current !== null && moveEvent.pointerId === activePointerId.current) {
+        moveEvent.preventDefault();
         onDragMove(moveEvent.clientX, moveEvent.clientY);
       }
     };
@@ -107,7 +101,6 @@ export const WallTray: React.FC<WallTrayProps> = ({
             <span className="text-xs font-black tracking-wide text-amber-300">Horizontal</span>
             <span className="text-[9px] text-slate-400">Hold & Drag</span>
           </div>
-          {/* Visual wood bar preview */}
           <div className="w-6 h-1.5 rounded-full bg-gradient-to-r from-amber-400 to-amber-500 shadow-sm ml-auto flex-shrink-0" />
         </button>
 
@@ -130,7 +123,6 @@ export const WallTray: React.FC<WallTrayProps> = ({
             <span className="text-xs font-black tracking-wide text-amber-300">Vertical</span>
             <span className="text-[9px] text-slate-400">Hold & Drag</span>
           </div>
-          {/* Visual wood bar preview */}
           <div className="w-1.5 h-5 rounded-full bg-gradient-to-b from-amber-400 to-amber-500 shadow-sm ml-auto flex-shrink-0" />
         </button>
       </div>

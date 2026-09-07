@@ -25,7 +25,7 @@ interface MobileControlsProps {
   wallsLeft: number;
   isMyTurn: boolean;
   isValidWallPlacement: boolean;
-  onDragStart: (orientation: WallOrientation, startX: number, startY: number) => void;
+  onDragStart: (orientation: WallOrientation, startX: number, startY: number, isTouch: boolean) => void;
   onDragMove: (x: number, y: number) => void;
   onDragEnd: () => void;
   isDragging: boolean;

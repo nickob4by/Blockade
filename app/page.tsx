@@ -28,8 +28,10 @@ export default function GamePage() {
     orientation: WallOrientation;
   } | null>(null);
 
-  // Drag-and-drop state
+  // Drag-and-drop state & Synchronous Ref (prevents async stale closures)
   const [activeDrag, setActiveDrag] = useState<ActiveDragInfo | null>(null);
+  const activeDragRef = useRef<ActiveDragInfo | null>(null);
+  const isTouchDragRef = useRef<boolean>(false);
   const boardRef = useRef<GameBoardHandle>(null);
   const lastSnappedCoordRef = useRef<{ r: number; c: number } | null>(null);
 
@@ -61,6 +63,7 @@ export default function GamePage() {
     setGameState(newState);
     setSelectedWall(null);
     setActiveDrag(null);
+    activeDragRef.current = null;
 
     if (mode === 'online' && realtimeBroadcastRef.current) {
       realtimeBroadcastRef.current({
@@ -86,6 +89,7 @@ export default function GamePage() {
     setClientPlayerId(1);
     setSelectedWall(null);
     setActiveDrag(null);
+    activeDragRef.current = null;
     setRoomCode(null);
     setWaitingForOpponent(false);
   };
@@ -114,6 +118,7 @@ export default function GamePage() {
 
     setSelectedWall(null);
     setActiveDrag(null);
+    activeDragRef.current = null;
     setGameState(res.nextState);
 
     if (mode === 'online' && realtimeBroadcastRef.current) {
@@ -141,34 +146,47 @@ export default function GamePage() {
     setSelectedWall(null);
   };
 
-  // Drag-and-drop Handlers
-  const handleDragStart = (dragOrientation: WallOrientation, startX: number, startY: number) => {
+  // Drag-and-drop Handlers using Synchronous Ref to eliminate stale closures
+  const handleDragStart = (
+    dragOrientation: WallOrientation,
+    startX: number,
+    startY: number,
+    isTouch: boolean
+  ) => {
     setSelectedWall(null);
     lastSnappedCoordRef.current = null;
-    setActiveDrag({
+    isTouchDragRef.current = isTouch;
+
+    const initialDrag: ActiveDragInfo = {
       orientation: dragOrientation,
       currentX: startX,
       currentY: startY,
       snappedCoord: null,
       isValid: false,
-    });
+      isTouch,
+    };
+    activeDragRef.current = initialDrag;
+    setActiveDrag(initialDrag);
   };
 
   const handleDragMove = (x: number, y: number) => {
-    // 45px upward offset so finger doesn't obscure the placement slot
-    const targetY = y - 45;
+    const isTouch = isTouchDragRef.current;
+    // 45px upward offset on touch screens so finger doesn't block view of the groove
+    const targetY = isTouch ? y - 45 : y;
     const snapped = boardRef.current?.getSnappedIntersection(x, targetY) || null;
 
     let isValid = false;
-    if (snapped && activeDrag) {
+    const currentOrientation = activeDragRef.current?.orientation || orientation;
+
+    if (snapped) {
       const check = canPlaceWall(gameState, {
         r: snapped.r,
         c: snapped.c,
-        orientation: activeDrag.orientation,
+        orientation: currentOrientation,
       });
       isValid = check.valid;
 
-      // Subtle snap sound when crossing into a new intersection
+      // Subtle audio feedback when snapping onto a new valid intersection
       if (
         !lastSnappedCoordRef.current ||
         lastSnappedCoordRef.current.r !== snapped.r ||
@@ -181,35 +199,41 @@ export default function GamePage() {
       lastSnappedCoordRef.current = null;
     }
 
-    setActiveDrag((prev) =>
-      prev
-        ? {
-            ...prev,
-            currentX: x,
-            currentY: y,
-            snappedCoord: snapped,
-            isValid,
-          }
-        : null
-    );
+    const nextInfo: ActiveDragInfo = {
+      orientation: currentOrientation,
+      currentX: x,
+      currentY: y,
+      snappedCoord: snapped,
+      isValid,
+      isTouch,
+    };
+
+    // Synchronously update ref
+    activeDragRef.current = nextInfo;
+    setActiveDrag(nextInfo);
   };
 
   const handleDragEnd = () => {
-    if (activeDrag && activeDrag.snappedCoord && activeDrag.isValid) {
+    // Read from synchronous ref to prevent stale state issues
+    const currentDrag = activeDragRef.current;
+
+    if (currentDrag && currentDrag.snappedCoord && currentDrag.isValid) {
       sounds.playWall();
       handlePlaceWall({
-        r: activeDrag.snappedCoord.r,
-        c: activeDrag.snappedCoord.c,
-        orientation: activeDrag.orientation,
+        r: currentDrag.snappedCoord.r,
+        c: currentDrag.snappedCoord.c,
+        orientation: currentDrag.orientation,
       });
-    } else if (activeDrag && activeDrag.snappedCoord && !activeDrag.isValid) {
+    } else if (currentDrag && currentDrag.snappedCoord && !currentDrag.isValid) {
       sounds.playInvalid();
     }
+
+    activeDragRef.current = null;
     setActiveDrag(null);
     lastSnappedCoordRef.current = null;
   };
 
-  // Check if selected wall is valid
+  // Check if selected wall is valid (tap flow)
   const isValidWallPlacement = selectedWall
     ? canPlaceWall(gameState, selectedWall).valid
     : false;
@@ -466,12 +490,12 @@ export default function GamePage() {
         isDragging={activeDrag !== null}
       />
 
-      {/* 4. Floating Dragged Token (Follows finger with 45px upward offset) */}
+      {/* 4. Floating Dragged Token (Follows finger with 45px upward offset on touch) */}
       {activeDrag && (
         <div
           style={{
             left: `${activeDrag.currentX}px`,
-            top: `${activeDrag.currentY - 45}px`,
+            top: `${activeDrag.isTouch ? activeDrag.currentY - 45 : activeDrag.currentY}px`,
             transform: 'translate(-50%, -50%)',
           }}
           className="fixed z-50 pointer-events-none transition-transform duration-75"
@@ -482,8 +506,8 @@ export default function GamePage() {
             } ${
               activeDrag.snappedCoord
                 ? activeDrag.isValid
-                  ? 'bg-amber-400 border-white shadow-[0_0_20px_rgba(251,191,36,0.9)] scale-110'
-                  : 'bg-rose-500 border-rose-200 shadow-[0_0_20px_rgba(244,63,94,0.9)] scale-110'
+                  ? 'bg-amber-400 border-white shadow-[0_0_20px_rgba(251,191,36,0.95)] scale-110'
+                  : 'bg-rose-500 border-rose-200 shadow-[0_0_20px_rgba(244,63,94,0.95)] scale-110'
                 : 'bg-amber-400/80 border-amber-200 shadow-neon-wall opacity-90'
             }`}
           >

@@ -17,6 +17,7 @@ export interface ActiveDragInfo {
   currentY: number;
   snappedCoord: { r: number; c: number } | null;
   isValid: boolean;
+  isTouch?: boolean;
 }
 
 interface GameBoardProps {
@@ -40,7 +41,7 @@ export const GameBoard = forwardRef<GameBoardHandle, GameBoardProps>(({
   activeDrag,
   disabled = false,
 }, ref) => {
-  const gridContainerRef = useRef<HTMLDivElement>(null);
+  const innerGridRef = useRef<HTMLDivElement>(null);
   const [validationError, setValidationError] = useState<string | null>(null);
 
   const isMyTurn = !disabled && gameState.currentTurn === clientPlayerId && gameState.status === 'playing';
@@ -48,29 +49,30 @@ export const GameBoard = forwardRef<GameBoardHandle, GameBoardProps>(({
   // Expose snapping coordinate calculator to parent via ref
   useImperativeHandle(ref, () => ({
     getSnappedIntersection: (x: number, y: number) => {
-      if (!gridContainerRef.current) return null;
-      const rect = gridContainerRef.current.getBoundingClientRect();
+      if (!innerGridRef.current) return null;
+      const rect = innerGridRef.current.getBoundingClientRect();
 
-      // Buffer area around board: 35px
+      // Generous buffer area around board so player doesn't lose snap near edges
+      const buffer = 50;
       if (
-        x < rect.left - 35 ||
-        x > rect.right + 35 ||
-        y < rect.top - 35 ||
-        y > rect.bottom + 35
+        x < rect.left - buffer ||
+        x > rect.right + buffer ||
+        y < rect.top - buffer ||
+        y > rect.bottom + buffer
       ) {
         return null;
       }
 
-      const normX = (x - rect.left) / rect.width;
-      const normY = (y - rect.top) / rect.height;
+      // Clamp normalized coordinates to [0, 1]
+      const normX = Math.max(0, Math.min(1, (x - rect.left) / rect.width));
+      const normY = Math.max(0, Math.min(1, (y - rect.top) / rect.height));
 
-      const c = Math.round(normX * 9 - 1);
-      const r = Math.round(normY * 9 - 1);
+      // There are 8 internal wall intersections along each axis
+      // The centers of the 8 grooves are located at 1/9, 2/9, ... 8/9
+      const c = Math.max(0, Math.min(7, Math.round(normX * 9 - 1)));
+      const r = Math.max(0, Math.min(7, Math.round(normY * 9 - 1)));
 
-      if (r >= 0 && r <= 7 && c >= 0 && c <= 7) {
-        return { r, c };
-      }
-      return null;
+      return { r, c };
     },
   }));
 
@@ -83,7 +85,7 @@ export const GameBoard = forwardRef<GameBoardHandle, GameBoardProps>(({
       )
     : [];
 
-  // Update validation error for selected wall
+  // Update validation error for selected wall (tap flow)
   useEffect(() => {
     if (!selectedWall || !isMyTurn) {
       setValidationError(null);
@@ -115,7 +117,7 @@ export const GameBoard = forwardRef<GameBoardHandle, GameBoardProps>(({
     }
   };
 
-  // Handle wall slot tap (Alternative to drag)
+  // Handle wall slot tap (Alternative tap-to-place flow)
   const handleWallSlotTap = (r: number, c: number) => {
     if (!isMyTurn) return;
 
@@ -125,11 +127,9 @@ export const GameBoard = forwardRef<GameBoardHandle, GameBoardProps>(({
       return;
     }
 
-    // Default to 'H' if no orientation selected, or toggle
     const currentOri = selectedWall?.orientation || 'H';
 
     if (selectedWall && selectedWall.r === r && selectedWall.c === c) {
-      // Tapping same slot: toggle orientation or confirm
       const check = canPlaceWall(gameState, { r, c, orientation: currentOri });
       if (check.valid) {
         sounds.playWall();
@@ -146,7 +146,7 @@ export const GameBoard = forwardRef<GameBoardHandle, GameBoardProps>(({
     setSelectedWall({ r, c, orientation: currentOri });
   };
 
-  // Determine wall to display on board (Drag preview takes precedence over tap-selected wall)
+  // Determine wall preview (Drag takes precedence over tap-selected wall)
   const previewWall = activeDrag?.snappedCoord
     ? {
         r: activeDrag.snappedCoord.r,
@@ -165,7 +165,7 @@ export const GameBoard = forwardRef<GameBoardHandle, GameBoardProps>(({
 
   return (
     <div className="relative flex flex-col items-center justify-center w-full">
-      {/* Dynamic feedback banner */}
+      {/* Feedback banner */}
       <div className="h-5 mb-1 flex items-center justify-center text-center">
         {activeDrag ? (
           <span
@@ -179,7 +179,7 @@ export const GameBoard = forwardRef<GameBoardHandle, GameBoardProps>(({
           >
             {activeDrag.snappedCoord
               ? activeDrag.isValid
-                ? 'Release finger to Place Wall ✓'
+                ? 'Release to Place Wall ✓'
                 : '⚠️ Cannot place wall here'
               : 'Drag over a grid line'}
           </span>
@@ -194,12 +194,9 @@ export const GameBoard = forwardRef<GameBoardHandle, GameBoardProps>(({
         ) : null}
       </div>
 
-      {/* Main Board Container */}
-      <div
-        ref={gridContainerRef}
-        className="relative w-[94vw] max-w-[390px] aspect-square p-2 sm:p-3 rounded-2xl bg-slate-900/95 border border-slate-700/80 shadow-2xl backdrop-blur-md flex items-center justify-center"
-      >
-        {/* Subtle Top & Bottom Goal Line Marks */}
+      {/* Main Board Outer Frame */}
+      <div className="relative w-[94vw] max-w-[390px] aspect-square p-2 sm:p-3 rounded-2xl bg-slate-900/95 border border-slate-700/80 shadow-2xl backdrop-blur-md flex items-center justify-center">
+        {/* Subtle Goal Line Indicators */}
         <div className="absolute -top-2 left-6 right-6 flex items-center justify-center pointer-events-none">
           <span className="text-[9px] font-extrabold uppercase tracking-widest text-sky-400/70 bg-slate-900 px-2 rounded border border-sky-400/20">
             ▲ P1 Goal (Top) ▲
@@ -211,8 +208,9 @@ export const GameBoard = forwardRef<GameBoardHandle, GameBoardProps>(({
           </span>
         </div>
 
-        {/* 17x17 CSS Grid: 9 Cells + 8 Grooves */}
+        {/* 17x17 CSS Grid: 9 Cells + 8 Grooves (Direct Ref for Pixel-Perfect Snapping) */}
         <div
+          ref={innerGridRef}
           className="w-full h-full grid select-none touch-manipulation"
           style={{
             gridTemplateColumns:
@@ -325,7 +323,7 @@ export const GameBoard = forwardRef<GameBoardHandle, GameBoardProps>(({
             })
           )}
 
-          {/* 4. Active Snapped Wall Preview (From Dragging or Tap) */}
+          {/* 4. Active Snapped Wall Preview (From Drag or Tap) */}
           {previewWall && (
             <div
               style={{
@@ -348,7 +346,7 @@ export const GameBoard = forwardRef<GameBoardHandle, GameBoardProps>(({
               }}
               className={`z-25 rounded-full pointer-events-none transition-all duration-100 border-2 ${
                 previewWall.isValid
-                  ? 'bg-amber-400/85 border-white shadow-[0_0_16px_rgba(251,191,36,0.9)]'
+                  ? 'bg-amber-400/90 border-white shadow-[0_0_16px_rgba(251,191,36,0.9)]'
                   : 'bg-rose-500/70 border-rose-300 shadow-[0_0_14px_rgba(244,63,94,0.7)] animate-pulse'
               }`}
             />
