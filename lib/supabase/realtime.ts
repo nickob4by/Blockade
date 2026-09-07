@@ -10,12 +10,20 @@ export type RealtimePayload =
   | { type: 'MOVE_PAWN'; playerId: PlayerId; target: Coordinate }
   | { type: 'PLACE_WALL'; playerId: PlayerId; r: number; c: number; orientation: WallOrientation }
   | { type: 'RESTART_GAME'; requestedBy: PlayerId }
-  | { type: 'CHAT_EMOTE'; playerId: PlayerId; emote: string };
+  | { type: 'CHAT_EMOTE'; playerId: PlayerId; emote: string }
+  | { type: 'PLAYER_LEFT'; playerId: PlayerId; playerName?: string };
+
+export interface PresenceInfo {
+  playerId: PlayerId;
+  playerName: string;
+  onOpponentLeave?: (opponentId: PlayerId) => void;
+}
 
 export function subscribeToGameRoom(
   roomCode: string,
   onPayload: (payload: RealtimePayload) => void,
-  onStatusChange?: (status: string) => void
+  onStatusChange?: (status: string) => void,
+  presenceInfo?: PresenceInfo
 ): {
   channel: RealtimeChannel | null;
   broadcast: (payload: RealtimePayload) => Promise<boolean>;
@@ -34,18 +42,48 @@ export function subscribeToGameRoom(
   const channel = supabase.channel(`game:${cleanCode}`, {
     config: {
       broadcast: { self: false },
+      presence: presenceInfo ? { key: String(presenceInfo.playerId) } : undefined,
     },
   });
 
-  channel
-    .on('broadcast', { event: 'game_event' }, ({ payload }) => {
-      onPayload(payload as RealtimePayload);
-    })
-    .subscribe((status) => {
-      if (onStatusChange) {
-        onStatusChange(status);
+  channel.on('broadcast', { event: 'game_event' }, ({ payload }) => {
+    onPayload(payload as RealtimePayload);
+  });
+
+  if (presenceInfo) {
+    channel.on('presence', { event: 'leave' }, ({ key, leftPresences }) => {
+      const oppKey = String(presenceInfo.playerId === 1 ? 2 : 1);
+      const opponentId: PlayerId = presenceInfo.playerId === 1 ? 2 : 1;
+      const isOpponent =
+        key === oppKey ||
+        (Array.isArray(leftPresences) &&
+          leftPresences.some(
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            (p: any) => p?.playerId === opponentId || String(p?.playerId) === oppKey
+          ));
+
+      if (isOpponent && presenceInfo.onOpponentLeave) {
+        presenceInfo.onOpponentLeave(opponentId);
       }
     });
+  }
+
+  channel.subscribe(async (status) => {
+    if (onStatusChange) {
+      onStatusChange(status);
+    }
+    if (status === 'SUBSCRIBED' && presenceInfo) {
+      try {
+        await channel.track({
+          playerId: presenceInfo.playerId,
+          playerName: presenceInfo.playerName,
+          onlineAt: new Date().toISOString(),
+        });
+      } catch (err) {
+        console.warn('Supabase presence track error:', err);
+      }
+    }
+  });
 
   const broadcast = async (payload: RealtimePayload): Promise<boolean> => {
     try {
@@ -63,6 +101,9 @@ export function subscribeToGameRoom(
 
   const leave = () => {
     try {
+      if (presenceInfo) {
+        channel.untrack().catch(() => {});
+      }
       channel.unsubscribe();
       supabase.removeChannel(channel);
     } catch (err) {

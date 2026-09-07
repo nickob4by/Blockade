@@ -15,6 +15,7 @@ import { RulesModal } from '@/components/modals/RulesModal';
 import { OnlineLobbyModal } from '@/components/modals/OnlineLobbyModal';
 import { SupabaseConfigModal } from '@/components/modals/SupabaseConfigModal';
 import { GroupsModal } from '@/components/modals/GroupsModal';
+import { OpponentLeftModal } from '@/components/modals/OpponentLeftModal';
 import { MainMenu } from '@/components/menu/MainMenu';
 import { useAuth } from '@/lib/auth/AuthContext';
 import { sounds } from '@/lib/audio/sounds';
@@ -54,9 +55,67 @@ export default function GamePage() {
   const [playerName, setPlayerName] = useState(profile.name || 'Player 1');
   const [connectionStatus, setConnectionStatus] = useState<string>('disconnected');
 
+  const [opponentLeftInfo, setOpponentLeftInfo] = useState<{
+    name: string;
+    isOpen: boolean;
+  } | null>(null);
+
   const realtimeBroadcastRef = useRef<((payload: RealtimePayload) => Promise<boolean>) | null>(null);
   const channelLeaveRef = useRef<(() => void) | null>(null);
   const handshakeIntervalRef = useRef<NodeJS.Timeout | null>(null);
+
+  const isOnlineMode = mode === 'online' || Boolean(roomCode) || gameState.mode === 'online';
+
+  const gameStateRef = useRef<GameState>(gameState);
+  useEffect(() => {
+    gameStateRef.current = gameState;
+  }, [gameState]);
+
+  const waitingForOpponentRef = useRef<boolean>(waitingForOpponent);
+  useEffect(() => {
+    waitingForOpponentRef.current = waitingForOpponent;
+  }, [waitingForOpponent]);
+
+  // Clean exit after match closure / opponent left
+  const handleExitAfterOpponentLeft = useCallback(() => {
+    setOpponentLeftInfo(null);
+    if (channelLeaveRef.current) {
+      channelLeaveRef.current();
+      channelLeaveRef.current = null;
+    }
+    if (handshakeIntervalRef.current) {
+      clearInterval(handshakeIntervalRef.current);
+      handshakeIntervalRef.current = null;
+    }
+    setWaitingForOpponent(false);
+    setRoomCode(null);
+    setMode('local');
+    setGameState(createInitialGameState('local'));
+    setCurrentView('menu');
+  }, []);
+
+  // Handle opponent departure notification
+  const handleOpponentLeft = useCallback((leftPlayerId: PlayerId, customName?: string) => {
+    // If the game has already concluded with a winner, don't disrupt victory screen
+    if (gameStateRef.current.winner) {
+      return;
+    }
+
+    sounds.playAlert();
+    setSelectedWall(null);
+    setActiveDrag(null);
+    activeDragRef.current = null;
+
+    const oppName =
+      customName ||
+      gameStateRef.current.players[leftPlayerId]?.name ||
+      (leftPlayerId === 1 ? 'Host' : 'Opponent');
+
+    setOpponentLeftInfo({
+      name: oppName,
+      isOpen: true,
+    });
+  }, []);
 
   // Toggle wall orientation
   const handleToggleOrientation = useCallback(() => {
@@ -132,6 +191,12 @@ export default function GamePage() {
   };
 
   const handleRequestExitToMenu = () => {
+    // If in active online game, always confirm before abandoning match
+    if (isOnlineMode && !waitingForOpponent && gameState.status === 'playing') {
+      setShowExitConfirm(true);
+      return;
+    }
+
     const hasMadeMoves =
       gameState.walls.length > 0 ||
       gameState.players[1].position.r !== 8 ||
@@ -140,6 +205,13 @@ export default function GamePage() {
     if (gameState.status === 'playing' && hasMadeMoves) {
       setShowExitConfirm(true);
     } else {
+      if (isOnlineMode && realtimeBroadcastRef.current) {
+        realtimeBroadcastRef.current({
+          type: 'PLAYER_LEFT',
+          playerId: clientPlayerId,
+          playerName: profile.name || playerName || (clientPlayerId === 1 ? 'Player 1' : 'Player 2'),
+        });
+      }
       if (channelLeaveRef.current) {
         channelLeaveRef.current();
         channelLeaveRef.current = null;
@@ -148,17 +220,33 @@ export default function GamePage() {
         clearInterval(handshakeIntervalRef.current);
         handshakeIntervalRef.current = null;
       }
+      setOpponentLeftInfo(null);
       setWaitingForOpponent(false);
       setRoomCode(null);
+      setMode('local');
+      setGameState(createInitialGameState('local'));
       setCurrentView('menu');
     }
   };
 
-  const handleConfirmExitToMenu = () => {
+  const handleConfirmExitToMenu = async () => {
     setShowExitConfirm(false);
     setSelectedWall(null);
     setActiveDrag(null);
     activeDragRef.current = null;
+
+    if (isOnlineMode && realtimeBroadcastRef.current) {
+      try {
+        await realtimeBroadcastRef.current({
+          type: 'PLAYER_LEFT',
+          playerId: clientPlayerId,
+          playerName: profile.name || playerName || (clientPlayerId === 1 ? 'Player 1' : 'Player 2'),
+        });
+      } catch (err) {
+        console.error('Failed to broadcast leave:', err);
+      }
+    }
+
     if (channelLeaveRef.current) {
       channelLeaveRef.current();
       channelLeaveRef.current = null;
@@ -167,8 +255,11 @@ export default function GamePage() {
       clearInterval(handshakeIntervalRef.current);
       handshakeIntervalRef.current = null;
     }
+    setOpponentLeftInfo(null);
     setWaitingForOpponent(false);
     setRoomCode(null);
+    setMode('local');
+    setGameState(createInitialGameState('local'));
     setCurrentView('menu');
   };
 
@@ -448,6 +539,10 @@ export default function GamePage() {
             );
           } else if (payload.type === 'RESTART_GAME') {
             handleRestart();
+          } else if (payload.type === 'PLAYER_LEFT') {
+            if (payload.playerId !== (isHostRole ? 1 : 2)) {
+              handleOpponentLeft(payload.playerId, payload.playerName);
+            }
           }
         },
         (status) => {
@@ -484,13 +579,20 @@ export default function GamePage() {
               }, 800);
             }
           }
+        },
+        {
+          playerId: isHostRole ? 1 : 2,
+          playerName: currentName,
+          onOpponentLeave: (oppId) => {
+            handleOpponentLeft(oppId);
+          },
         }
       );
 
       channelLeaveRef.current = leave;
       realtimeBroadcastRef.current = broadcast;
     },
-    [handleRestart]
+    [handleRestart, handleOpponentLeft]
   );
 
   // Online: Create Room
@@ -509,15 +611,39 @@ export default function GamePage() {
     setupRealtimeRoom(clean, false, guestName || profile.name || 'Player 2');
   };
 
-  const isOnlineMode = mode === 'online' || Boolean(roomCode) || gameState.mode === 'online';
+  // Broadcast player departure on window unload / close
+  useEffect(() => {
+    if (!isOnlineMode || !roomCode) return;
+
+    const handleBeforeUnload = () => {
+      if (realtimeBroadcastRef.current) {
+        realtimeBroadcastRef.current({
+          type: 'PLAYER_LEFT',
+          playerId: clientPlayerId,
+          playerName: profile.name || playerName || (clientPlayerId === 1 ? 'Player 1' : 'Player 2'),
+        });
+      }
+      if (channelLeaveRef.current) {
+        channelLeaveRef.current();
+      }
+    };
+
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => {
+      window.removeEventListener('beforeunload', handleBeforeUnload);
+    };
+  }, [isOnlineMode, roomCode, clientPlayerId, profile.name, playerName]);
 
   const isMyTurn =
     !isOnlineMode && mode === 'local'
       ? true
-      : gameState.currentTurn === clientPlayerId && gameState.status === 'playing';
+      : gameState.currentTurn === clientPlayerId &&
+        gameState.status === 'playing' &&
+        !opponentLeftInfo;
 
   const isPlayerInteractionDisabled =
-    isOnlineMode && gameState.currentTurn !== clientPlayerId;
+    (isOnlineMode && gameState.currentTurn !== clientPlayerId) ||
+    opponentLeftInfo !== null;
 
   if (currentView === 'menu') {
     return (
@@ -562,6 +688,13 @@ export default function GamePage() {
           onClose={() => {
             setShowLobby(false);
             if (waitingForOpponent) {
+              if (realtimeBroadcastRef.current) {
+                realtimeBroadcastRef.current({
+                  type: 'PLAYER_LEFT',
+                  playerId: clientPlayerId,
+                  playerName: profile.name || playerName || (clientPlayerId === 1 ? 'Player 1' : 'Player 2'),
+                });
+              }
               if (channelLeaveRef.current) {
                 channelLeaveRef.current();
                 channelLeaveRef.current = null;
@@ -570,6 +703,7 @@ export default function GamePage() {
                 clearInterval(handshakeIntervalRef.current);
                 handshakeIntervalRef.current = null;
               }
+              setOpponentLeftInfo(null);
               setWaitingForOpponent(false);
               setRoomCode(null);
             }
@@ -753,7 +887,14 @@ export default function GamePage() {
       <GameOverModal
         gameState={gameState}
         onRestart={handleRestart}
+        onExitToMenu={handleExitAfterOpponentLeft}
         clientPlayerId={mode === 'online' ? clientPlayerId : undefined}
+      />
+
+      <OpponentLeftModal
+        isOpen={Boolean(opponentLeftInfo?.isOpen)}
+        opponentName={opponentLeftInfo?.name || 'Opponent'}
+        onExitToMenu={handleExitAfterOpponentLeft}
       />
 
       <OnlineLobbyModal
@@ -761,6 +902,13 @@ export default function GamePage() {
         onClose={() => {
           setShowLobby(false);
           if (waitingForOpponent) {
+            if (realtimeBroadcastRef.current) {
+              realtimeBroadcastRef.current({
+                type: 'PLAYER_LEFT',
+                playerId: clientPlayerId,
+                playerName: profile.name || playerName || (clientPlayerId === 1 ? 'Player 1' : 'Player 2'),
+              });
+            }
             if (channelLeaveRef.current) {
               channelLeaveRef.current();
               channelLeaveRef.current = null;
@@ -769,6 +917,7 @@ export default function GamePage() {
               clearInterval(handshakeIntervalRef.current);
               handshakeIntervalRef.current = null;
             }
+            setOpponentLeftInfo(null);
             setWaitingForOpponent(false);
             setRoomCode(null);
           }
@@ -802,9 +951,13 @@ export default function GamePage() {
       {showExitConfirm && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-fadeIn">
           <div className="w-full max-w-xs p-5 rounded-2xl bg-zinc-900 border border-zinc-800 shadow-2xl text-center space-y-4">
-            <h3 className="text-base font-bold text-zinc-100">Exit to Main Menu?</h3>
+            <h3 className="text-base font-bold text-zinc-100">
+              {isOnlineMode ? 'Leave Online Match?' : 'Exit to Main Menu?'}
+            </h3>
             <p className="text-xs text-zinc-400">
-              Your ongoing match will be ended and progress lost.
+              {isOnlineMode
+                ? 'Your opponent will be notified that you left, and the match will close.'
+                : 'Your ongoing match will be ended and progress lost.'}
             </p>
             <div className="grid grid-cols-2 gap-2 pt-1">
               <button
@@ -819,7 +972,7 @@ export default function GamePage() {
                 onClick={handleConfirmExitToMenu}
                 className="py-2 px-3 rounded-xl bg-rose-600 hover:bg-rose-500 text-white font-bold text-xs tap-bounce shadow-md"
               >
-                Exit Match
+                {isOnlineMode ? 'Leave Match' : 'Exit Match'}
               </button>
             </div>
           </div>

@@ -4,17 +4,19 @@ import React, { useEffect } from 'react';
 import confetti from 'canvas-confetti';
 import { GameState, PlayerId } from '@/lib/game/types';
 import { sounds } from '@/lib/audio/sounds';
-import { Trophy, RotateCcw, Sparkles } from 'lucide-react';
+import { Trophy, RotateCcw, Sparkles, ArrowLeft } from 'lucide-react';
 
 interface GameOverModalProps {
   gameState: GameState;
   onRestart: () => void;
+  onExitToMenu?: () => void;
   clientPlayerId?: PlayerId;
 }
 
 export const GameOverModal: React.FC<GameOverModalProps> = ({
   gameState,
   onRestart,
+  onExitToMenu,
   clientPlayerId,
 }) => {
   const winner = gameState.winner;
@@ -95,19 +97,40 @@ export const GameOverModal: React.FC<GameOverModalProps> = ({
             </div>
           </div>
 
-          {/* Play again button */}
-          <button
-            type="button"
-            onClick={onRestart}
-            className={`w-full py-3 px-4 rounded-xl font-bold text-white text-sm sm:text-base flex items-center justify-center gap-2 shadow-sm transition-transform active:scale-95 ${
-              winner === 1
-                ? 'bg-blue-600 hover:bg-blue-500'
-                : 'bg-rose-600 hover:bg-rose-500'
-            }`}
-          >
-            <RotateCcw className="w-4 h-4" />
-            Play Again
-          </button>
+          {/* Action buttons */}
+          <div className="space-y-2 mt-4">
+            {gameState.mode !== 'online' && (
+              <button
+                type="button"
+                onClick={onRestart}
+                className={`w-full py-3 px-4 rounded-xl font-bold text-white text-sm sm:text-base flex items-center justify-center gap-2 shadow-sm transition-transform active:scale-95 ${
+                  winner === 1
+                    ? 'bg-blue-600 hover:bg-blue-500'
+                    : 'bg-rose-600 hover:bg-rose-500'
+                }`}
+              >
+                <RotateCcw className="w-4 h-4" />
+                Play Again
+              </button>
+            )}
+
+            {onExitToMenu && (
+              <button
+                type="button"
+                onClick={onExitToMenu}
+                className={`w-full py-3 px-4 rounded-xl font-bold text-sm sm:text-base flex items-center justify-center gap-2 shadow-sm transition-transform active:scale-95 ${
+                  gameState.mode === 'online'
+                    ? winner === 1
+                      ? 'bg-blue-600 hover:bg-blue-500 text-white'
+                      : 'bg-rose-600 hover:bg-rose-500 text-white'
+                    : 'bg-zinc-800 hover:bg-zinc-700 text-zinc-200 border border-zinc-700/60'
+                }`}
+              >
+                <ArrowLeft className="w-4 h-4" />
+                Return to Menu
+              </button>
+            )}
+          </div>
         </div>
       </div>
     </div>
