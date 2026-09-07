@@ -7,7 +7,7 @@ import { applyPawnMove, applyWallPlacement, canPlaceWall } from '@/lib/game/engi
 import { computeAIMove } from '@/lib/game/ai';
 import { isSupabaseConfigured } from '@/lib/supabase/client';
 import { subscribeToGameRoom, RealtimePayload } from '@/lib/supabase/realtime';
-import { GameBoard } from '@/components/board/GameBoard';
+import { GameBoard, GameBoardHandle, ActiveDragInfo } from '@/components/board/GameBoard';
 import { PlayerCard } from '@/components/board/PlayerCard';
 import { MobileControls } from '@/components/controls/MobileControls';
 import { GameOverModal } from '@/components/modals/GameOverModal';
@@ -28,6 +28,11 @@ export default function GamePage() {
     orientation: WallOrientation;
   } | null>(null);
 
+  // Drag-and-drop state
+  const [activeDrag, setActiveDrag] = useState<ActiveDragInfo | null>(null);
+  const boardRef = useRef<GameBoardHandle>(null);
+  const lastSnappedCoordRef = useRef<{ r: number; c: number } | null>(null);
+
   // Modals state
   const [showRules, setShowRules] = useState(false);
   const [showLobby, setShowLobby] = useState(false);
@@ -41,7 +46,7 @@ export default function GamePage() {
 
   const realtimeBroadcastRef = useRef<((payload: RealtimePayload) => void) | null>(null);
 
-  // Toggle wall orientation (also rotates selected ghost wall in place)
+  // Toggle wall orientation
   const handleToggleOrientation = useCallback(() => {
     setOrientation((prev) => {
       const nextOri = prev === 'H' ? 'V' : 'H';
@@ -55,6 +60,7 @@ export default function GamePage() {
     const newState = createInitialGameState(mode);
     setGameState(newState);
     setSelectedWall(null);
+    setActiveDrag(null);
 
     if (mode === 'online' && realtimeBroadcastRef.current) {
       realtimeBroadcastRef.current({
@@ -79,6 +85,7 @@ export default function GamePage() {
     setGameState(createInitialGameState(newMode));
     setClientPlayerId(1);
     setSelectedWall(null);
+    setActiveDrag(null);
     setRoomCode(null);
     setWaitingForOpponent(false);
   };
@@ -101,11 +108,12 @@ export default function GamePage() {
   };
 
   // Perform Wall Placement directly
-  const handlePlaceWall = (placement: { r: number; c: number; orientation: WallOrientation }) => {
+  const handlePlaceWall = useCallback((placement: { r: number; c: number; orientation: WallOrientation }) => {
     const res = applyWallPlacement(gameState, placement);
     if (!res.success) return;
 
     setSelectedWall(null);
+    setActiveDrag(null);
     setGameState(res.nextState);
 
     if (mode === 'online' && realtimeBroadcastRef.current) {
@@ -115,9 +123,9 @@ export default function GamePage() {
         ...placement,
       });
     }
-  };
+  }, [gameState, mode, clientPlayerId]);
 
-  // Confirm currently selected ghost wall
+  // Confirm currently selected ghost wall (tap flow)
   const handleConfirmWall = () => {
     if (!selectedWall) return;
     const check = canPlaceWall(gameState, selectedWall);
@@ -131,6 +139,74 @@ export default function GamePage() {
 
   const handleCancelWall = () => {
     setSelectedWall(null);
+  };
+
+  // Drag-and-drop Handlers
+  const handleDragStart = (dragOrientation: WallOrientation, startX: number, startY: number) => {
+    setSelectedWall(null);
+    lastSnappedCoordRef.current = null;
+    setActiveDrag({
+      orientation: dragOrientation,
+      currentX: startX,
+      currentY: startY,
+      snappedCoord: null,
+      isValid: false,
+    });
+  };
+
+  const handleDragMove = (x: number, y: number) => {
+    // 45px upward offset so finger doesn't obscure the placement slot
+    const targetY = y - 45;
+    const snapped = boardRef.current?.getSnappedIntersection(x, targetY) || null;
+
+    let isValid = false;
+    if (snapped && activeDrag) {
+      const check = canPlaceWall(gameState, {
+        r: snapped.r,
+        c: snapped.c,
+        orientation: activeDrag.orientation,
+      });
+      isValid = check.valid;
+
+      // Subtle snap sound when crossing into a new intersection
+      if (
+        !lastSnappedCoordRef.current ||
+        lastSnappedCoordRef.current.r !== snapped.r ||
+        lastSnappedCoordRef.current.c !== snapped.c
+      ) {
+        sounds.playSnap();
+        lastSnappedCoordRef.current = snapped;
+      }
+    } else {
+      lastSnappedCoordRef.current = null;
+    }
+
+    setActiveDrag((prev) =>
+      prev
+        ? {
+            ...prev,
+            currentX: x,
+            currentY: y,
+            snappedCoord: snapped,
+            isValid,
+          }
+        : null
+    );
+  };
+
+  const handleDragEnd = () => {
+    if (activeDrag && activeDrag.snappedCoord && activeDrag.isValid) {
+      sounds.playWall();
+      handlePlaceWall({
+        r: activeDrag.snappedCoord.r,
+        c: activeDrag.snappedCoord.c,
+        orientation: activeDrag.orientation,
+      });
+    } else if (activeDrag && activeDrag.snappedCoord && !activeDrag.isValid) {
+      sounds.playInvalid();
+    }
+    setActiveDrag(null);
+    lastSnappedCoordRef.current = null;
   };
 
   // Check if selected wall is valid
@@ -352,14 +428,14 @@ export default function GamePage() {
 
         {/* 9x9 Touch Game Board */}
         <GameBoard
+          ref={boardRef}
           gameState={gameState}
           onMovePawn={handleMovePawn}
           onPlaceWall={handlePlaceWall}
           clientPlayerId={mode === 'local' ? gameState.currentTurn : clientPlayerId}
-          orientation={orientation}
-          onToggleOrientation={handleToggleOrientation}
           selectedWall={selectedWall}
           setSelectedWall={setSelectedWall}
+          activeDrag={activeDrag}
           disabled={isPlayerInteractionDisabled}
         />
 
@@ -372,7 +448,7 @@ export default function GamePage() {
         />
       </div>
 
-      {/* 3. Bottom Thumb Zone Controls */}
+      {/* 3. Bottom Thumb Zone Controls & Wall Tray */}
       <MobileControls
         orientation={orientation}
         onToggleOrientation={handleToggleOrientation}
@@ -384,7 +460,37 @@ export default function GamePage() {
         wallsLeft={gameState.players[gameState.currentTurn].wallsLeft}
         isMyTurn={isMyTurn}
         isValidWallPlacement={isValidWallPlacement}
+        onDragStart={handleDragStart}
+        onDragMove={handleDragMove}
+        onDragEnd={handleDragEnd}
+        isDragging={activeDrag !== null}
       />
+
+      {/* 4. Floating Dragged Token (Follows finger with 45px upward offset) */}
+      {activeDrag && (
+        <div
+          style={{
+            left: `${activeDrag.currentX}px`,
+            top: `${activeDrag.currentY - 45}px`,
+            transform: 'translate(-50%, -50%)',
+          }}
+          className="fixed z-50 pointer-events-none transition-transform duration-75"
+        >
+          <div
+            className={`rounded-full shadow-2xl border-2 flex items-center justify-center transition-colors ${
+              activeDrag.orientation === 'H' ? 'w-16 h-4' : 'w-4 h-16'
+            } ${
+              activeDrag.snappedCoord
+                ? activeDrag.isValid
+                  ? 'bg-amber-400 border-white shadow-[0_0_20px_rgba(251,191,36,0.9)] scale-110'
+                  : 'bg-rose-500 border-rose-200 shadow-[0_0_20px_rgba(244,63,94,0.9)] scale-110'
+                : 'bg-amber-400/80 border-amber-200 shadow-neon-wall opacity-90'
+            }`}
+          >
+            <span className="w-1.5 h-1.5 rounded-full bg-white/80" />
+          </div>
+        </div>
+      )}
 
       {/* Modals */}
       <RulesModal isOpen={showRules} onClose={() => setShowRules(false)} />

@@ -1,38 +1,78 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useImperativeHandle, forwardRef } from 'react';
 import { Coordinate, GameState, PlayerId, Wall, WallOrientation } from '@/lib/game/types';
 import { BOARD_SIZE, isSameCoord } from '@/lib/game/board';
 import { canPlaceWall } from '@/lib/game/engine';
 import { getValidPawnMoves } from '@/lib/game/pathfinding';
 import { sounds } from '@/lib/audio/sounds';
 
+export interface GameBoardHandle {
+  getSnappedIntersection: (x: number, y: number) => { r: number; c: number } | null;
+}
+
+export interface ActiveDragInfo {
+  orientation: WallOrientation;
+  currentX: number;
+  currentY: number;
+  snappedCoord: { r: number; c: number } | null;
+  isValid: boolean;
+}
+
 interface GameBoardProps {
   gameState: GameState;
   onMovePawn: (target: Coordinate) => void;
   onPlaceWall: (placement: { r: number; c: number; orientation: WallOrientation }) => void;
   clientPlayerId: PlayerId;
-  orientation: WallOrientation;
-  onToggleOrientation: () => void;
   selectedWall: { r: number; c: number; orientation: WallOrientation } | null;
   setSelectedWall: (wall: { r: number; c: number; orientation: WallOrientation } | null) => void;
+  activeDrag: ActiveDragInfo | null;
   disabled?: boolean;
 }
 
-export const GameBoard: React.FC<GameBoardProps> = ({
+export const GameBoard = forwardRef<GameBoardHandle, GameBoardProps>(({
   gameState,
   onMovePawn,
   onPlaceWall,
   clientPlayerId,
-  orientation,
-  onToggleOrientation,
   selectedWall,
   setSelectedWall,
+  activeDrag,
   disabled = false,
-}) => {
+}, ref) => {
+  const gridContainerRef = useRef<HTMLDivElement>(null);
   const [validationError, setValidationError] = useState<string | null>(null);
 
   const isMyTurn = !disabled && gameState.currentTurn === clientPlayerId && gameState.status === 'playing';
+
+  // Expose snapping coordinate calculator to parent via ref
+  useImperativeHandle(ref, () => ({
+    getSnappedIntersection: (x: number, y: number) => {
+      if (!gridContainerRef.current) return null;
+      const rect = gridContainerRef.current.getBoundingClientRect();
+
+      // Buffer area around board: 35px
+      if (
+        x < rect.left - 35 ||
+        x > rect.right + 35 ||
+        y < rect.top - 35 ||
+        y > rect.bottom + 35
+      ) {
+        return null;
+      }
+
+      const normX = (x - rect.left) / rect.width;
+      const normY = (y - rect.top) / rect.height;
+
+      const c = Math.round(normX * 9 - 1);
+      const r = Math.round(normY * 9 - 1);
+
+      if (r >= 0 && r <= 7 && c >= 0 && c <= 7) {
+        return { r, c };
+      }
+      return null;
+    },
+  }));
 
   // Compute valid pawn moves for the active player
   const validPawnMoves = isMyTurn
@@ -43,7 +83,7 @@ export const GameBoard: React.FC<GameBoardProps> = ({
       )
     : [];
 
-  // Re-validate selected wall whenever selectedWall or orientation changes
+  // Update validation error for selected wall
   useEffect(() => {
     if (!selectedWall || !isMyTurn) {
       setValidationError(null);
@@ -67,7 +107,6 @@ export const GameBoard: React.FC<GameBoardProps> = ({
   const handleCellClick = (r: number, c: number) => {
     if (!isMyTurn) return;
 
-    // If a ghost wall was selected, tapping a valid move deselects the wall and moves
     const isValid = validPawnMoves.some((m) => isSameCoord(m, { r, c }));
     if (isValid) {
       setSelectedWall(null);
@@ -76,7 +115,7 @@ export const GameBoard: React.FC<GameBoardProps> = ({
     }
   };
 
-  // Handle wall slot tap (Phone-optimized 2-step placement)
+  // Handle wall slot tap (Alternative to drag)
   const handleWallSlotTap = (r: number, c: number) => {
     if (!isMyTurn) return;
 
@@ -86,12 +125,15 @@ export const GameBoard: React.FC<GameBoardProps> = ({
       return;
     }
 
-    // If tapping the already selected wall slot: confirm placement!
+    // Default to 'H' if no orientation selected, or toggle
+    const currentOri = selectedWall?.orientation || 'H';
+
     if (selectedWall && selectedWall.r === r && selectedWall.c === c) {
-      const check = canPlaceWall(gameState, { r, c, orientation: selectedWall.orientation });
+      // Tapping same slot: toggle orientation or confirm
+      const check = canPlaceWall(gameState, { r, c, orientation: currentOri });
       if (check.valid) {
         sounds.playWall();
-        onPlaceWall({ r, c, orientation: selectedWall.orientation });
+        onPlaceWall({ r, c, orientation: currentOri });
         setSelectedWall(null);
         setValidationError(null);
       } else {
@@ -101,15 +143,47 @@ export const GameBoard: React.FC<GameBoardProps> = ({
       return;
     }
 
-    // Otherwise, select this wall slot as preview
-    setSelectedWall({ r, c, orientation });
+    setSelectedWall({ r, c, orientation: currentOri });
   };
+
+  // Determine wall to display on board (Drag preview takes precedence over tap-selected wall)
+  const previewWall = activeDrag?.snappedCoord
+    ? {
+        r: activeDrag.snappedCoord.r,
+        c: activeDrag.snappedCoord.c,
+        orientation: activeDrag.orientation,
+        isValid: activeDrag.isValid,
+      }
+    : selectedWall
+    ? {
+        r: selectedWall.r,
+        c: selectedWall.c,
+        orientation: selectedWall.orientation,
+        isValid: canPlaceWall(gameState, selectedWall).valid,
+      }
+    : null;
 
   return (
     <div className="relative flex flex-col items-center justify-center w-full">
-      {/* Mobile feedback banner */}
+      {/* Dynamic feedback banner */}
       <div className="h-5 mb-1 flex items-center justify-center text-center">
-        {validationError ? (
+        {activeDrag ? (
+          <span
+            className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold shadow-md transition-colors ${
+              activeDrag.snappedCoord
+                ? activeDrag.isValid
+                  ? 'bg-emerald-950/90 text-emerald-300 border border-emerald-500/60'
+                  : 'bg-rose-950/90 text-rose-300 border border-rose-500/60 animate-bounce'
+                : 'bg-amber-950/80 text-amber-300 border border-amber-500/40'
+            }`}
+          >
+            {activeDrag.snappedCoord
+              ? activeDrag.isValid
+                ? 'Release finger to Place Wall ✓'
+                : '⚠️ Cannot place wall here'
+              : 'Drag over a grid line'}
+          </span>
+        ) : validationError ? (
           <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-rose-950/90 text-rose-300 border border-rose-500/60 animate-bounce shadow-md">
             ⚠️ {validationError}
           </span>
@@ -121,7 +195,10 @@ export const GameBoard: React.FC<GameBoardProps> = ({
       </div>
 
       {/* Main Board Container */}
-      <div className="relative w-[94vw] max-w-[390px] aspect-square p-2 sm:p-3 rounded-2xl bg-slate-900/95 border border-slate-700/80 shadow-2xl backdrop-blur-md flex items-center justify-center">
+      <div
+        ref={gridContainerRef}
+        className="relative w-[94vw] max-w-[390px] aspect-square p-2 sm:p-3 rounded-2xl bg-slate-900/95 border border-slate-700/80 shadow-2xl backdrop-blur-md flex items-center justify-center"
+      >
         {/* Subtle Top & Bottom Goal Line Marks */}
         <div className="absolute -top-2 left-6 right-6 flex items-center justify-center pointer-events-none">
           <span className="text-[9px] font-extrabold uppercase tracking-widest text-sky-400/70 bg-slate-900 px-2 rounded border border-sky-400/20">
@@ -219,7 +296,7 @@ export const GameBoard: React.FC<GameBoardProps> = ({
             );
           })}
 
-          {/* 3. Render Wall Slots & Touch Hitboxes (8x8 Intersections) */}
+          {/* 3. Render Wall Slots (8x8 Intersections) */}
           {Array.from({ length: BOARD_SIZE - 1 }).map((_, r) =>
             Array.from({ length: BOARD_SIZE - 1 }).map((_, c) => {
               const targetRow = 2 * r + 2;
@@ -242,38 +319,37 @@ export const GameBoard: React.FC<GameBoardProps> = ({
                     isMyTurn ? 'cursor-pointer' : 'cursor-default'
                   }`}
                 >
-                  {/* Expanded invisible touch hit area (covers 28px around intersection for easy thumb taps) */}
-                  <span className="absolute -inset-2 sm:-inset-3 z-30 rounded-full active:bg-amber-400/20" />
+                  <span className="absolute -inset-2.5 sm:-inset-3 z-30 rounded-full active:bg-amber-400/20" />
                 </button>
               );
             })
           )}
 
-          {/* 4. Active Ghost Wall Preview (Phone Tap Selection) */}
-          {isMyTurn && selectedWall && (
+          {/* 4. Active Snapped Wall Preview (From Dragging or Tap) */}
+          {previewWall && (
             <div
               style={{
                 gridRowStart:
-                  selectedWall.orientation === 'H'
-                    ? 2 * selectedWall.r + 2
-                    : 2 * selectedWall.r + 1,
+                  previewWall.orientation === 'H'
+                    ? 2 * previewWall.r + 2
+                    : 2 * previewWall.r + 1,
                 gridRowEnd:
-                  selectedWall.orientation === 'H'
-                    ? 2 * selectedWall.r + 3
-                    : 2 * selectedWall.r + 4,
+                  previewWall.orientation === 'H'
+                    ? 2 * previewWall.r + 3
+                    : 2 * previewWall.r + 4,
                 gridColumnStart:
-                  selectedWall.orientation === 'H'
-                    ? 2 * selectedWall.c + 1
-                    : 2 * selectedWall.c + 2,
+                  previewWall.orientation === 'H'
+                    ? 2 * previewWall.c + 1
+                    : 2 * previewWall.c + 2,
                 gridColumnEnd:
-                  selectedWall.orientation === 'H'
-                    ? 2 * selectedWall.c + 4
-                    : 2 * selectedWall.c + 3,
+                  previewWall.orientation === 'H'
+                    ? 2 * previewWall.c + 4
+                    : 2 * previewWall.c + 3,
               }}
-              className={`z-25 rounded-full pointer-events-none transition-all duration-150 border-2 ${
-                validationError
-                  ? 'bg-rose-500/70 border-rose-300 shadow-[0_0_14px_rgba(244,63,94,0.7)] animate-pulse'
-                  : 'bg-amber-400/85 border-white shadow-[0_0_16px_rgba(251,191,36,0.9)]'
+              className={`z-25 rounded-full pointer-events-none transition-all duration-100 border-2 ${
+                previewWall.isValid
+                  ? 'bg-amber-400/85 border-white shadow-[0_0_16px_rgba(251,191,36,0.9)]'
+                  : 'bg-rose-500/70 border-rose-300 shadow-[0_0_14px_rgba(244,63,94,0.7)] animate-pulse'
               }`}
             />
           )}
@@ -281,4 +357,6 @@ export const GameBoard: React.FC<GameBoardProps> = ({
       </div>
     </div>
   );
-};
+});
+
+GameBoard.displayName = 'GameBoard';
