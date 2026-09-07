@@ -16,7 +16,7 @@ export const IncomingChallengeModal: React.FC<IncomingChallengeModalProps> = ({
   onAccept,
   onDecline,
 }) => {
-  const [timeLeft, setTimeLeft] = useState<number>(30);
+  const [timeLeft, setTimeLeft] = useState<number>(45);
   const onDeclineRef = useRef(onDecline);
   useEffect(() => {
     onDeclineRef.current = onDecline;
@@ -24,12 +24,12 @@ export const IncomingChallengeModal: React.FC<IncomingChallengeModalProps> = ({
 
   useEffect(() => {
     if (!challenge) {
-      setTimeLeft(30);
+      setTimeLeft(45);
       return;
     }
 
-    // Always reset countdown to 30 when a new challenge arrives
-    setTimeLeft(30);
+    // Always reset countdown to 45 when a new challenge arrives
+    setTimeLeft(45);
 
     // Play incoming challenge chime
     sounds.playChallenge();

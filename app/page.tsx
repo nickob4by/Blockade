@@ -910,10 +910,8 @@ export default function GamePage() {
       // Ensure local state is clean
       setWaitingForOpponent(false);
       setRoomCode(null);
-      if (modeRef.current === 'online' && (!roomCodeRef.current || waitingForOpponentRef.current)) {
-        setMode('local');
-        setGameState(createInitialGameState('local'));
-      }
+      setMode('local');
+      setGameState(createInitialGameState('local'));
     },
     [user?.id, profile.id, profile.name, profile.emoji, playerName]
   );
@@ -927,7 +925,7 @@ export default function GamePage() {
       { id: currentId, name: currentName },
       (payload) => {
         if (payload.type === 'CHALLENGE_INVITE') {
-          // If already declined or accepted this exact challenge ID, ignore
+          // If already declined or accepted this exact challenge ID, ignore duplicate
           if (handledChallengesRef.current.has(payload.challenge.id)) {
             return;
           }
@@ -935,25 +933,7 @@ export default function GamePage() {
             return;
           }
 
-          // Only decline automatically if player is CURRENTLY actively playing an online game on the board
-          const isActivelyPlayingLiveGame =
-            currentViewRef.current === 'game' &&
-            modeRef.current === 'online' &&
-            Boolean(roomCodeRef.current) &&
-            !waitingForOpponentRef.current &&
-            gameStateRef.current.status === 'playing';
-
-          if (isActivelyPlayingLiveGame) {
-            respondToChallenge(
-              payload.challenge,
-              'declined',
-              currentId,
-              currentName,
-              profile.emoji || undefined
-            );
-            return;
-          }
-
+          // Never auto-decline: Always show incoming challenge to the user
           setIncomingChallenge(payload.challenge);
         } else if (payload.type === 'CHALLENGE_RESPONSE') {
           if (outgoingChallengeRef.current && outgoingChallengeRef.current.id === payload.challengeId) {
