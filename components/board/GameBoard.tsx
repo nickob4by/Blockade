@@ -14,6 +14,8 @@ interface GameBoardProps {
   clientPlayerId: PlayerId;
   orientation: WallOrientation;
   onToggleOrientation: () => void;
+  selectedWall: { r: number; c: number; orientation: WallOrientation } | null;
+  setSelectedWall: (wall: { r: number; c: number; orientation: WallOrientation } | null) => void;
   disabled?: boolean;
 }
 
@@ -24,13 +26,10 @@ export const GameBoard: React.FC<GameBoardProps> = ({
   clientPlayerId,
   orientation,
   onToggleOrientation,
+  selectedWall,
+  setSelectedWall,
   disabled = false,
 }) => {
-  const [hoveredWall, setHoveredWall] = useState<{
-    r: number;
-    c: number;
-    orientation: WallOrientation;
-  } | null>(null);
   const [validationError, setValidationError] = useState<string | null>(null);
 
   const isMyTurn = !disabled && gameState.currentTurn === clientPlayerId && gameState.status === 'playing';
@@ -44,17 +43,17 @@ export const GameBoard: React.FC<GameBoardProps> = ({
       )
     : [];
 
-  // Update wall preview validation when hovered or orientation changes
+  // Re-validate selected wall whenever selectedWall or orientation changes
   useEffect(() => {
-    if (!hoveredWall || !isMyTurn) {
+    if (!selectedWall || !isMyTurn) {
       setValidationError(null);
       return;
     }
 
     const check = canPlaceWall(gameState, {
-      r: hoveredWall.r,
-      c: hoveredWall.c,
-      orientation: hoveredWall.orientation,
+      r: selectedWall.r,
+      c: selectedWall.c,
+      orientation: selectedWall.orientation,
     });
 
     if (!check.valid) {
@@ -62,82 +61,90 @@ export const GameBoard: React.FC<GameBoardProps> = ({
     } else {
       setValidationError(null);
     }
-  }, [hoveredWall, gameState, isMyTurn]);
+  }, [selectedWall, gameState, isMyTurn]);
 
-  // Handle cell click
+  // Handle cell click (Pawn movement)
   const handleCellClick = (r: number, c: number) => {
     if (!isMyTurn) return;
 
+    // If a ghost wall was selected, tapping a valid move deselects the wall and moves
     const isValid = validPawnMoves.some((m) => isSameCoord(m, { r, c }));
     if (isValid) {
+      setSelectedWall(null);
       sounds.playMove();
       onMovePawn({ r, c });
     }
   };
 
-  // Handle wall placement click
-  const handleWallClick = (r: number, c: number) => {
+  // Handle wall slot tap (Phone-optimized 2-step placement)
+  const handleWallSlotTap = (r: number, c: number) => {
     if (!isMyTurn) return;
 
-    const candidate = { r, c, orientation };
-    const check = canPlaceWall(gameState, candidate);
-
-    if (check.valid) {
-      sounds.playWall();
-      onPlaceWall(candidate);
-      setHoveredWall(null);
-    } else {
+    if (gameState.players[gameState.currentTurn].wallsLeft <= 0) {
       sounds.playInvalid();
-      setValidationError(check.reason || 'Invalid wall placement');
+      setValidationError('No walls remaining');
+      return;
     }
+
+    // If tapping the already selected wall slot: confirm placement!
+    if (selectedWall && selectedWall.r === r && selectedWall.c === c) {
+      const check = canPlaceWall(gameState, { r, c, orientation: selectedWall.orientation });
+      if (check.valid) {
+        sounds.playWall();
+        onPlaceWall({ r, c, orientation: selectedWall.orientation });
+        setSelectedWall(null);
+        setValidationError(null);
+      } else {
+        sounds.playInvalid();
+        setValidationError(check.reason || 'Cannot place wall here');
+      }
+      return;
+    }
+
+    // Otherwise, select this wall slot as preview
+    setSelectedWall({ r, c, orientation });
   };
 
-  // Hotkey listener: Spacebar or 'R' toggles orientation
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
-      if (e.code === 'Space' || e.key.toLowerCase() === 'r') {
-        e.preventDefault();
-        onToggleOrientation();
-      }
-    };
-
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [onToggleOrientation]);
-
   return (
-    <div className="relative flex flex-col items-center">
-      {/* Dynamic feedback banner for invalid placement */}
-      <div className="h-6 mb-1 text-center">
-        {validationError && (
-          <span className="inline-flex items-center gap-1.5 px-3 py-0.5 rounded-full text-xs font-semibold bg-rose-950/80 text-rose-300 border border-rose-500/50 animate-bounce">
+    <div className="relative flex flex-col items-center justify-center w-full">
+      {/* Mobile feedback banner */}
+      <div className="h-5 mb-1 flex items-center justify-center text-center">
+        {validationError ? (
+          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-rose-950/90 text-rose-300 border border-rose-500/60 animate-bounce shadow-md">
             ⚠️ {validationError}
           </span>
-        )}
+        ) : selectedWall ? (
+          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-amber-950/80 text-amber-300 border border-amber-500/40">
+            Tap slot again or press Confirm
+          </span>
+        ) : null}
       </div>
 
       {/* Main Board Container */}
-      <div className="relative p-3 sm:p-4 rounded-2xl bg-slate-900/90 border border-slate-700/80 shadow-2xl backdrop-blur-md">
-        {/* Goal edge indicators */}
-        <div className="absolute top-1 left-6 right-6 flex items-center justify-center gap-2 text-[11px] font-bold text-sky-400/80 tracking-widest uppercase pointer-events-none">
-          <span>▲ Player 1 Goal Line (Top) ▲</span>
+      <div className="relative w-[94vw] max-w-[390px] aspect-square p-2 sm:p-3 rounded-2xl bg-slate-900/95 border border-slate-700/80 shadow-2xl backdrop-blur-md flex items-center justify-center">
+        {/* Subtle Top & Bottom Goal Line Marks */}
+        <div className="absolute -top-2 left-6 right-6 flex items-center justify-center pointer-events-none">
+          <span className="text-[9px] font-extrabold uppercase tracking-widest text-sky-400/70 bg-slate-900 px-2 rounded border border-sky-400/20">
+            ▲ P1 Goal (Top) ▲
+          </span>
         </div>
-        <div className="absolute bottom-1 left-6 right-6 flex items-center justify-center gap-2 text-[11px] font-bold text-rose-400/80 tracking-widest uppercase pointer-events-none">
-          <span>▼ Player 2 Goal Line (Bottom) ▼</span>
+        <div className="absolute -bottom-2 left-6 right-6 flex items-center justify-center pointer-events-none">
+          <span className="text-[9px] font-extrabold uppercase tracking-widest text-rose-400/70 bg-slate-900 px-2 rounded border border-rose-400/20">
+            ▼ P2 Goal (Bottom) ▼
+          </span>
         </div>
 
-        {/* 17x17 Grid: 9 Cells + 8 Grooves */}
+        {/* 17x17 CSS Grid: 9 Cells + 8 Grooves */}
         <div
-          className="grid select-none"
+          className="w-full h-full grid select-none touch-manipulation"
           style={{
             gridTemplateColumns:
-              'repeat(8, minmax(28px, 48px) minmax(8px, 12px)) minmax(28px, 48px)',
+              'repeat(8, 1fr clamp(6px, 1.8vw, 10px)) 1fr',
             gridTemplateRows:
-              'repeat(8, minmax(28px, 48px) minmax(8px, 12px)) minmax(28px, 48px)',
+              'repeat(8, 1fr clamp(6px, 1.8vw, 10px)) 1fr',
           }}
         >
-          {/* 1. Render all 9x9 Cells */}
+          {/* 1. Render Cells (9x9) */}
           {Array.from({ length: BOARD_SIZE }).map((_, r) =>
             Array.from({ length: BOARD_SIZE }).map((_, c) => {
               const coord: Coordinate = { r, c };
@@ -161,29 +168,29 @@ export const GameBoard: React.FC<GameBoardProps> = ({
                     gridColumnStart: gridCol,
                     gridColumnEnd: gridCol + 1,
                   }}
-                  className={`relative aspect-square rounded-lg flex items-center justify-center transition-all duration-150 focus:outline-none ${
+                  className={`relative w-full h-full rounded-md flex items-center justify-center transition-all duration-150 focus:outline-none tap-bounce ${
                     isValidMove
-                      ? 'bg-emerald-950/40 border-2 border-emerald-400/80 cursor-pointer shadow-[0_0_12px_rgba(52,211,153,0.4)] hover:bg-emerald-900/50 scale-95 hover:scale-100'
-                      : 'bg-slate-800/80 border border-slate-700/60 hover:border-slate-600'
+                      ? 'bg-emerald-950/60 border-2 border-emerald-400/90 shadow-[0_0_10px_rgba(52,211,153,0.5)] cursor-pointer'
+                      : 'bg-slate-800/80 border border-slate-700/50'
                   }`}
                 >
                   {/* Pawn 1 */}
                   {isP1 && (
-                    <div className="w-4/5 h-4/5 rounded-full bg-gradient-to-tr from-sky-600 to-sky-300 border-2 border-white shadow-neon-p1 flex items-center justify-center font-bold text-xs text-white pawn-transition animate-pulse-subtle">
+                    <div className="w-[82%] h-[82%] rounded-full bg-gradient-to-tr from-sky-600 via-sky-500 to-sky-300 border-2 border-white shadow-neon-p1 flex items-center justify-center font-black text-[10px] sm:text-xs text-white pawn-transition">
                       P1
                     </div>
                   )}
 
                   {/* Pawn 2 */}
                   {isP2 && (
-                    <div className="w-4/5 h-4/5 rounded-full bg-gradient-to-tr from-rose-600 to-rose-300 border-2 border-white shadow-neon-p2 flex items-center justify-center font-bold text-xs text-white pawn-transition animate-pulse-subtle">
+                    <div className="w-[82%] h-[82%] rounded-full bg-gradient-to-tr from-rose-600 via-rose-500 to-rose-300 border-2 border-white shadow-neon-p2 flex items-center justify-center font-black text-[10px] sm:text-xs text-white pawn-transition">
                       P2
                     </div>
                   )}
 
-                  {/* Valid move target pulse ring */}
+                  {/* Move hint target dot */}
                   {isValidMove && !isP1 && !isP2 && (
-                    <div className="w-3.5 h-3.5 rounded-full bg-emerald-400/80 shadow-[0_0_8px_rgba(52,211,153,0.9)] animate-ping" />
+                    <div className="w-2.5 h-2.5 rounded-full bg-emerald-300 shadow-[0_0_6px_rgba(110,231,183,0.9)] animate-ping" />
                   )}
                 </button>
               );
@@ -200,31 +207,21 @@ export const GameBoard: React.FC<GameBoardProps> = ({
 
             return (
               <div
-                key={`wall-${index}`}
+                key={`placed-wall-${index}`}
                 style={{
                   gridRowStart,
                   gridRowEnd,
                   gridColumnStart: gridColStart,
                   gridColumnEnd: gridColEnd,
                 }}
-                className={`z-20 rounded-full shadow-neon-wall flex items-center justify-center pointer-events-none transition-all duration-200 ${
-                  wall.placedBy === 1
-                    ? 'bg-gradient-to-r from-amber-400 via-amber-300 to-amber-500 border border-amber-200'
-                    : 'bg-gradient-to-r from-amber-500 via-amber-400 to-amber-600 border border-amber-200'
-                }`}
+                className="z-20 rounded-full bg-gradient-to-r from-amber-400 via-amber-300 to-amber-500 border border-amber-200 shadow-neon-wall pointer-events-none"
               />
             );
           })}
 
-          {/* 3. Render Wall Placement Hover Zones (8x8 Intersections) */}
+          {/* 3. Render Wall Slots & Touch Hitboxes (8x8 Intersections) */}
           {Array.from({ length: BOARD_SIZE - 1 }).map((_, r) =>
             Array.from({ length: BOARD_SIZE - 1 }).map((_, c) => {
-              const isHovered =
-                hoveredWall?.r === r &&
-                hoveredWall?.c === c &&
-                hoveredWall?.orientation === orientation;
-
-              // Invisible interactive target at the intersection
               const targetRow = 2 * r + 2;
               const targetCol = 2 * c + 2;
 
@@ -232,9 +229,7 @@ export const GameBoard: React.FC<GameBoardProps> = ({
                 <button
                   key={`slot-${r}-${c}`}
                   type="button"
-                  onClick={() => handleWallClick(r, c)}
-                  onMouseEnter={() => setHoveredWall({ r, c, orientation })}
-                  onMouseLeave={() => setHoveredWall(null)}
+                  onClick={() => handleWallSlotTap(r, c)}
                   disabled={!isMyTurn}
                   aria-label={`Wall slot ${r}, ${c}`}
                   style={{
@@ -243,39 +238,42 @@ export const GameBoard: React.FC<GameBoardProps> = ({
                     gridColumnStart: targetCol,
                     gridColumnEnd: targetCol + 1,
                   }}
-                  className={`z-30 rounded-full transition-colors duration-100 flex items-center justify-center cursor-pointer ${
-                    isMyTurn ? 'hover:bg-amber-400/40' : 'cursor-default'
+                  className={`relative z-30 rounded-full flex items-center justify-center focus:outline-none ${
+                    isMyTurn ? 'cursor-pointer' : 'cursor-default'
                   }`}
-                />
+                >
+                  {/* Expanded invisible touch hit area (covers 28px around intersection for easy thumb taps) */}
+                  <span className="absolute -inset-2 sm:-inset-3 z-30 rounded-full active:bg-amber-400/20" />
+                </button>
               );
             })
           )}
 
-          {/* 4. Render Active Hover Preview Wall */}
-          {isMyTurn && hoveredWall && (
+          {/* 4. Active Ghost Wall Preview (Phone Tap Selection) */}
+          {isMyTurn && selectedWall && (
             <div
               style={{
                 gridRowStart:
-                  hoveredWall.orientation === 'H'
-                    ? 2 * hoveredWall.r + 2
-                    : 2 * hoveredWall.r + 1,
+                  selectedWall.orientation === 'H'
+                    ? 2 * selectedWall.r + 2
+                    : 2 * selectedWall.r + 1,
                 gridRowEnd:
-                  hoveredWall.orientation === 'H'
-                    ? 2 * hoveredWall.r + 3
-                    : 2 * hoveredWall.r + 4,
+                  selectedWall.orientation === 'H'
+                    ? 2 * selectedWall.r + 3
+                    : 2 * selectedWall.r + 4,
                 gridColumnStart:
-                  hoveredWall.orientation === 'H'
-                    ? 2 * hoveredWall.c + 1
-                    : 2 * hoveredWall.c + 2,
+                  selectedWall.orientation === 'H'
+                    ? 2 * selectedWall.c + 1
+                    : 2 * selectedWall.c + 2,
                 gridColumnEnd:
-                  hoveredWall.orientation === 'H'
-                    ? 2 * hoveredWall.c + 4
-                    : 2 * hoveredWall.c + 3,
+                  selectedWall.orientation === 'H'
+                    ? 2 * selectedWall.c + 4
+                    : 2 * selectedWall.c + 3,
               }}
-              className={`z-25 rounded-full pointer-events-none transition-all duration-75 border ${
+              className={`z-25 rounded-full pointer-events-none transition-all duration-150 border-2 ${
                 validationError
-                  ? 'bg-rose-500/60 border-rose-400 shadow-[0_0_12px_rgba(244,63,94,0.6)] animate-pulse'
-                  : 'bg-amber-400/75 border-amber-200 shadow-[0_0_14px_rgba(251,191,36,0.8)]'
+                  ? 'bg-rose-500/70 border-rose-300 shadow-[0_0_14px_rgba(244,63,94,0.7)] animate-pulse'
+                  : 'bg-amber-400/85 border-white shadow-[0_0_16px_rgba(251,191,36,0.9)]'
               }`}
             />
           )}

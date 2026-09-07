@@ -1,8 +1,7 @@
 import React from 'react';
-import { PlayerId, PlayerState } from '@/lib/game/types';
+import { PlayerState, Wall } from '@/lib/game/types';
 import { findShortestPath } from '@/lib/game/pathfinding';
-import { Wall } from '@/lib/game/types';
-import { Shield, Trophy, Flame } from 'lucide-react';
+import { Shield, Sparkles } from 'lucide-react';
 
 interface PlayerCardProps {
   player: PlayerState;
@@ -23,80 +22,75 @@ export const PlayerCard: React.FC<PlayerCardProps> = ({
 
   return (
     <div
-      className={`relative flex items-center justify-between p-3.5 sm:p-4 rounded-xl border transition-all duration-300 ${
+      className={`w-full flex items-center justify-between px-3 py-1.5 sm:py-2 rounded-xl border transition-all duration-200 ${
         isCurrentTurn
           ? isP1
-            ? 'bg-sky-950/40 border-sky-400 shadow-[0_0_20px_rgba(56,189,248,0.25)] ring-1 ring-sky-400/50'
-            : 'bg-rose-950/40 border-rose-400 shadow-[0_0_20px_rgba(244,63,94,0.25)] ring-1 ring-rose-400/50'
-          : 'bg-slate-900/60 border-slate-800 opacity-85 hover:opacity-100'
+            ? 'bg-sky-950/70 border-sky-400/80 shadow-[0_0_12px_rgba(56,189,248,0.25)] ring-1 ring-sky-400/40'
+            : 'bg-rose-950/70 border-rose-400/80 shadow-[0_0_12px_rgba(244,63,94,0.25)] ring-1 ring-rose-400/40'
+          : 'bg-slate-900/60 border-slate-800/80 opacity-80'
       }`}
     >
-      {/* Turn indicator badge */}
-      {isCurrentTurn && (
+      {/* Player identity */}
+      <div className="flex items-center gap-2 min-w-0">
         <div
-          className={`absolute -top-2.5 left-4 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider rounded-full flex items-center gap-1 text-white shadow-sm ${
-            isP1 ? 'bg-sky-500 animate-pulse' : 'bg-rose-500 animate-pulse'
-          }`}
-        >
-          <Flame className="w-3 h-3" />
-          Turn
-        </div>
-      )}
-
-      {/* Player info & avatar */}
-      <div className="flex items-center gap-3">
-        <div
-          className={`relative w-11 h-11 rounded-xl flex items-center justify-center font-bold text-lg text-white shadow-md border ${
+          className={`relative w-7 h-7 sm:w-8 sm:h-8 rounded-lg flex-shrink-0 flex items-center justify-center font-black text-xs text-white shadow-sm border ${
             isP1
-              ? 'bg-gradient-to-tr from-sky-600 to-sky-400 border-sky-300/50 glow-p1'
-              : 'bg-gradient-to-tr from-rose-600 to-rose-400 border-rose-300/50 glow-p2'
+              ? 'bg-gradient-to-tr from-sky-600 to-sky-400 border-sky-300/40'
+              : 'bg-gradient-to-tr from-rose-600 to-rose-400 border-rose-300/40'
           }`}
         >
           {isP1 ? 'P1' : 'P2'}
         </div>
 
-        <div>
-          <div className="flex items-center gap-1.5">
-            <span className="font-semibold text-sm sm:text-base text-slate-100">
+        <div className="flex flex-col min-w-0">
+          <div className="flex items-center gap-1.5 leading-tight">
+            <span className="font-bold text-xs sm:text-sm text-slate-100 truncate max-w-[110px] sm:max-w-none">
               {player.name}
             </span>
             {isClientPlayer && (
-              <span className="text-[10px] bg-slate-800 text-slate-300 px-1.5 py-0.5 rounded border border-slate-700">
-                You
+              <span className="text-[9px] bg-slate-800 text-sky-300 font-bold px-1 rounded border border-slate-700">
+                YOU
+              </span>
+            )}
+            {isCurrentTurn && (
+              <span
+                className={`text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.2 rounded-full text-white flex items-center gap-0.5 animate-pulse ${
+                  isP1 ? 'bg-sky-500' : 'bg-rose-500'
+                }`}
+              >
+                <Sparkles className="w-2.5 h-2.5" />
+                Turn
               </span>
             )}
           </div>
-          <div className="flex items-center gap-2 text-xs text-slate-400 mt-0.5">
-            <span className="flex items-center gap-1">
-              <Trophy className="w-3 h-3 text-amber-400" />
-              Target: Row {isP1 ? '1 (Top)' : '9 (Bottom)'}
-            </span>
+          <span className="text-[10px] text-slate-400 leading-tight">
+            Goal: Row {isP1 ? '1 (Top)' : '9 (Bottom)'}
             {stepsToGoal !== null && (
-              <span className="hidden xs:inline-block text-slate-500">• {stepsToGoal} steps</span>
+              <span className="text-slate-500 ml-1.5">• {stepsToGoal} steps</span>
             )}
-          </div>
+          </span>
         </div>
       </div>
 
-      {/* Walls counter & sticks visualizer */}
-      <div className="flex flex-col items-end gap-1">
-        <div className="flex items-center gap-1 text-xs font-medium text-slate-300">
-          <Shield className="w-3.5 h-3.5 text-amber-400" />
+      {/* Remaining walls count & mini sticks */}
+      <div className="flex flex-col items-end justify-center flex-shrink-0">
+        <div className="flex items-center gap-1 text-[11px] font-semibold text-slate-300">
+          <Shield className="w-3 h-3 text-amber-400" />
           <span>
-            <strong className="text-amber-300 font-bold text-sm">{player.wallsLeft}</strong>/10
+            <strong className="text-amber-300 font-bold text-xs">{player.wallsLeft}</strong>
+            <span className="text-slate-500">/10</span>
           </span>
-          <span className="hidden sm:inline text-slate-400 text-[11px]">walls</span>
         </div>
 
-        {/* Mini wall sticks display */}
-        <div className="flex items-center gap-0.5 h-4">
+        {/* 10 mini wall bars */}
+        <div className="flex items-center gap-0.5 mt-0.5">
           {Array.from({ length: 10 }).map((_, i) => (
             <div
               key={i}
-              className={`w-1 sm:w-1.5 h-3 rounded-full transition-all duration-200 ${
+              className={`w-1 h-2 rounded-full transition-colors ${
                 i < player.wallsLeft
-                  ? 'bg-amber-400 shadow-[0_0_4px_rgba(251,191,36,0.6)]'
-                  : 'bg-slate-800 border border-slate-700/50'
+                  ? 'bg-amber-400 shadow-[0_0_2px_rgba(251,191,36,0.6)]'
+                  : 'bg-slate-800'
               }`}
             />
           ))}

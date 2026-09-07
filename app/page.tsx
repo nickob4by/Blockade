@@ -3,25 +3,30 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Coordinate, GameMode, GameState, PlayerId, WallOrientation } from '@/lib/game/types';
 import { createInitialGameState } from '@/lib/game/board';
-import { applyPawnMove, applyWallPlacement } from '@/lib/game/engine';
+import { applyPawnMove, applyWallPlacement, canPlaceWall } from '@/lib/game/engine';
 import { computeAIMove } from '@/lib/game/ai';
 import { isSupabaseConfigured } from '@/lib/supabase/client';
 import { subscribeToGameRoom, RealtimePayload } from '@/lib/supabase/realtime';
 import { GameBoard } from '@/components/board/GameBoard';
 import { PlayerCard } from '@/components/board/PlayerCard';
-import { GameControls } from '@/components/controls/GameControls';
+import { MobileControls } from '@/components/controls/MobileControls';
 import { GameOverModal } from '@/components/modals/GameOverModal';
 import { RulesModal } from '@/components/modals/RulesModal';
 import { OnlineLobbyModal } from '@/components/modals/OnlineLobbyModal';
 import { SupabaseConfigModal } from '@/components/modals/SupabaseConfigModal';
 import { sounds } from '@/lib/audio/sounds';
-import { Users, Bot, Gamepad2, Globe, Sparkles, BookOpen } from 'lucide-react';
+import { Users, Bot, Globe } from 'lucide-react';
 
 export default function GamePage() {
   const [mode, setMode] = useState<GameMode>('local');
   const [gameState, setGameState] = useState<GameState>(() => createInitialGameState('local'));
   const [orientation, setOrientation] = useState<WallOrientation>('H');
   const [clientPlayerId, setClientPlayerId] = useState<PlayerId>(1);
+  const [selectedWall, setSelectedWall] = useState<{
+    r: number;
+    c: number;
+    orientation: WallOrientation;
+  } | null>(null);
 
   // Modals state
   const [showRules, setShowRules] = useState(false);
@@ -36,15 +41,20 @@ export default function GamePage() {
 
   const realtimeBroadcastRef = useRef<((payload: RealtimePayload) => void) | null>(null);
 
-  // Toggle wall orientation
+  // Toggle wall orientation (also rotates selected ghost wall in place)
   const handleToggleOrientation = useCallback(() => {
-    setOrientation((prev) => (prev === 'H' ? 'V' : 'H'));
+    setOrientation((prev) => {
+      const nextOri = prev === 'H' ? 'V' : 'H';
+      setSelectedWall((curr) => (curr ? { ...curr, orientation: nextOri } : null));
+      return nextOri;
+    });
   }, []);
 
   // Reset / Restart Game
   const handleRestart = useCallback(() => {
     const newState = createInitialGameState(mode);
     setGameState(newState);
+    setSelectedWall(null);
 
     if (mode === 'online' && realtimeBroadcastRef.current) {
       realtimeBroadcastRef.current({
@@ -68,12 +78,14 @@ export default function GamePage() {
     setMode(newMode);
     setGameState(createInitialGameState(newMode));
     setClientPlayerId(1);
+    setSelectedWall(null);
     setRoomCode(null);
     setWaitingForOpponent(false);
   };
 
   // Perform Pawn Move
   const handleMovePawn = (target: Coordinate) => {
+    setSelectedWall(null);
     const res = applyPawnMove(gameState, target);
     if (!res.success) return;
 
@@ -88,11 +100,12 @@ export default function GamePage() {
     }
   };
 
-  // Perform Wall Placement
+  // Perform Wall Placement directly
   const handlePlaceWall = (placement: { r: number; c: number; orientation: WallOrientation }) => {
     const res = applyWallPlacement(gameState, placement);
     if (!res.success) return;
 
+    setSelectedWall(null);
     setGameState(res.nextState);
 
     if (mode === 'online' && realtimeBroadcastRef.current) {
@@ -103,6 +116,27 @@ export default function GamePage() {
       });
     }
   };
+
+  // Confirm currently selected ghost wall
+  const handleConfirmWall = () => {
+    if (!selectedWall) return;
+    const check = canPlaceWall(gameState, selectedWall);
+    if (check.valid) {
+      sounds.playWall();
+      handlePlaceWall(selectedWall);
+    } else {
+      sounds.playInvalid();
+    }
+  };
+
+  const handleCancelWall = () => {
+    setSelectedWall(null);
+  };
+
+  // Check if selected wall is valid
+  const isValidWallPlacement = selectedWall
+    ? canPlaceWall(gameState, selectedWall).valid
+    : false;
 
   // AI Turn Execution
   useEffect(() => {
@@ -147,7 +181,6 @@ export default function GamePage() {
             if (isHost) {
               setWaitingForOpponent(false);
               setShowLobby(false);
-              // Transmit initial state to guest
               broadcast({
                 type: 'SYNC_STATE',
                 state: gameState,
@@ -210,7 +243,7 @@ export default function GamePage() {
     setShowLobby(false);
   };
 
-  // Check URL parameters for ?room=XXXXXX on initial mount
+  // Check URL parameters for ?room=XXXXXX
   useEffect(() => {
     if (typeof window === 'undefined') return;
     const params = new URLSearchParams(window.location.search);
@@ -224,106 +257,100 @@ export default function GamePage() {
     }
   }, []);
 
+  const isMyTurn =
+    mode === 'local'
+      ? true
+      : gameState.currentTurn === clientPlayerId && gameState.status === 'playing';
+
   const isPlayerInteractionDisabled =
     mode === 'online' && gameState.currentTurn !== clientPlayerId;
 
   return (
-    <main className="min-h-screen flex flex-col justify-between py-4 px-3 sm:px-6 max-w-4xl mx-auto">
-      {/* Top Navbar */}
-      <header className="flex items-center justify-between gap-2 pb-3 border-b border-slate-800">
-        <div className="flex items-center gap-2.5">
-          <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-amber-500 to-amber-300 flex items-center justify-center font-black text-slate-950 text-xl shadow-neon-wall">
+    <main className="h-full h-[100dvh] flex flex-col justify-between items-center px-2 py-1 sm:py-2 max-w-md mx-auto overflow-hidden">
+      {/* 1. Mobile Top Bar */}
+      <header className="w-full flex items-center justify-between gap-1.5 pt-safe pb-1">
+        <div className="flex items-center gap-1.5">
+          <div className="w-7 h-7 rounded-lg bg-gradient-to-tr from-amber-500 to-amber-300 flex items-center justify-center font-black text-slate-950 text-base shadow-neon-wall flex-shrink-0">
             B
           </div>
-          <div>
-            <h1 className="font-black text-lg sm:text-xl tracking-tight text-white flex items-center gap-1.5">
-              BLOCKADE
-              <span className="text-[10px] font-semibold text-amber-400 border border-amber-500/40 px-1.5 py-0.2 rounded uppercase">
-                Quoridor
-              </span>
-            </h1>
-            <p className="text-[11px] text-slate-400 hidden xs:block">
-              Race to the finish • Wall your opponent
-            </p>
-          </div>
+          <span className="font-black text-base tracking-tight text-white">
+            BLOCKADE
+          </span>
         </div>
 
         {/* Mode Selector Tabs */}
-        <div className="flex items-center gap-1 p-1 bg-slate-900 rounded-xl border border-slate-800 text-xs font-semibold">
+        <div className="flex items-center gap-0.5 p-0.5 bg-slate-900/90 rounded-xl border border-slate-800 text-[11px] font-bold">
           <button
             type="button"
             onClick={() => handleSelectMode('local')}
-            className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg transition-all ${
+            className={`flex items-center gap-1 px-2 py-1 rounded-lg transition-all tap-bounce ${
               mode === 'local'
                 ? 'bg-slate-800 text-white shadow-sm'
                 : 'text-slate-400 hover:text-slate-200'
             }`}
           >
-            <Users className="w-3.5 h-3.5 text-sky-400" />
-            <span className="hidden sm:inline">Local 2P</span>
+            <Users className="w-3 h-3 text-sky-400" />
+            <span>2P</span>
           </button>
 
           <button
             type="button"
             onClick={() => handleSelectMode('ai')}
-            className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg transition-all ${
+            className={`flex items-center gap-1 px-2 py-1 rounded-lg transition-all tap-bounce ${
               mode === 'ai'
                 ? 'bg-slate-800 text-white shadow-sm'
                 : 'text-slate-400 hover:text-slate-200'
             }`}
           >
-            <Bot className="w-3.5 h-3.5 text-rose-400" />
-            <span className="hidden sm:inline">vs AI</span>
+            <Bot className="w-3 h-3 text-rose-400" />
+            <span>AI</span>
           </button>
 
           <button
             type="button"
             onClick={() => handleSelectMode('online')}
-            className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg transition-all ${
+            className={`flex items-center gap-1 px-2 py-1 rounded-lg transition-all tap-bounce ${
               mode === 'online'
                 ? 'bg-slate-800 text-white shadow-sm'
                 : 'text-slate-400 hover:text-slate-200'
             }`}
           >
-            <Globe className="w-3.5 h-3.5 text-emerald-400" />
-            <span className="hidden sm:inline">Online</span>
+            <Globe className="w-3 h-3 text-emerald-400" />
+            <span>Online</span>
           </button>
         </div>
       </header>
 
-      {/* Online room banner if in online match */}
+      {/* Online room banner if active */}
       {mode === 'online' && roomCode && (
-        <div className="my-2 p-2 rounded-xl bg-slate-900/60 border border-slate-800 flex items-center justify-between text-xs text-slate-300">
-          <div className="flex items-center gap-2">
+        <div className="w-full px-2 py-1 rounded-lg bg-slate-900/80 border border-slate-800 flex items-center justify-between text-[11px] text-slate-300">
+          <div className="flex items-center gap-1.5 truncate">
             <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
             <span>
               Room: <strong className="font-mono text-amber-400">{roomCode}</strong>
             </span>
-            <span className="text-slate-500">• Playing as Player {clientPlayerId}</span>
           </div>
           <button
             type="button"
             onClick={() => setShowLobby(true)}
-            className="text-sky-400 hover:underline"
+            className="text-sky-400 font-semibold"
           >
-            Room Details
+            Details
           </button>
         </div>
       )}
 
-      {/* Main Game Area */}
-      <div className="flex flex-col items-center gap-4 my-auto">
-        {/* Opponent Card (Top Player - Player 2) */}
-        <div className="w-full max-w-xl">
-          <PlayerCard
-            player={gameState.players[2]}
-            isCurrentTurn={gameState.currentTurn === 2}
-            walls={gameState.walls}
-            isClientPlayer={mode === 'online' ? clientPlayerId === 2 : undefined}
-          />
-        </div>
+      {/* 2. Middle Game Core: Opponent -> Board -> Player */}
+      <div className="w-full flex flex-col items-center justify-center gap-1.5 sm:gap-2 my-auto">
+        {/* Opponent Card (Top - Player 2) */}
+        <PlayerCard
+          player={gameState.players[2]}
+          isCurrentTurn={gameState.currentTurn === 2}
+          walls={gameState.walls}
+          isClientPlayer={mode === 'online' ? clientPlayerId === 2 : undefined}
+        />
 
-        {/* Board Component */}
+        {/* 9x9 Touch Game Board */}
         <GameBoard
           gameState={gameState}
           onMovePawn={handleMovePawn}
@@ -331,28 +358,33 @@ export default function GamePage() {
           clientPlayerId={mode === 'local' ? gameState.currentTurn : clientPlayerId}
           orientation={orientation}
           onToggleOrientation={handleToggleOrientation}
+          selectedWall={selectedWall}
+          setSelectedWall={setSelectedWall}
           disabled={isPlayerInteractionDisabled}
         />
 
-        {/* Client Player Card (Bottom Player - Player 1) */}
-        <div className="w-full max-w-xl">
-          <PlayerCard
-            player={gameState.players[1]}
-            isCurrentTurn={gameState.currentTurn === 1}
-            walls={gameState.walls}
-            isClientPlayer={mode === 'online' ? clientPlayerId === 1 : undefined}
-          />
-        </div>
-
-        {/* Controls & Options Bar */}
-        <GameControls
-          orientation={orientation}
-          onToggleOrientation={handleToggleOrientation}
-          onRestart={handleRestart}
-          onOpenRules={() => setShowRules(true)}
-          wallsLeft={gameState.players[gameState.currentTurn].wallsLeft}
+        {/* Client Player Card (Bottom - Player 1) */}
+        <PlayerCard
+          player={gameState.players[1]}
+          isCurrentTurn={gameState.currentTurn === 1}
+          walls={gameState.walls}
+          isClientPlayer={mode === 'online' ? clientPlayerId === 1 : undefined}
         />
       </div>
+
+      {/* 3. Bottom Thumb Zone Controls */}
+      <MobileControls
+        orientation={orientation}
+        onToggleOrientation={handleToggleOrientation}
+        selectedWall={selectedWall}
+        onConfirmWall={handleConfirmWall}
+        onCancelWall={handleCancelWall}
+        onRestart={handleRestart}
+        onOpenRules={() => setShowRules(true)}
+        wallsLeft={gameState.players[gameState.currentTurn].wallsLeft}
+        isMyTurn={isMyTurn}
+        isValidWallPlacement={isValidWallPlacement}
+      />
 
       {/* Modals */}
       <RulesModal isOpen={showRules} onClose={() => setShowRules(false)} />
@@ -379,11 +411,6 @@ export default function GamePage() {
         onClose={() => setShowSupabaseConfig(false)}
         onSwitchToLocal={() => handleSelectMode('local')}
       />
-
-      {/* Footer */}
-      <footer className="pt-3 border-t border-slate-900 text-center text-xs text-slate-500">
-        Blockade 2D • Built with Next.js, Tailwind CSS & Supabase • Ready for Vercel
-      </footer>
     </main>
   );
 }
