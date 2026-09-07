@@ -771,7 +771,7 @@ export default function GamePage() {
 
   if (currentView === 'menu') {
     return (
-      <main className="h-full min-h-[100dvh] bg-slate-950 text-slate-100 flex flex-col items-center justify-center">
+      <main className="h-full min-h-[100dvh] w-full bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 flex flex-col items-center justify-center transition-colors duration-150">
         <MainMenu
           onSelectMode={(selectedMode) => {
             if (selectedMode === 'online') {
@@ -830,7 +830,8 @@ export default function GamePage() {
   }
 
   return (
-    <main className="h-full h-[100dvh] flex flex-col justify-between items-center px-2 py-1 sm:py-2 max-w-md mx-auto overflow-hidden bg-slate-50 dark:bg-slate-950 text-slate-800 dark:text-zinc-100">
+    <div className="w-full h-full min-h-[100dvh] bg-slate-50 dark:bg-slate-950 flex flex-col items-center justify-center transition-colors duration-150">
+      <main className="h-full h-[100dvh] w-full flex flex-col justify-between items-center px-2 py-1 sm:py-2 max-w-md mx-auto overflow-hidden bg-slate-50 dark:bg-slate-950 text-slate-800 dark:text-zinc-100">
       {/* 1. Mobile Top Bar */}
       <header className="w-full flex items-center justify-between gap-2 pt-safe pb-1">
         <button
@@ -1059,11 +1060,11 @@ export default function GamePage() {
       {/* Exit Match Confirmation Modal */}
       {showExitConfirm && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-fadeIn">
-          <div className="w-full max-w-xs p-5 rounded-2xl bg-zinc-900 border border-zinc-800 shadow-2xl text-center space-y-4">
-            <h3 className="text-base font-bold text-zinc-100">
+          <div className="w-full max-w-xs p-5 rounded-2xl bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 shadow-2xl text-center space-y-4">
+            <h3 className="text-base font-bold text-slate-900 dark:text-zinc-100">
               {isOnlineMode ? 'Leave Online Match?' : 'Exit to Main Menu?'}
             </h3>
-            <p className="text-xs text-zinc-400">
+            <p className="text-xs text-slate-600 dark:text-zinc-400">
               {isOnlineMode
                 ? 'Your opponent will be notified that you left, and the match will close.'
                 : 'Your ongoing match will be ended and progress lost.'}
@@ -1072,7 +1073,7 @@ export default function GamePage() {
               <button
                 type="button"
                 onClick={() => setShowExitConfirm(false)}
-                className="py-2 px-3 rounded-xl bg-zinc-800 hover:bg-zinc-750 text-zinc-300 font-semibold text-xs tap-bounce border border-zinc-700/60"
+                className="py-2 px-3 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-zinc-800 dark:hover:bg-zinc-750 text-slate-700 dark:text-zinc-300 font-semibold text-xs tap-bounce border border-slate-200 dark:border-zinc-700/60 transition-colors"
               >
                 Keep Playing
               </button>
@@ -1088,5 +1089,6 @@ export default function GamePage() {
         </div>
       )}
     </main>
+  </div>
   );
 }

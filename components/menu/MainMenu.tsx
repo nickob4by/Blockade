@@ -284,29 +284,29 @@ export const MainMenu: React.FC<MainMenuProps> = ({
       </div>
 
       {/* 4. Bottom Footer Toolbar */}
-      <footer className="w-full flex items-center justify-between pt-3 pb-safe border-t border-zinc-800/80 text-xs text-zinc-400">
+      <footer className="w-full flex items-center justify-between pt-3 pb-safe border-t border-slate-200 dark:border-zinc-800/80 text-xs text-slate-600 dark:text-zinc-400">
         <button
           type="button"
           onClick={onOpenRules}
-          className="flex items-center gap-1.5 py-1.5 px-3 rounded-lg hover:bg-zinc-800/60 hover:text-zinc-200 transition-colors tap-bounce"
+          className="flex items-center gap-1.5 py-1.5 px-3 rounded-lg hover:bg-slate-100 hover:text-slate-900 dark:hover:bg-zinc-800/60 dark:hover:text-zinc-200 transition-colors tap-bounce"
         >
-          <BookOpen className="w-4 h-4 text-sky-400" />
+          <BookOpen className="w-4 h-4 text-sky-500 dark:text-sky-400" />
           <span>Rules & Guide</span>
         </button>
 
         <button
           type="button"
           onClick={handleToggleSound}
-          className="flex items-center gap-1.5 py-1.5 px-3 rounded-lg hover:bg-zinc-800/60 hover:text-zinc-200 transition-colors tap-bounce"
+          className="flex items-center gap-1.5 py-1.5 px-3 rounded-lg hover:bg-slate-100 hover:text-slate-900 dark:hover:bg-zinc-800/60 dark:hover:text-zinc-200 transition-colors tap-bounce"
         >
           {soundEnabled ? (
             <>
-              <Volume2 className="w-4 h-4 text-emerald-400" />
+              <Volume2 className="w-4 h-4 text-emerald-500 dark:text-emerald-400" />
               <span>Sound On</span>
             </>
           ) : (
             <>
-              <VolumeX className="w-4 h-4 text-zinc-500" />
+              <VolumeX className="w-4 h-4 text-slate-400 dark:text-zinc-500" />
               <span>Muted</span>
             </>
           )}
