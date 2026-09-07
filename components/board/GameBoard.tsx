@@ -202,14 +202,14 @@ export const GameBoard = forwardRef<GameBoardHandle, GameBoardProps>(({
       {/* Main Board Outer Frame */}
       <div className="relative w-[94vw] max-w-[390px] aspect-square p-2.5 sm:p-3.5 rounded-2xl bg-zinc-900/95 border border-zinc-800 shadow-2xl backdrop-blur-md flex items-center justify-center">
         {/* Clean Goal Line Indicators */}
-        <div className="absolute -top-3 left-6 right-6 flex items-center justify-center pointer-events-none">
-          <span className="text-[9px] font-bold uppercase tracking-wider text-blue-200 bg-gradient-to-r from-blue-950 via-blue-900/90 to-blue-950 px-2.5 py-0.5 rounded-full border border-blue-500/40 shadow-sm">
-            ▲ P1 Finish Line ▲
+        <div className="absolute -top-3.5 left-6 right-6 flex items-center justify-center pointer-events-none z-20">
+          <span className="text-[9px] font-extrabold uppercase tracking-wider text-sky-200 bg-gradient-to-r from-blue-950 via-blue-900 to-blue-950 px-3 py-0.5 rounded-full border border-sky-400/40 shadow-md">
+            ▲ Player 1 Finish Line ▲
           </span>
         </div>
-        <div className="absolute -bottom-3 left-6 right-6 flex items-center justify-center pointer-events-none">
-          <span className="text-[9px] font-bold uppercase tracking-wider text-rose-200 bg-gradient-to-r from-rose-950 via-rose-900/90 to-rose-950 px-2.5 py-0.5 rounded-full border border-rose-500/40 shadow-sm">
-            ▼ P2 Finish Line ▼
+        <div className="absolute -bottom-3.5 left-6 right-6 flex items-center justify-center pointer-events-none z-20">
+          <span className="text-[9px] font-extrabold uppercase tracking-wider text-rose-200 bg-gradient-to-r from-rose-950 via-rose-900 to-rose-950 px-3 py-0.5 rounded-full border border-rose-400/40 shadow-md">
+            ▼ Player 2 Finish Line ▼
           </span>
         </div>
 
@@ -224,13 +224,25 @@ export const GameBoard = forwardRef<GameBoardHandle, GameBoardProps>(({
               'repeat(8, 1fr clamp(6px, 1.8vw, 10px)) 1fr',
           }}
         >
-          {/* Continuous Straight Finish Line Bars (Unbroken straight lines) */}
+          {/* Player 1 Finish Zone Ambient Gradient Wash */}
           <div
-            className="absolute -top-1.5 left-0 right-0 h-1 rounded-full bg-gradient-to-r from-blue-600 via-blue-400 to-blue-600 shadow-[0_1px_6px_rgba(37,99,235,0.4)] pointer-events-none z-10"
+            className="absolute -top-1 left-0 right-0 h-11 rounded-t-xl bg-gradient-to-b from-blue-500/25 via-blue-500/5 to-transparent pointer-events-none z-0"
             aria-hidden="true"
           />
+          {/* Player 1 Continuous Straight Gradient Finish Line */}
           <div
-            className="absolute -bottom-1.5 left-0 right-0 h-1 rounded-full bg-gradient-to-r from-rose-600 via-rose-400 to-rose-600 shadow-[0_1px_6px_rgba(225,29,72,0.4)] pointer-events-none z-10"
+            className="absolute -top-2 left-0 right-0 h-1.5 rounded-full bg-gradient-to-r from-blue-700 via-sky-300 to-blue-700 shadow-[0_2px_12px_rgba(56,189,248,0.55)] pointer-events-none z-10"
+            aria-hidden="true"
+          />
+
+          {/* Player 2 Finish Zone Ambient Gradient Wash */}
+          <div
+            className="absolute -bottom-1 left-0 right-0 h-11 rounded-b-xl bg-gradient-to-t from-rose-500/25 via-rose-500/5 to-transparent pointer-events-none z-0"
+            aria-hidden="true"
+          />
+          {/* Player 2 Continuous Straight Gradient Finish Line */}
+          <div
+            className="absolute -bottom-2 left-0 right-0 h-1.5 rounded-full bg-gradient-to-r from-rose-700 via-pink-300 to-rose-700 shadow-[0_-2px_12px_rgba(244,63,94,0.55)] pointer-events-none z-10"
             aria-hidden="true"
           />
 
@@ -260,15 +272,15 @@ export const GameBoard = forwardRef<GameBoardHandle, GameBoardProps>(({
                     gridColumnStart: gridCol,
                     gridColumnEnd: gridCol + 1,
                   }}
-                  className={`relative w-full h-full rounded-lg flex items-center justify-center transition-all duration-150 focus:outline-none tap-bounce ${
+                  className={`relative w-full h-full rounded-lg flex items-center justify-center transition-all duration-150 focus:outline-none tap-bounce z-[1] ${
                     isValidMove
                       ? isP1Turn
                         ? 'bg-blue-500/25 border-2 border-blue-400 cursor-pointer hover:bg-blue-500/35'
                         : 'bg-rose-500/25 border-2 border-rose-400 cursor-pointer hover:bg-rose-500/35'
                       : isP1FinishLine
-                      ? 'bg-blue-500/10 border border-zinc-700/40 hover:border-zinc-700/70'
+                      ? 'bg-gradient-to-b from-blue-500/20 via-zinc-800/90 to-zinc-800/80 border border-zinc-700/40 hover:border-zinc-700/70'
                       : isP2FinishLine
-                      ? 'bg-rose-500/10 border border-zinc-700/40 hover:border-zinc-700/70'
+                      ? 'bg-gradient-to-t from-rose-500/20 via-zinc-800/90 to-zinc-800/80 border border-zinc-700/40 hover:border-zinc-700/70'
                       : 'bg-zinc-800/80 border border-zinc-700/40 hover:border-zinc-700/70'
                   }`}
                 >
