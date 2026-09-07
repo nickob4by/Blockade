@@ -50,21 +50,21 @@ html, body {
 }
 
 .wall-slab {
-  box-shadow: 0 3px 6px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.2);
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.35), 0 2px 4px -2px rgba(0, 0, 0, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.22);
 }
 
-/* Wall Drop Impact Animation (Clean physical spring, no neon flash) */
+/* Wall Drop Impact Animation (Clean physical spring, clears transform after landing) */
 @keyframes wall-slam {
   0% {
-    transform: scale(1.18);
-    opacity: 0.7;
+    transform: scale(1.14);
+    opacity: 0.75;
   }
-  60% {
-    transform: scale(0.96);
+  65% {
+    transform: scale(0.98);
     opacity: 1;
   }
   100% {
-    transform: scale(1);
+    transform: none;
     opacity: 1;
   }
 }

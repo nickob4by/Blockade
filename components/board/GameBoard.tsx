@@ -7,6 +7,7 @@ import { canPlaceWall } from '@/lib/game/engine';
 import { getValidPawnMoves } from '@/lib/game/pathfinding';
 import { sounds } from '@/lib/audio/sounds';
 import { User } from 'lucide-react';
+import { getMergedWallGroups, computeWallLayout, MergedWallGroup } from '@/lib/game/wallLayout';
 
 export interface GameBoardHandle {
   getSnappedIntersection: (x: number, y: number) => { r: number; c: number } | null;
@@ -29,129 +30,6 @@ interface GameBoardProps {
   activeDrag: ActiveDragInfo | null;
   disabled?: boolean;
   isFlipped?: boolean;
-}
-
-interface WallLayout {
-  gridRowStart: number;
-  gridRowEnd: number;
-  gridColStart: number;
-  gridColEnd: number;
-  roundedClass: string;
-  borderClass: string;
-}
-
-function computeWallLayout(
-  wall: { r: number; c: number; orientation: WallOrientation },
-  allWalls: Array<{ r: number; c: number; orientation: WallOrientation }>
-): WallLayout {
-  const isH = wall.orientation === 'H';
-
-  if (isH) {
-    const gridRowStart = 2 * wall.r + 2;
-    const gridRowEnd = 2 * wall.r + 3;
-    const gridColStart = 2 * wall.c + 1;
-    let gridColEnd = 2 * wall.c + 4;
-
-    // Check if there is an adjacent horizontal wall directly to the right (side by side)
-    const hasRightCollinear = allWalls.some(
-      (w) => w.orientation === 'H' && w.r === wall.r && w.c === wall.c + 2
-    );
-    // Check if there is an adjacent horizontal wall directly to the left (side by side)
-    const hasLeftCollinear = allWalls.some(
-      (w) => w.orientation === 'H' && w.r === wall.r && w.c === wall.c - 2
-    );
-
-    // If there is a right neighbor, span across Groove c+1 to seamlessly touch the next wall at Line 2c+5
-    if (hasRightCollinear) {
-      gridColEnd = 2 * wall.c + 5;
-    }
-
-    // Check perpendicular vertical walls meeting at either end to flatten touching corners
-    const meetsVerticalLeft = allWalls.some(
-      (w) =>
-        w.orientation === 'V' &&
-        w.c === wall.c - 1 &&
-        (w.r === wall.r || w.r === wall.r - 1 || w.r === wall.r + 1)
-    );
-    const meetsVerticalRight = allWalls.some(
-      (w) =>
-        w.orientation === 'V' &&
-        w.c === wall.c + 1 &&
-        (w.r === wall.r || w.r === wall.r - 1 || w.r === wall.r + 1)
-    );
-
-    const connectRight = hasRightCollinear || meetsVerticalRight;
-    const connectLeft = hasLeftCollinear || meetsVerticalLeft;
-
-    let roundedClass = 'rounded-[3px]';
-    let borderClass = '';
-
-    if (connectLeft && connectRight) {
-      roundedClass = 'rounded-none';
-      borderClass = 'border-x-0';
-    } else if (connectLeft) {
-      roundedClass = 'rounded-l-none rounded-r-[3px]';
-      borderClass = 'border-l-0';
-    } else if (connectRight) {
-      roundedClass = 'rounded-r-none rounded-l-[3px]';
-      borderClass = 'border-r-0';
-    }
-
-    return { gridRowStart, gridRowEnd, gridColStart, gridColEnd, roundedClass, borderClass };
-  } else {
-    // Vertical wall
-    const gridRowStart = 2 * wall.r + 1;
-    let gridRowEnd = 2 * wall.r + 4;
-    const gridColStart = 2 * wall.c + 2;
-    const gridColEnd = 2 * wall.c + 3;
-
-    // Check if there is an adjacent vertical wall directly below (end to end)
-    const hasBottomCollinear = allWalls.some(
-      (w) => w.orientation === 'V' && w.c === wall.c && w.r === wall.r + 2
-    );
-    // Check if there is an adjacent vertical wall directly above (end to end)
-    const hasTopCollinear = allWalls.some(
-      (w) => w.orientation === 'V' && w.c === wall.c && w.r === wall.r - 2
-    );
-
-    // If there is a bottom neighbor, span across Groove r+1 to seamlessly touch the next wall at Line 2r+5
-    if (hasBottomCollinear) {
-      gridRowEnd = 2 * wall.r + 5;
-    }
-
-    // Check perpendicular horizontal walls meeting at either end to flatten touching corners
-    const meetsHorizontalTop = allWalls.some(
-      (w) =>
-        w.orientation === 'H' &&
-        w.r === wall.r - 1 &&
-        (w.c === wall.c || w.c === wall.c - 1 || w.c === wall.c + 1)
-    );
-    const meetsHorizontalBottom = allWalls.some(
-      (w) =>
-        w.orientation === 'H' &&
-        w.r === wall.r + 1 &&
-        (w.c === wall.c || w.c === wall.c - 1 || w.c === wall.c + 1)
-    );
-
-    const connectBottom = hasBottomCollinear || meetsHorizontalBottom;
-    const connectTop = hasTopCollinear || meetsHorizontalTop;
-
-    let roundedClass = 'rounded-[3px]';
-    let borderClass = '';
-
-    if (connectTop && connectBottom) {
-      roundedClass = 'rounded-none';
-      borderClass = 'border-y-0';
-    } else if (connectTop) {
-      roundedClass = 'rounded-t-none rounded-b-[3px]';
-      borderClass = 'border-t-0';
-    } else if (connectBottom) {
-      roundedClass = 'rounded-b-none rounded-t-[3px]';
-      borderClass = 'border-b-0';
-    }
-
-    return { gridRowStart, gridRowEnd, gridColStart, gridColEnd, roundedClass, borderClass };
-  }
 }
 
 export const GameBoard = forwardRef<GameBoardHandle, GameBoardProps>(({
@@ -422,26 +300,29 @@ export const GameBoard = forwardRef<GameBoardHandle, GameBoardProps>(({
           )}
 
           {/* 2. Render Placed Walls with Seamless Connections */}
-          {gameState.walls.map((wall, index) => {
-            const layout = computeWallLayout(wall, gameState.walls);
-            const isP1Wall = wall.placedBy === 1;
-            const isLatest = index === gameState.walls.length - 1;
+          {getMergedWallGroups(gameState.walls).map((group) => {
+            const layout = computeWallLayout(group, gameState.walls);
+            const isP1Wall = group.placedBy === 1;
 
             return (
               <div
-                key={`placed-wall-${index}`}
+                key={group.wallIds.join('-')}
                 style={{
                   gridRowStart: layout.gridRowStart,
                   gridRowEnd: layout.gridRowEnd,
                   gridColumnStart: layout.gridColStart,
                   gridColumnEnd: layout.gridColEnd,
+                  marginRight: layout.marginRight,
+                  marginLeft: layout.marginLeft,
+                  marginTop: layout.marginTop,
+                  marginBottom: layout.marginBottom,
                 }}
-                className={`z-20 pointer-events-none transition-all duration-150 border wall-slab ${layout.roundedClass} ${layout.borderClass} ${
-                  isLatest ? 'animate-wall-slam' : ''
+                className={`z-20 pointer-events-none self-stretch h-full w-full border wall-slab ${layout.roundedClass} ${layout.borderClass} ${
+                  group.isLatest ? 'animate-wall-slam' : ''
                 } ${
                   isP1Wall
-                    ? 'bg-blue-600 dark:bg-blue-500 border-blue-400/60 dark:border-blue-300/40 shadow-tactile-md'
-                    : 'bg-rose-600 dark:bg-rose-500 border-rose-400/60 dark:border-rose-300/40 shadow-tactile-md'
+                    ? 'bg-blue-600 dark:bg-blue-500 border-blue-400/60 dark:border-blue-300/40'
+                    : 'bg-rose-600 dark:bg-rose-500 border-rose-400/60 dark:border-rose-300/40'
                 }`}
               />
             );
@@ -475,7 +356,19 @@ export const GameBoard = forwardRef<GameBoardHandle, GameBoardProps>(({
 
           {/* 4. Active Snapped Wall Preview with Seamless Connection */}
           {previewWall && (() => {
-            const previewLayout = computeWallLayout(previewWall, gameState.walls);
+            const previewGroup: MergedWallGroup = {
+              orientation: previewWall.orientation,
+              placedBy: gameState.currentTurn as 1 | 2,
+              r: previewWall.r,
+              c: previewWall.c,
+              rStart: previewWall.r,
+              rEnd: previewWall.r,
+              cStart: previewWall.c,
+              cEnd: previewWall.c,
+              isLatest: false,
+              wallIds: ['preview'],
+            };
+            const previewLayout = computeWallLayout(previewGroup, gameState.walls);
             return (
               <div
                 style={{
@@ -483,8 +376,12 @@ export const GameBoard = forwardRef<GameBoardHandle, GameBoardProps>(({
                   gridRowEnd: previewLayout.gridRowEnd,
                   gridColumnStart: previewLayout.gridColStart,
                   gridColumnEnd: previewLayout.gridColEnd,
+                  marginRight: previewLayout.marginRight,
+                  marginLeft: previewLayout.marginLeft,
+                  marginTop: previewLayout.marginTop,
+                  marginBottom: previewLayout.marginBottom,
                 }}
-                className={`z-25 pointer-events-none transition-all duration-75 border ${previewLayout.roundedClass} ${previewLayout.borderClass} ${
+                className={`z-25 pointer-events-none self-stretch h-full w-full transition-all duration-75 border ${previewLayout.roundedClass} ${previewLayout.borderClass} ${
                   previewWall.isValid
                     ? isP1Turn
                       ? 'bg-blue-500/45 border-blue-400/80 shadow-md'
