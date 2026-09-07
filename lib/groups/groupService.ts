@@ -10,6 +10,7 @@ export interface GroupMember {
   status: MemberStatus;
   isYou?: boolean;
   avatarUrl?: string;
+  emoji?: string;
   lastActive?: string;
 }
 
@@ -25,97 +26,46 @@ export interface FriendGroup {
 }
 
 const STORAGE_KEY_PREFIX = 'blockade_user_groups_';
+const ALL_KNOWN_GROUPS_KEY = 'blockade_all_known_groups';
 
-// Initial starter groups so every player immediately has rich groups to inspect
-export function getInitialStarterGroups(userId: string, userName: string): FriendGroup[] {
-  return [
-    {
-      id: 'group_warriors',
-      name: '⚔️ Blockade Warriors',
-      code: 'WARRIORS-9',
-      icon: '⚔️',
-      description: 'Competitive tactical Quoridor players and daily scrims.',
-      createdAt: new Date(Date.now() - 86400000 * 7).toISOString(),
-      createdBy: 'alex_1',
-      members: [
-        {
-          id: 'alex_1',
-          name: 'Alex_Tactics',
-          role: 'leader',
-          status: 'online',
-          isYou: false,
-          lastActive: 'Just now',
-        },
-        {
-          id: userId,
-          name: userName,
-          role: 'member',
-          status: 'online',
-          isYou: true,
-          lastActive: 'Just now',
-        },
-        {
-          id: 'board_master_99',
-          name: 'BoardMaster99',
-          role: 'member',
-          status: 'in_game',
-          isYou: false,
-          lastActive: 'Playing match vs AI',
-        },
-        {
-          id: 'sara_block',
-          name: 'Sara_Block',
-          role: 'member',
-          status: 'offline',
-          isYou: false,
-          lastActive: '2 hours ago',
-        },
-      ],
-    },
-    {
-      id: 'group_champions',
-      name: '👑 Quoridor Champions',
-      code: 'CHAMPS-4',
-      icon: '👑',
-      description: 'Strategy masterminds, wall jump experts, and tournament practice.',
-      createdAt: new Date(Date.now() - 86400000 * 14).toISOString(),
-      createdBy: 'elena_rook',
-      members: [
-        {
-          id: 'elena_rook',
-          name: 'Elena_Rook',
-          role: 'leader',
-          status: 'online',
-          isYou: false,
-          lastActive: 'Just now',
-        },
-        {
-          id: 'vince_wall',
-          name: 'Vince_Wall',
-          role: 'member',
-          status: 'in_game',
-          isYou: false,
-          lastActive: 'In competitive lobby',
-        },
-        {
-          id: userId,
-          name: userName,
-          role: 'member',
-          status: 'online',
-          isYou: true,
-          lastActive: 'Just now',
-        },
-        {
-          id: 'knight_rider',
-          name: 'Knight_Rider',
-          role: 'member',
-          status: 'offline',
-          isYou: false,
-          lastActive: 'Yesterday',
-        },
-      ],
-    },
-  ];
+const DUMMY_MEMBER_IDS = [
+  'alex_1',
+  'board_master_99',
+  'sara_block',
+  'elena_rook',
+  'vince_wall',
+  'knight_rider',
+  'host_member',
+  'ally_member',
+];
+
+/**
+ * Returns empty array so no default or random mock groups exist.
+ */
+export function getInitialStarterGroups(_userId?: string, _userName?: string): FriendGroup[] {
+  return [];
+}
+
+/**
+ * Clean legacy dummy groups and dummy members out of stored groups.
+ */
+function sanitizeGroups(groups: FriendGroup[], userId: string, userName: string): FriendGroup[] {
+  return groups
+    .filter((g) => {
+      if (g.id === 'group_warriors' || g.id === 'group_champions') return false;
+      if (g.name.includes('Blockade Warriors') || g.name.includes('Quoridor Champions')) return false;
+      return true;
+    })
+    .map((g) => ({
+      ...g,
+      members: g.members
+        .filter((m) => !DUMMY_MEMBER_IDS.includes(m.id))
+        .map((m) => ({
+          ...m,
+          isYou: m.id === userId || m.name.toLowerCase() === userName.toLowerCase(),
+          name: m.id === userId ? userName : m.name,
+        })),
+    }));
 }
 
 export function getUserGroups(userId: string, userName: string): FriendGroup[] {
@@ -124,25 +74,20 @@ export function getUserGroups(userId: string, userName: string): FriendGroup[] {
   const stored = localStorage.getItem(key);
 
   if (!stored) {
-    const initial = getInitialStarterGroups(userId, userName);
-    saveUserGroups(userId, initial);
-    return initial;
+    return [];
   }
 
   try {
     const parsed: FriendGroup[] = JSON.parse(stored);
-    // Ensure current user is tagged with isYou
-    return parsed.map((g) => ({
-      ...g,
-      members: g.members.map((m) => ({
-        ...m,
-        isYou: m.id === userId || m.name.toLowerCase() === userName.toLowerCase(),
-        name: m.id === userId ? userName : m.name,
-      })),
-    }));
+    const cleaned = sanitizeGroups(parsed, userId, userName);
+    // If sanitized differs from stored, rewrite
+    if (cleaned.length !== parsed.length) {
+      saveUserGroups(userId, cleaned);
+    }
+    return cleaned;
   } catch (err) {
     console.error('Failed to parse stored groups:', err);
-    return getInitialStarterGroups(userId, userName);
+    return [];
   }
 }
 
@@ -152,12 +97,39 @@ export function saveUserGroups(userId: string, groups: FriendGroup[]): void {
   localStorage.setItem(key, JSON.stringify(groups));
 }
 
-export function createGroup(userId: string, userName: string, groupName: string): FriendGroup {
+function getKnownGroupsMap(): Record<string, FriendGroup> {
+  if (typeof window === 'undefined') return {};
+  try {
+    const stored = localStorage.getItem(ALL_KNOWN_GROUPS_KEY);
+    return stored ? JSON.parse(stored) : {};
+  } catch {
+    return {};
+  }
+}
+
+function saveKnownGroup(group: FriendGroup): void {
+  if (typeof window === 'undefined') return;
+  try {
+    const all = getKnownGroupsMap();
+    all[group.code.toUpperCase()] = group;
+    localStorage.setItem(ALL_KNOWN_GROUPS_KEY, JSON.stringify(all));
+  } catch {
+    // Ignore storage quota
+  }
+}
+
+export function createGroup(
+  userId: string,
+  userName: string,
+  groupName: string,
+  userEmoji?: string
+): FriendGroup {
   const cleanName = groupName.trim();
-  const slug = cleanName
-    .replace(/[^a-zA-Z0-9]/g, '')
-    .slice(0, 6)
-    .toUpperCase() || 'GRP';
+  const slug =
+    cleanName
+      .replace(/[^a-zA-Z0-9]/g, '')
+      .slice(0, 6)
+      .toUpperCase() || 'GRP';
   const randomNum = Math.floor(10 + Math.random() * 90);
   const code = `${slug}-${randomNum}`;
   const id = `group_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
@@ -167,13 +139,14 @@ export function createGroup(userId: string, userName: string, groupName: string)
     name: cleanName,
     code,
     icon: '🛡️',
-    description: 'Custom friend circle.',
+    description: `Created by ${userName}`,
     createdAt: new Date().toISOString(),
     createdBy: userId,
     members: [
       {
         id: userId,
         name: userName,
+        emoji: userEmoji,
         role: 'leader',
         status: 'online',
         isYou: true,
@@ -185,13 +158,27 @@ export function createGroup(userId: string, userName: string, groupName: string)
   const existing = getUserGroups(userId, userName);
   const updated = [newGroup, ...existing];
   saveUserGroups(userId, updated);
+  saveKnownGroup(newGroup);
+
+  // Sync with backend API if available
+  if (typeof fetch !== 'undefined') {
+    fetch('/api/groups', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'create', group: newGroup }),
+    }).catch(() => {
+      // Offline fallback
+    });
+  }
+
   return newGroup;
 }
 
 export function joinGroupByCode(
   userId: string,
   userName: string,
-  inviteCode: string
+  inviteCode: string,
+  userEmoji?: string
 ): { success: boolean; group?: FriendGroup; error?: string } {
   const code = inviteCode.trim().toUpperCase();
   const existing = getUserGroups(userId, userName);
@@ -202,52 +189,126 @@ export function joinGroupByCode(
     return { success: true, group: alreadyIn };
   }
 
-  // Create or join that group
-  const newGroup: FriendGroup = {
-    id: `group_${code.toLowerCase()}`,
-    name: `Squad: ${code}`,
-    code,
-    icon: '🎯',
-    description: `Joined via code ${code}.`,
-    createdAt: new Date().toISOString(),
-    createdBy: 'host',
-    members: [
-      {
-        id: 'host_member',
-        name: 'Squad_Host',
-        role: 'leader',
-        status: 'online',
-        isYou: false,
-        lastActive: 'Active recently',
-      },
-      {
-        id: userId,
-        name: userName,
-        role: 'member',
-        status: 'online',
-        isYou: true,
-        lastActive: 'Just now',
-      },
-      {
-        id: 'ally_member',
-        name: 'ShadowRunner',
-        role: 'member',
-        status: 'offline',
-        isYou: false,
-        lastActive: '1 hr ago',
-      },
-    ],
+  // Check known groups registry
+  const knownMap = getKnownGroupsMap();
+  const targetGroup = knownMap[code];
+
+  if (!targetGroup) {
+    return {
+      success: false,
+      error: `No group found with invite code "${code}". Please verify the code or check with the creator.`,
+    };
+  }
+
+  // Add current user to real members (no random users)
+  const cleanMembers = targetGroup.members.filter((m) => !DUMMY_MEMBER_IDS.includes(m.id));
+  const existingMemberIdx = cleanMembers.findIndex((m) => m.id === userId);
+
+  if (existingMemberIdx === -1) {
+    cleanMembers.push({
+      id: userId,
+      name: userName,
+      emoji: userEmoji,
+      role: 'member',
+      status: 'online',
+      isYou: true,
+      lastActive: 'Just now',
+    });
+  }
+
+  const updatedGroup: FriendGroup = {
+    ...targetGroup,
+    members: cleanMembers,
   };
 
-  const updated = [newGroup, ...existing];
+  const updated = [updatedGroup, ...existing];
   saveUserGroups(userId, updated);
-  return { success: true, group: newGroup };
+  saveKnownGroup(updatedGroup);
+
+  return { success: true, group: updatedGroup };
+}
+
+/**
+ * Async join that fetches from `/api/groups` first so cross-device joining
+ * immediately discovers the group by invite code with its true name and real members.
+ */
+export async function joinGroupByCodeAsync(
+  userId: string,
+  userName: string,
+  inviteCode: string,
+  userEmoji?: string
+): Promise<{ success: boolean; group?: FriendGroup; error?: string }> {
+  const code = inviteCode.trim().toUpperCase();
+  const existing = getUserGroups(userId, userName);
+
+  // Check if already in user's groups
+  const alreadyIn = existing.find((g) => g.code.toUpperCase() === code);
+  if (alreadyIn) {
+    return { success: true, group: alreadyIn };
+  }
+
+  // Try API route first for cross-device synchronization
+  if (typeof fetch !== 'undefined') {
+    try {
+      const res = await fetch('/api/groups', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'join',
+          code,
+          member: {
+            id: userId,
+            name: userName,
+            emoji: userEmoji,
+          },
+        }),
+      });
+
+      const data = await res.json();
+      if (res.ok && data.success && data.group) {
+        const remoteGroup: FriendGroup = {
+          ...data.group,
+          members: (data.group.members as GroupMember[])
+            .filter((m) => !DUMMY_MEMBER_IDS.includes(m.id))
+            .map((m) => ({
+              ...m,
+              isYou: m.id === userId,
+            })),
+        };
+
+        const updated = [remoteGroup, ...existing.filter((g) => g.id !== remoteGroup.id)];
+        saveUserGroups(userId, updated);
+        saveKnownGroup(remoteGroup);
+        return { success: true, group: remoteGroup };
+      }
+
+      if (data.error) {
+        return { success: false, error: data.error };
+      }
+    } catch {
+      // Fallback to local check if network or API route is unavailable
+    }
+  }
+
+  // Local fallback
+  return joinGroupByCode(userId, userName, code, userEmoji);
 }
 
 export function leaveGroup(userId: string, userName: string, groupId: string): FriendGroup[] {
   const existing = getUserGroups(userId, userName);
   const filtered = existing.filter((g) => g.id !== groupId);
   saveUserGroups(userId, filtered);
+
+  if (typeof fetch !== 'undefined') {
+    fetch('/api/groups', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'leave', groupId, userId }),
+    }).catch(() => {
+      // Ignore
+    });
+  }
+
   return filtered;
 }
 
@@ -257,8 +318,8 @@ export function leaveGroup(userId: string, userName: string, groupId: string): F
  */
 export function subscribeToGroupPresence(
   groupCode: string,
-  user: { id: string; name: string; status: MemberStatus },
-  onPresenceUpdate: (presences: Record<string, { name: string; status: MemberStatus }>) => void
+  user: { id: string; name: string; status: MemberStatus; emoji?: string },
+  onPresenceUpdate: (presences: Record<string, { name: string; status: MemberStatus; emoji?: string }>) => void
 ): { channel: RealtimeChannel | null; unsubscribe: () => void } {
   const supabase = getSupabaseClient();
   if (!supabase) {
@@ -276,7 +337,7 @@ export function subscribeToGroupPresence(
 
   const handleSync = () => {
     const rawState = channel.presenceState();
-    const result: Record<string, { name: string; status: MemberStatus }> = {};
+    const result: Record<string, { name: string; status: MemberStatus; emoji?: string }> = {};
 
     Object.entries(rawState).forEach(([key, items]) => {
       if (Array.isArray(items) && items.length > 0) {
@@ -284,6 +345,7 @@ export function subscribeToGroupPresence(
         result[key] = {
           name: item.name || 'Player',
           status: item.status || 'online',
+          emoji: item.emoji,
         };
       }
     });
@@ -300,6 +362,7 @@ export function subscribeToGroupPresence(
         await channel.track({
           userId: user.id,
           name: user.name,
+          emoji: user.emoji,
           status: user.status,
           updatedAt: new Date().toISOString(),
         });

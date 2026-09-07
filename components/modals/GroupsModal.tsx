@@ -31,7 +31,7 @@ import {
   MemberStatus,
   getUserGroups,
   createGroup,
-  joinGroupByCode,
+  joinGroupByCodeAsync,
   leaveGroup,
   subscribeToGroupPresence,
 } from '@/lib/groups/groupService';
@@ -58,7 +58,8 @@ export const GroupsModal: React.FC<GroupsModalProps> = ({
   const [copiedCode, setCopiedCode] = useState(false);
   const [feedbackMsg, setFeedbackMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const [memberFilter, setMemberFilter] = useState<'all' | 'online' | 'in_game' | 'offline'>('all');
-  const [livePresences, setLivePresences] = useState<Record<string, { name: string; status: MemberStatus }>>({});
+  const [livePresences, setLivePresences] = useState<Record<string, { name: string; status: MemberStatus; emoji?: string }>>({});
+  const [isJoining, setIsJoining] = useState(false);
 
   const currentUserId = user?.id || profile.id || 'guest_user';
   const currentUserName = profile.name || 'Player 1';
@@ -80,7 +81,7 @@ export const GroupsModal: React.FC<GroupsModalProps> = ({
 
   // Subscribe to real-time presence when a group is selected
   useEffect(() => {
-    if (!selectedGroup || !user) {
+    if (!selectedGroup) {
       setLivePresences({});
       return;
     }
@@ -90,6 +91,7 @@ export const GroupsModal: React.FC<GroupsModalProps> = ({
       {
         id: currentUserId,
         name: currentUserName,
+        emoji: profile.emoji || undefined,
         status: 'online',
       },
       (presences) => {
@@ -100,11 +102,11 @@ export const GroupsModal: React.FC<GroupsModalProps> = ({
     return () => {
       unsubscribe();
     };
-  }, [selectedGroup?.code, user, currentUserId, currentUserName]);
+  }, [selectedGroup?.code, currentUserId, currentUserName, profile.emoji]);
 
   if (!isOpen) return null;
 
-  // Handle Copy Code to Clipboard
+  // Handle Copy Code or Link
   const handleCopyCode = (code: string) => {
     if (typeof navigator !== 'undefined' && navigator.clipboard) {
       navigator.clipboard.writeText(code);
@@ -122,7 +124,7 @@ export const GroupsModal: React.FC<GroupsModalProps> = ({
       return;
     }
 
-    const newGroup = createGroup(currentUserId, currentUserName, clean);
+    const newGroup = createGroup(currentUserId, currentUserName, clean, profile.emoji);
     setGroups(getUserGroups(currentUserId, currentUserName));
     setGroupNameInput('');
     setSelectedGroupId(newGroup.id);
@@ -131,7 +133,7 @@ export const GroupsModal: React.FC<GroupsModalProps> = ({
   };
 
   // Handle Join Group by Code
-  const handleJoinGroup = (e: React.FormEvent) => {
+  const handleJoinGroup = async (e: React.FormEvent) => {
     e.preventDefault();
     const clean = groupCodeInput.trim().toUpperCase();
     if (!clean) {
@@ -139,15 +141,20 @@ export const GroupsModal: React.FC<GroupsModalProps> = ({
       return;
     }
 
-    const res = joinGroupByCode(currentUserId, currentUserName, clean);
-    if (res.success && res.group) {
-      setGroups(getUserGroups(currentUserId, currentUserName));
-      setGroupCodeInput('');
-      setSelectedGroupId(res.group.id);
-      setActiveTab('my_groups');
-      setFeedbackMsg({ type: 'success', text: `Joined ${res.group.name}!` });
-    } else {
-      setFeedbackMsg({ type: 'error', text: res.error || 'Failed to join group.' });
+    setIsJoining(true);
+    try {
+      const res = await joinGroupByCodeAsync(currentUserId, currentUserName, clean, profile.emoji);
+      if (res.success && res.group) {
+        setGroups(getUserGroups(currentUserId, currentUserName));
+        setGroupCodeInput('');
+        setSelectedGroupId(res.group.id);
+        setActiveTab('my_groups');
+        setFeedbackMsg({ type: 'success', text: `Successfully joined "${res.group.name}"!` });
+      } else {
+        setFeedbackMsg({ type: 'error', text: res.error || 'Failed to join group.' });
+      }
+    } finally {
+      setIsJoining(false);
     }
   };
 
@@ -159,23 +166,45 @@ export const GroupsModal: React.FC<GroupsModalProps> = ({
     setFeedbackMsg({ type: 'success', text: 'You left the group.' });
   };
 
-  // Calculate live members for selected group
-  const resolvedMembers: GroupMember[] = selectedGroup
-    ? selectedGroup.members.map((member) => {
-        if (member.isYou) {
-          return { ...member, status: 'online' };
-        }
-        const live =
-          livePresences[member.id] ||
-          Object.values(livePresences).find(
-            (p) => p.name.toLowerCase() === member.name.toLowerCase()
-          );
-        return {
-          ...member,
-          status: live ? live.status : member.status,
-        };
-      })
-    : [];
+  // Calculate live members for selected group (only real users, no dummy mock bots)
+  const resolvedMembers: GroupMember[] = useMemo(() => {
+    if (!selectedGroup) return [];
+
+    const memberMap = new Map<string, GroupMember>();
+
+    selectedGroup.members.forEach((member) => {
+      const isYou = member.id === currentUserId || member.name.toLowerCase() === currentUserName.toLowerCase();
+      const live = livePresences[member.id] || Object.values(livePresences).find(
+        (p) => p.name.toLowerCase() === member.name.toLowerCase()
+      );
+
+      memberMap.set(member.id, {
+        ...member,
+        isYou,
+        name: isYou ? currentUserName : member.name,
+        emoji: isYou ? (profile.emoji || member.emoji) : (live?.emoji || member.emoji),
+        status: isYou ? 'online' : (live ? live.status : member.status),
+      });
+    });
+
+    // Also include any other real player who joined the group's real-time channel
+    Object.entries(livePresences).forEach(([id, live]) => {
+      if (!memberMap.has(id)) {
+        const isYou = id === currentUserId || live.name.toLowerCase() === currentUserName.toLowerCase();
+        memberMap.set(id, {
+          id,
+          name: live.name,
+          role: 'member',
+          status: live.status,
+          emoji: live.emoji,
+          isYou,
+          lastActive: 'Just now',
+        });
+      }
+    });
+
+    return Array.from(memberMap.values());
+  }, [selectedGroup, currentUserId, currentUserName, profile.emoji, livePresences]);
 
   const filteredMembers = resolvedMembers.filter((m) => {
     if (memberFilter === 'all') return true;
@@ -188,9 +217,9 @@ export const GroupsModal: React.FC<GroupsModalProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/80 backdrop-blur-md animate-fadeIn">
-      <div className="relative w-full max-w-md p-5 sm:p-6 rounded-2xl bg-zinc-900 border border-zinc-800 shadow-2xl overflow-hidden flex flex-col max-h-[92dvh]">
+      <div className="relative w-full max-w-md p-5 sm:p-6 rounded-2xl bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 shadow-2xl overflow-hidden flex flex-col max-h-[92dvh]">
         {/* Header */}
-        <div className="flex items-center justify-between pb-3.5 border-b border-zinc-800/80 flex-shrink-0">
+        <div className="flex items-center justify-between pb-3.5 border-b border-slate-200 dark:border-zinc-800/80 flex-shrink-0">
           <div className="flex items-center gap-2.5">
             {selectedGroupId ? (
               <button
@@ -199,36 +228,36 @@ export const GroupsModal: React.FC<GroupsModalProps> = ({
                   setSelectedGroupId(null);
                   setFeedbackMsg(null);
                 }}
-                className="p-1.5 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-zinc-300 hover:text-white transition-colors tap-bounce"
+                className="p-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-zinc-800 dark:hover:bg-zinc-700 text-slate-700 dark:text-zinc-300 hover:text-slate-950 dark:hover:text-white transition-colors tap-bounce"
                 title="Back to My Groups"
               >
                 <ArrowLeft className="w-4 h-4" />
               </button>
             ) : (
-              <div className="w-8 h-8 rounded-lg bg-sky-500/10 border border-sky-400/30 flex items-center justify-center text-sky-400">
+              <div className="w-8 h-8 rounded-lg bg-sky-500/10 border border-sky-400/30 flex items-center justify-center text-sky-600 dark:text-sky-400">
                 <Users className="w-4 h-4" />
               </div>
             )}
             <div>
-              <h3 className="text-base font-bold text-zinc-100 flex items-center gap-1.5">
+              <h3 className="text-base font-bold text-slate-900 dark:text-zinc-100 flex items-center gap-1.5">
                 {selectedGroup ? selectedGroup.name : 'Friend Groups'}
                 {!selectedGroup && (
-                  <span className="text-[10px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded-full bg-sky-500/20 text-sky-300 border border-sky-400/30">
-                    No Codes Needed
+                  <span className="text-[10px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded-full bg-sky-500/10 text-sky-600 dark:bg-sky-500/20 dark:text-sky-300 border border-sky-400/30">
+                    Direct Challenge
                   </span>
                 )}
               </h3>
-              <p className="text-[11px] text-zinc-400">
+              <p className="text-[11px] text-slate-500 dark:text-zinc-400">
                 {selectedGroup
-                  ? `${resolvedMembers.length} members · Click Challenge to play`
-                  : 'Join once, play friends anytime with 1 tap.'}
+                  ? `${resolvedMembers.length} ${resolvedMembers.length === 1 ? 'member' : 'members'} · Click Challenge to play`
+                  : 'Join friends once, challenge each other anytime.'}
               </p>
             </div>
           </div>
           <button
             type="button"
             onClick={onClose}
-            className="p-1.5 rounded-lg text-zinc-400 hover:text-white hover:bg-zinc-800 transition-colors"
+            className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 dark:text-zinc-400 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-zinc-800 transition-colors"
           >
             <X className="w-5 h-5" />
           </button>
@@ -239,15 +268,15 @@ export const GroupsModal: React.FC<GroupsModalProps> = ({
           <div
             className={`mt-3 p-2.5 rounded-xl text-xs flex items-center justify-between ${
               feedbackMsg.type === 'success'
-                ? 'bg-emerald-950/70 border border-emerald-500/40 text-emerald-300'
-                : 'bg-red-950/70 border border-red-500/40 text-red-300'
+                ? 'bg-emerald-50 dark:bg-emerald-950/70 border border-emerald-300 dark:border-emerald-500/40 text-emerald-800 dark:text-emerald-300'
+                : 'bg-rose-50 dark:bg-red-950/70 border border-rose-300 dark:border-red-500/40 text-rose-800 dark:text-red-300'
             }`}
           >
             <span>{feedbackMsg.text}</span>
             <button
               type="button"
               onClick={() => setFeedbackMsg(null)}
-              className="text-zinc-400 hover:text-zinc-200"
+              className="text-slate-500 hover:text-slate-800 dark:text-zinc-400 dark:hover:text-zinc-200"
             >
               <X className="w-3.5 h-3.5" />
             </button>
@@ -258,12 +287,12 @@ export const GroupsModal: React.FC<GroupsModalProps> = ({
         <div className="overflow-y-auto py-3 space-y-3.5 pr-1">
           {/* Sign In Prompt if user is not registered */}
           {!user && (
-            <div className="p-3.5 rounded-xl bg-gradient-to-br from-blue-950/40 via-zinc-900 to-zinc-900 border border-blue-500/30 space-y-2.5 shadow-lg">
-              <div className="flex items-center gap-2 text-sky-400">
+            <div className="p-3.5 rounded-xl bg-slate-50 dark:bg-gradient-to-br dark:from-blue-950/40 dark:via-zinc-900 dark:to-zinc-900 border border-slate-200 dark:border-blue-500/30 space-y-2.5 shadow-sm">
+              <div className="flex items-center gap-2 text-sky-600 dark:text-sky-400">
                 <Lock className="w-4 h-4" />
-                <h4 className="font-bold text-xs text-zinc-100">Sign in to save your groups & sync</h4>
+                <h4 className="font-bold text-xs text-slate-900 dark:text-zinc-100">Sign in to sync your groups</h4>
               </div>
-              <p className="text-[11px] text-zinc-400 leading-relaxed">
+              <p className="text-[11px] text-slate-600 dark:text-zinc-400 leading-relaxed">
                 Create an account or sign in so your friends can see when you are online and challenge you directly.
               </p>
               <div className="grid grid-cols-2 gap-2 pt-0.5">
@@ -284,9 +313,9 @@ export const GroupsModal: React.FC<GroupsModalProps> = ({
                     setAuthModalMode('signin');
                     setShowAuthModal(true);
                   }}
-                  className="py-1.5 px-3 rounded-xl bg-zinc-800 hover:bg-zinc-750 text-zinc-200 font-bold text-xs flex items-center justify-center gap-1.5 tap-bounce border border-zinc-700/80 transition-colors"
+                  className="py-1.5 px-3 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-zinc-800 dark:hover:bg-zinc-750 text-slate-800 dark:text-zinc-200 font-bold text-xs flex items-center justify-center gap-1.5 tap-bounce border border-slate-200 dark:border-zinc-700/80 transition-colors"
                 >
-                  <LogIn className="w-3.5 h-3.5 text-sky-400" />
+                  <LogIn className="w-3.5 h-3.5 text-sky-500 dark:text-sky-400" />
                   Sign In
                 </button>
               </div>
@@ -299,14 +328,14 @@ export const GroupsModal: React.FC<GroupsModalProps> = ({
           {!selectedGroup && (
             <>
               {/* Tabs: My Groups | + Create | Join Code */}
-              <div className="flex items-center gap-1 p-1 bg-zinc-950 rounded-xl border border-zinc-800/80 text-xs">
+              <div className="flex items-center gap-1 p-1 bg-slate-100 dark:bg-zinc-950 rounded-xl border border-slate-200 dark:border-zinc-800/80 text-xs">
                 <button
                   type="button"
                   onClick={() => setActiveTab('my_groups')}
                   className={`flex-1 py-1.5 rounded-lg font-semibold transition-all tap-bounce ${
                     activeTab === 'my_groups'
-                      ? 'bg-zinc-800 text-zinc-100 shadow-sm'
-                      : 'text-zinc-400 hover:text-zinc-200'
+                      ? 'bg-white dark:bg-zinc-800 text-slate-900 dark:text-zinc-100 shadow-sm'
+                      : 'text-slate-600 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-zinc-200'
                   }`}
                 >
                   My Groups ({groups.length})
@@ -316,8 +345,8 @@ export const GroupsModal: React.FC<GroupsModalProps> = ({
                   onClick={() => setActiveTab('create')}
                   className={`flex-1 py-1.5 rounded-lg font-semibold transition-all tap-bounce ${
                     activeTab === 'create'
-                      ? 'bg-zinc-800 text-zinc-100 shadow-sm'
-                      : 'text-zinc-400 hover:text-zinc-200'
+                      ? 'bg-white dark:bg-zinc-800 text-slate-900 dark:text-zinc-100 shadow-sm'
+                      : 'text-slate-600 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-zinc-200'
                   }`}
                 >
                   + Create
@@ -327,8 +356,8 @@ export const GroupsModal: React.FC<GroupsModalProps> = ({
                   onClick={() => setActiveTab('join')}
                   className={`flex-1 py-1.5 rounded-lg font-semibold transition-all tap-bounce ${
                     activeTab === 'join'
-                      ? 'bg-zinc-800 text-zinc-100 shadow-sm'
-                      : 'text-zinc-400 hover:text-zinc-200'
+                      ? 'bg-white dark:bg-zinc-800 text-slate-900 dark:text-zinc-100 shadow-sm'
+                      : 'text-slate-600 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-zinc-200'
                   }`}
                 >
                   Join Code
@@ -338,71 +367,79 @@ export const GroupsModal: React.FC<GroupsModalProps> = ({
               {/* Tab: Groups List */}
               {activeTab === 'my_groups' && (
                 <div className="space-y-2.5">
-                  <div className="text-[11px] font-semibold text-zinc-400 px-1 flex items-center justify-between">
-                    <span>Select a group to see who is online:</span>
-                    <span className="text-[10px] text-zinc-500">Tap to open</span>
-                  </div>
-
                   {groups.length === 0 ? (
-                    <div className="p-6 rounded-2xl bg-zinc-950 border border-zinc-800 text-center space-y-2">
-                      <Users className="w-8 h-8 mx-auto text-zinc-600" />
-                      <p className="text-xs text-zinc-400">You haven't joined any groups yet.</p>
-                      <button
-                        type="button"
-                        onClick={() => setActiveTab('create')}
-                        className="text-xs font-bold text-sky-400 hover:underline inline-block"
-                      >
-                        Create your first group
-                      </button>
+                    <div className="p-8 rounded-2xl bg-slate-50 dark:bg-zinc-950 border border-slate-200 dark:border-zinc-800 text-center space-y-3">
+                      <div className="w-12 h-12 mx-auto rounded-full bg-sky-500/10 flex items-center justify-center text-sky-600 dark:text-sky-400">
+                        <Users className="w-6 h-6" />
+                      </div>
+                      <h4 className="font-bold text-sm text-slate-900 dark:text-zinc-100">
+                        No Friend Groups Yet
+                      </h4>
+                      <p className="text-xs text-slate-500 dark:text-zinc-400 max-w-xs mx-auto">
+                        Create a group to invite your friends, or join an existing circle using an invite code.
+                      </p>
+                      <div className="flex items-center justify-center gap-2 pt-1">
+                        <button
+                          type="button"
+                          onClick={() => setActiveTab('create')}
+                          className="px-4 py-2 rounded-xl bg-sky-500 hover:bg-sky-400 text-white font-bold text-xs shadow-md tap-bounce"
+                        >
+                          + Create Group
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setActiveTab('join')}
+                          className="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-zinc-800 dark:hover:bg-zinc-700 text-slate-700 dark:text-zinc-300 font-semibold text-xs border border-slate-200 dark:border-zinc-700/60 tap-bounce"
+                        >
+                          Join with Code
+                        </button>
+                      </div>
                     </div>
                   ) : (
                     <div className="space-y-2">
+                      <div className="text-[11px] font-semibold text-slate-500 dark:text-zinc-400 px-1 flex items-center justify-between">
+                        <span>Your Circles:</span>
+                        <span className="text-[10px] text-slate-400 dark:text-zinc-500">Tap to open</span>
+                      </div>
+
                       {groups.map((group) => {
                         const onlineCount = group.members.filter(
                           (m) => m.status === 'online' || m.isYou
-                        ).length;
-                        const inGameCount = group.members.filter(
-                          (m) => m.status === 'in_game'
                         ).length;
 
                         return (
                           <div
                             key={group.id}
                             onClick={() => setSelectedGroupId(group.id)}
-                            className="group p-3 sm:p-3.5 rounded-2xl bg-zinc-950 hover:bg-zinc-850/90 border border-zinc-800 hover:border-sky-500/50 cursor-pointer transition-all duration-150 flex items-center justify-between gap-3 shadow-md tap-bounce"
+                            className="group p-3 sm:p-3.5 rounded-2xl bg-slate-50 hover:bg-slate-100/90 dark:bg-zinc-950 dark:hover:bg-zinc-850/90 border border-slate-200 hover:border-sky-400 dark:border-zinc-800 dark:hover:border-sky-500/50 cursor-pointer transition-all duration-150 flex items-center justify-between gap-3 shadow-sm tap-bounce"
                           >
                             <div className="flex items-center gap-3 min-w-0">
-                              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-sky-500/20 to-blue-600/20 border border-sky-500/30 flex items-center justify-center text-lg flex-shrink-0 group-hover:scale-105 transition-transform">
-                                {group.icon || '⚔️'}
+                              <div className="w-10 h-10 rounded-xl bg-sky-500/10 border border-sky-400/30 flex items-center justify-center text-lg flex-shrink-0 group-hover:scale-105 transition-transform">
+                                {group.icon || '🛡️'}
                               </div>
                               <div className="min-w-0">
-                                <div className="font-bold text-xs sm:text-sm text-zinc-100 group-hover:text-white flex items-center gap-1.5 truncate">
+                                {/* Group Name is primary */}
+                                <div className="font-bold text-sm text-slate-900 dark:text-zinc-100 group-hover:text-sky-600 dark:group-hover:text-white flex items-center gap-1.5 truncate">
                                   <span className="truncate">{group.name}</span>
-                                  <span className="text-[9px] font-mono px-1.5 py-0.2 rounded bg-zinc-800 text-zinc-400 border border-zinc-700/60">
-                                    {group.code}
-                                  </span>
                                 </div>
-                                <div className="flex items-center gap-2 mt-1 text-[11px] text-zinc-400 flex-wrap">
-                                  <span>{group.members.length} members</span>
-                                  <span className="text-zinc-600">•</span>
-                                  <span className="text-emerald-400 font-medium flex items-center gap-1">
-                                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
+                                <div className="flex items-center gap-2 mt-1 text-[11px] text-slate-500 dark:text-zinc-400 flex-wrap">
+                                  <span>
+                                    {group.members.length} {group.members.length === 1 ? 'member' : 'members'}
+                                  </span>
+                                  <span>•</span>
+                                  <span className="text-emerald-600 dark:text-emerald-400 font-medium flex items-center gap-1">
+                                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 dark:bg-emerald-400" />
                                     {onlineCount} Online
                                   </span>
-                                  {inGameCount > 0 && (
-                                    <>
-                                      <span className="text-zinc-600">•</span>
-                                      <span className="text-amber-400 font-medium flex items-center gap-1">
-                                        <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" />
-                                        {inGameCount} In-Game
-                                      </span>
-                                    </>
-                                  )}
+                                  <span>•</span>
+                                  <span className="font-mono text-[10px] text-slate-600 dark:text-zinc-400 bg-slate-200/80 dark:bg-zinc-800 px-1.5 py-0.5 rounded border border-slate-300 dark:border-zinc-700/60">
+                                    {group.code}
+                                  </span>
                                 </div>
                               </div>
                             </div>
 
-                            <ChevronRight className="w-4 h-4 text-zinc-500 group-hover:text-sky-400 group-hover:translate-x-0.5 transition-all flex-shrink-0" />
+                            <ChevronRight className="w-4 h-4 text-slate-400 dark:text-zinc-500 group-hover:text-sky-500 dark:group-hover:text-sky-400 group-hover:translate-x-0.5 transition-all flex-shrink-0" />
                           </div>
                         );
                       })}
@@ -415,8 +452,8 @@ export const GroupsModal: React.FC<GroupsModalProps> = ({
               {activeTab === 'create' && (
                 <form onSubmit={handleCreateGroup} className="space-y-3 p-1">
                   <div>
-                    <label className="block text-xs font-semibold text-zinc-300 mb-1">
-                      Group / Circle Name
+                    <label className="block text-xs font-semibold text-slate-700 dark:text-zinc-300 mb-1">
+                      Group Name
                     </label>
                     <input
                       type="text"
@@ -424,10 +461,10 @@ export const GroupsModal: React.FC<GroupsModalProps> = ({
                       placeholder="e.g. Office Colleagues, Family Match"
                       value={groupNameInput}
                       onChange={(e) => setGroupNameInput(e.target.value)}
-                      className="w-full px-3 py-2 rounded-xl bg-zinc-950 border border-zinc-800 text-xs text-zinc-100 placeholder-zinc-500 focus:outline-none focus:border-sky-500"
+                      className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 dark:bg-zinc-950 border border-slate-300 dark:border-zinc-800 text-xs text-slate-900 dark:text-zinc-100 placeholder-slate-400 dark:placeholder-zinc-500 focus:outline-none focus:border-sky-500 transition-colors"
                     />
-                    <p className="text-[10px] text-zinc-500 mt-1">
-                      A unique invite code will be automatically generated for your circle.
+                    <p className="text-[10px] text-slate-500 dark:text-zinc-500 mt-1">
+                      An invite code will be automatically generated so your friends can join this group.
                     </p>
                   </div>
                   <button
@@ -444,27 +481,28 @@ export const GroupsModal: React.FC<GroupsModalProps> = ({
               {activeTab === 'join' && (
                 <form onSubmit={handleJoinGroup} className="space-y-3 p-1">
                   <div>
-                    <label className="block text-xs font-semibold text-zinc-300 mb-1">
+                    <label className="block text-xs font-semibold text-slate-700 dark:text-zinc-300 mb-1">
                       Enter Group Invite Code
                     </label>
                     <input
                       type="text"
                       required
-                      placeholder="e.g. WARRIORS-9 or CHAMPS-4"
+                      placeholder="e.g. FAMILY-42"
                       value={groupCodeInput}
                       onChange={(e) => setGroupCodeInput(e.target.value.toUpperCase())}
-                      className="w-full px-3 py-2 rounded-xl bg-zinc-950 border border-zinc-800 text-xs font-mono uppercase text-zinc-100 placeholder-zinc-500 focus:outline-none focus:border-sky-500"
+                      className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 dark:bg-zinc-950 border border-slate-300 dark:border-zinc-800 text-xs font-mono uppercase text-slate-900 dark:text-zinc-100 placeholder-slate-400 dark:placeholder-zinc-500 focus:outline-none focus:border-sky-500 transition-colors"
                     />
-                    <p className="text-[10px] text-zinc-500 mt-1">
-                      Once you join, this group is permanently pinned to your groups list!
+                    <p className="text-[10px] text-slate-500 dark:text-zinc-500 mt-1">
+                      Enter the invite code shared by the group creator.
                     </p>
                   </div>
                   <button
                     type="submit"
-                    className="w-full py-2.5 rounded-xl bg-sky-500 hover:bg-sky-400 text-white font-bold text-xs flex items-center justify-center gap-1.5 tap-bounce shadow-md"
+                    disabled={isJoining}
+                    className="w-full py-2.5 rounded-xl bg-sky-500 hover:bg-sky-400 text-white font-bold text-xs flex items-center justify-center gap-1.5 tap-bounce shadow-md disabled:opacity-50"
                   >
                     <ArrowRight className="w-4 h-4" />
-                    Join Group
+                    {isJoining ? 'Joining Group...' : 'Join Group'}
                   </button>
                 </form>
               )}
@@ -472,21 +510,24 @@ export const GroupsModal: React.FC<GroupsModalProps> = ({
           )}
 
           {/* ========================================================= */}
-          {/* VIEW 2: GROUP DETAILS & MEMBERS (ONLINE / IN-GAME / OFFLINE) */}
+          {/* VIEW 2: GROUP DETAILS & REAL MEMBERS */}
           {/* ========================================================= */}
           {selectedGroup && (
             <div className="space-y-3">
               {/* Group Info & Invite Code Banner */}
-              <div className="p-3 rounded-2xl bg-zinc-950 border border-zinc-800 flex items-center justify-between gap-2">
-                <div className="flex items-center gap-2 min-w-0">
-                  <span className="text-xl">{selectedGroup.icon || '🛡️'}</span>
+              <div className="p-3.5 rounded-2xl bg-slate-50 dark:bg-zinc-950 border border-slate-200 dark:border-zinc-800 flex items-center justify-between gap-2 shadow-sm">
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <div className="w-10 h-10 rounded-xl bg-sky-500/10 border border-sky-400/30 flex items-center justify-center text-xl flex-shrink-0">
+                    {selectedGroup.icon || '🛡️'}
+                  </div>
                   <div className="truncate">
-                    <div className="font-bold text-xs text-zinc-200 truncate">
+                    {/* The group name is prominently shown */}
+                    <div className="font-bold text-sm text-slate-900 dark:text-zinc-100 truncate">
                       {selectedGroup.name}
                     </div>
-                    <div className="text-[10px] text-zinc-400">
-                      Code:{' '}
-                      <span className="font-mono font-bold text-sky-400">
+                    <div className="text-[11px] text-slate-500 dark:text-zinc-400 flex items-center gap-1.5 mt-0.5">
+                      <span>Invite Code:</span>
+                      <span className="font-mono font-bold text-sky-600 dark:text-sky-400 tracking-wider">
                         {selectedGroup.code}
                       </span>
                     </div>
@@ -496,13 +537,13 @@ export const GroupsModal: React.FC<GroupsModalProps> = ({
                 <button
                   type="button"
                   onClick={() => handleCopyCode(selectedGroup.code)}
-                  className="py-1.5 px-2.5 rounded-lg bg-zinc-800 hover:bg-zinc-750 text-zinc-300 font-semibold text-[11px] flex items-center gap-1 tap-bounce border border-zinc-700/60"
+                  className="py-1.5 px-2.5 rounded-lg bg-white hover:bg-slate-100 dark:bg-zinc-800 dark:hover:bg-zinc-750 text-slate-700 dark:text-zinc-300 font-semibold text-[11px] flex items-center gap-1 tap-bounce border border-slate-200 dark:border-zinc-700/60 shadow-sm"
                   title="Copy Invite Code"
                 >
                   {copiedCode ? (
                     <>
-                      <Check className="w-3.5 h-3.5 text-emerald-400" />
-                      <span className="text-emerald-400 font-bold">Copied!</span>
+                      <Check className="w-3.5 h-3.5 text-emerald-500 dark:text-emerald-400" />
+                      <span className="text-emerald-600 dark:text-emerald-400 font-bold">Copied!</span>
                     </>
                   ) : (
                     <>
@@ -520,8 +561,8 @@ export const GroupsModal: React.FC<GroupsModalProps> = ({
                   onClick={() => setMemberFilter('all')}
                   className={`px-2.5 py-1 rounded-full font-medium transition-all ${
                     memberFilter === 'all'
-                      ? 'bg-zinc-200 text-zinc-950 font-bold'
-                      : 'bg-zinc-800 text-zinc-400 hover:text-zinc-200'
+                      ? 'bg-slate-900 text-white dark:bg-zinc-200 dark:text-zinc-950 font-bold'
+                      : 'bg-slate-100 dark:bg-zinc-800 text-slate-600 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-zinc-200'
                   }`}
                 >
                   All ({resolvedMembers.length})
@@ -531,11 +572,11 @@ export const GroupsModal: React.FC<GroupsModalProps> = ({
                   onClick={() => setMemberFilter('online')}
                   className={`px-2.5 py-1 rounded-full font-medium flex items-center gap-1 transition-all ${
                     memberFilter === 'online'
-                      ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 font-bold'
-                      : 'bg-zinc-800 text-zinc-400 hover:text-zinc-200'
+                      ? 'bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 border border-emerald-500/40 font-bold'
+                      : 'bg-slate-100 dark:bg-zinc-800 text-slate-600 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-zinc-200'
                   }`}
                 >
-                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 dark:bg-emerald-400" />
                   Online ({onlineMembersCount})
                 </button>
                 <button
@@ -543,8 +584,8 @@ export const GroupsModal: React.FC<GroupsModalProps> = ({
                   onClick={() => setMemberFilter('in_game')}
                   className={`px-2.5 py-1 rounded-full font-medium flex items-center gap-1 transition-all ${
                     memberFilter === 'in_game'
-                      ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40 font-bold'
-                      : 'bg-zinc-800 text-zinc-400 hover:text-zinc-200'
+                      ? 'bg-amber-500/20 text-amber-700 dark:text-amber-300 border border-amber-500/40 font-bold'
+                      : 'bg-slate-100 dark:bg-zinc-800 text-slate-600 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-zinc-200'
                   }`}
                 >
                   <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" />
@@ -555,19 +596,19 @@ export const GroupsModal: React.FC<GroupsModalProps> = ({
                   onClick={() => setMemberFilter('offline')}
                   className={`px-2.5 py-1 rounded-full font-medium flex items-center gap-1 transition-all ${
                     memberFilter === 'offline'
-                      ? 'bg-zinc-700 text-zinc-200 border border-zinc-600 font-bold'
-                      : 'bg-zinc-800 text-zinc-400 hover:text-zinc-200'
+                      ? 'bg-slate-300 dark:bg-zinc-700 text-slate-900 dark:text-zinc-200 font-bold'
+                      : 'bg-slate-100 dark:bg-zinc-800 text-slate-600 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-zinc-200'
                   }`}
                 >
-                  <span className="w-1.5 h-1.5 rounded-full bg-zinc-500" />
+                  <span className="w-1.5 h-1.5 rounded-full bg-slate-400 dark:bg-zinc-500" />
                   Offline ({offlineMembersCount})
                 </button>
               </div>
 
-              {/* Members List */}
-              <div className="divide-y divide-zinc-800/60 rounded-2xl bg-zinc-950 border border-zinc-800 overflow-hidden">
+              {/* Members List (Only real members) */}
+              <div className="divide-y divide-slate-200 dark:divide-zinc-800/60 rounded-2xl bg-slate-50 dark:bg-zinc-950 border border-slate-200 dark:border-zinc-800 overflow-hidden shadow-sm">
                 {filteredMembers.length === 0 ? (
-                  <div className="p-5 text-center text-xs text-zinc-500">
+                  <div className="p-6 text-center text-xs text-slate-500 dark:text-zinc-500">
                     No members currently {memberFilter.replace('_', ' ')}.
                   </div>
                 ) : (
@@ -579,37 +620,41 @@ export const GroupsModal: React.FC<GroupsModalProps> = ({
                     return (
                       <div
                         key={member.id}
-                        className="p-3 flex items-center justify-between gap-2 hover:bg-zinc-900/50 transition-colors"
+                        className="p-3 flex items-center justify-between gap-2 hover:bg-slate-100/60 dark:hover:bg-zinc-900/50 transition-colors"
                       >
                         {/* Member Identity & Status Indicator */}
                         <div className="flex items-center gap-2.5 min-w-0">
                           <div className="relative flex-shrink-0">
-                            <div className="w-9 h-9 rounded-xl bg-zinc-800 border border-zinc-700 flex items-center justify-center font-bold text-xs text-zinc-200">
-                              {member.name[0]?.toUpperCase() || 'P'}
+                            <div className="w-9 h-9 rounded-xl bg-white dark:bg-zinc-800 border border-slate-200 dark:border-zinc-700 flex items-center justify-center font-bold text-sm text-slate-800 dark:text-zinc-200 shadow-sm">
+                              {member.emoji ? (
+                                <span className="text-base leading-none select-none">{member.emoji}</span>
+                              ) : (
+                                member.name[0]?.toUpperCase() || 'P'
+                              )}
                             </div>
 
                             {/* Status Dot */}
                             <span
-                              className={`absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full border-2 border-zinc-950 ${
+                              className={`absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full border-2 border-white dark:border-zinc-950 ${
                                 isOnline
-                                  ? 'bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.8)]'
+                                  ? 'bg-emerald-500 dark:bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.8)]'
                                   : isInGame
                                   ? 'bg-amber-400 animate-pulse'
-                                  : 'bg-zinc-600'
+                                  : 'bg-slate-400 dark:bg-zinc-600'
                               }`}
                             />
                           </div>
 
                           <div className="min-w-0">
-                            <div className="font-bold text-xs text-zinc-200 flex items-center gap-1.5 truncate">
+                            <div className="font-bold text-xs text-slate-900 dark:text-zinc-200 flex items-center gap-1.5 truncate">
                               <span className="truncate">{member.name}</span>
                               {member.isYou && (
-                                <span className="text-[9px] font-semibold px-1.5 py-0.2 rounded bg-sky-500/20 text-sky-300 border border-sky-400/30">
+                                <span className="text-[9px] font-semibold px-1.5 py-0.2 rounded bg-sky-500/10 text-sky-600 dark:bg-sky-500/20 dark:text-sky-300 border border-sky-400/30">
                                   You
                                 </span>
                               )}
                               {member.role === 'leader' && (
-                                <span className="text-[9px] font-semibold px-1 rounded bg-amber-500/10 text-amber-300 border border-amber-400/20">
+                                <span className="text-[9px] font-semibold px-1 rounded bg-amber-500/10 text-amber-700 dark:text-amber-300 border border-amber-400/20">
                                   Leader
                                 </span>
                               )}
@@ -617,17 +662,17 @@ export const GroupsModal: React.FC<GroupsModalProps> = ({
 
                             <div className="text-[10px] mt-0.5 flex items-center gap-1">
                               {isOnline && (
-                                <span className="text-emerald-400 font-medium">
+                                <span className="text-emerald-600 dark:text-emerald-400 font-medium">
                                   🟢 Online · Ready to play
                                 </span>
                               )}
                               {isInGame && (
-                                <span className="text-amber-400 font-medium">
+                                <span className="text-amber-600 dark:text-amber-400 font-medium">
                                   🟡 In-Game · Playing match
                                 </span>
                               )}
                               {isOffline && (
-                                <span className="text-zinc-500">
+                                <span className="text-slate-400 dark:text-zinc-500">
                                   ⚫ Offline {member.lastActive ? `· ${member.lastActive}` : ''}
                                 </span>
                               )}
@@ -653,18 +698,18 @@ export const GroupsModal: React.FC<GroupsModalProps> = ({
                                 <span>Challenge</span>
                               </button>
                             ) : isInGame ? (
-                              <span className="py-1 px-2.5 rounded-lg bg-amber-950/40 text-amber-400 border border-amber-500/20 text-[10px] font-semibold flex items-center gap-1">
+                              <span className="py-1 px-2.5 rounded-lg bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-400 border border-amber-300 dark:border-amber-500/20 text-[10px] font-semibold flex items-center gap-1">
                                 <Gamepad2 className="w-3 h-3" />
                                 In Match
                               </span>
                             ) : (
-                              <span className="py-1 px-2.5 rounded-lg bg-zinc-900 text-zinc-500 border border-zinc-800 text-[10px] font-semibold">
+                              <span className="py-1 px-2.5 rounded-lg bg-slate-100 dark:bg-zinc-900 text-slate-400 dark:text-zinc-500 border border-slate-200 dark:border-zinc-800 text-[10px] font-semibold">
                                 Offline
                               </span>
                             )}
                           </div>
                         ) : (
-                          <span className="text-[10px] font-medium text-zinc-500 px-2">
+                          <span className="text-[10px] font-medium text-slate-400 dark:text-zinc-500 px-2">
                             Current Player
                           </span>
                         )}
@@ -679,7 +724,7 @@ export const GroupsModal: React.FC<GroupsModalProps> = ({
                 <button
                   type="button"
                   onClick={() => handleCopyCode(selectedGroup.code)}
-                  className="text-sky-400 hover:underline flex items-center gap-1 text-[11px] font-semibold"
+                  className="text-sky-600 dark:text-sky-400 hover:underline flex items-center gap-1 text-[11px] font-semibold"
                 >
                   <Share2 className="w-3 h-3" />
                   Invite friends to this group
@@ -688,7 +733,7 @@ export const GroupsModal: React.FC<GroupsModalProps> = ({
                 <button
                   type="button"
                   onClick={() => handleLeaveGroup(selectedGroup.id)}
-                  className="text-red-400/80 hover:text-red-300 text-[11px] font-semibold flex items-center gap-1 hover:underline"
+                  className="text-rose-600 dark:text-red-400/80 hover:text-rose-700 dark:hover:text-red-300 text-[11px] font-semibold flex items-center gap-1 hover:underline"
                 >
                   <Trash2 className="w-3 h-3" />
                   Leave Group
@@ -699,12 +744,12 @@ export const GroupsModal: React.FC<GroupsModalProps> = ({
         </div>
 
         {/* Modal Footer */}
-        <div className="pt-3 border-t border-zinc-800/80 flex items-center justify-between text-[11px] text-zinc-500 flex-shrink-0">
-          <span>Realtime Presence & Matchmaking</span>
+        <div className="pt-3 border-t border-slate-200 dark:border-zinc-800/80 flex items-center justify-between text-[11px] text-slate-500 dark:text-zinc-500 flex-shrink-0">
+          <span>Realtime Matchmaking</span>
           <button
             type="button"
             onClick={onClose}
-            className="text-zinc-400 hover:text-zinc-200 transition-colors"
+            className="text-slate-600 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-zinc-200 transition-colors"
           >
             Close
           </button>
