@@ -94,6 +94,36 @@ export default function GamePage() {
     setCurrentView('menu');
   }, []);
 
+  // Clean cancel / close handler for online multiplayer lobby
+  const handleCloseOnlineLobby = useCallback(() => {
+    setShowLobby(false);
+
+    // If user was waiting for an opponent or room was not in an active playing state
+    if (waitingForOpponent || (mode === 'online' && gameState.status !== 'playing')) {
+      if (realtimeBroadcastRef.current) {
+        realtimeBroadcastRef.current({
+          type: 'PLAYER_LEFT',
+          playerId: clientPlayerId,
+          playerName: profile.name || playerName || (clientPlayerId === 1 ? 'Player 1' : 'Player 2'),
+        });
+      }
+      if (channelLeaveRef.current) {
+        channelLeaveRef.current();
+        channelLeaveRef.current = null;
+      }
+      if (handshakeIntervalRef.current) {
+        clearInterval(handshakeIntervalRef.current);
+        handshakeIntervalRef.current = null;
+      }
+      setOpponentLeftInfo(null);
+      setWaitingForOpponent(false);
+      setRoomCode(null);
+      setMode('local');
+      setGameState(createInitialGameState('local'));
+      setCurrentView('menu');
+    }
+  }, [waitingForOpponent, mode, gameState.status, clientPlayerId, profile.name, playerName]);
+
   // Handle opponent departure notification
   const handleOpponentLeft = useCallback((leftPlayerId: PlayerId, customName?: string) => {
     // If the game has already concluded with a winner, don't disrupt victory screen
@@ -176,11 +206,13 @@ export default function GamePage() {
       const roomParam = urlParams.get('room');
       if (roomParam) {
         const code = roomParam.toUpperCase();
-        setRoomCode(code);
-        setMode('online');
-        setCurrentView('game');
         if (isSupabaseConfigured()) {
-          setupRealtimeRoom(code, false, profile.name || 'Guest');
+          setWaitingForOpponent(true);
+          setShowLobby(true);
+          setIsHost(false);
+          const guestName = profile.name || 'Guest';
+          setPlayerName(guestName);
+          setupRealtimeRoom(code, false, guestName);
         } else {
           setShowSupabaseConfig(true);
         }
@@ -501,6 +533,7 @@ export default function GamePage() {
             if (isHostRole) {
               setWaitingForOpponent(false);
               setShowLobby(false);
+              setCurrentView('game');
               sounds.playWall();
 
               setGameState((prev) => {
@@ -532,6 +565,7 @@ export default function GamePage() {
             if (isHostRole) {
               setWaitingForOpponent(false);
               setShowLobby(false);
+              setCurrentView('game');
               setGameState((curr) => {
                 broadcast({
                   type: 'SYNC_STATE',
@@ -562,6 +596,7 @@ export default function GamePage() {
             setGameState(stateToApply);
             setWaitingForOpponent(false);
             setShowLobby(false);
+            setCurrentView('game');
             sounds.playWall();
           } else if (payload.type === 'MOVE_PAWN') {
             sounds.playMove();
@@ -724,44 +759,17 @@ export default function GamePage() {
           isOpen={showGroups}
           onClose={() => setShowGroups(false)}
           onStartOnlineMatch={() => {
+            setShowGroups(false);
             handleCreateRoom(profile.name || 'Player 1');
-            setCurrentView('game');
+            setShowLobby(true);
           }}
         />
 
         <OnlineLobbyModal
           isOpen={showLobby}
-          onClose={() => {
-            setShowLobby(false);
-            if (waitingForOpponent) {
-              if (realtimeBroadcastRef.current) {
-                realtimeBroadcastRef.current({
-                  type: 'PLAYER_LEFT',
-                  playerId: clientPlayerId,
-                  playerName: profile.name || playerName || (clientPlayerId === 1 ? 'Player 1' : 'Player 2'),
-                });
-              }
-              if (channelLeaveRef.current) {
-                channelLeaveRef.current();
-                channelLeaveRef.current = null;
-              }
-              if (handshakeIntervalRef.current) {
-                clearInterval(handshakeIntervalRef.current);
-                handshakeIntervalRef.current = null;
-              }
-              setOpponentLeftInfo(null);
-              setWaitingForOpponent(false);
-              setRoomCode(null);
-            }
-          }}
-          onCreateRoom={(pName) => {
-            handleCreateRoom(pName);
-            setCurrentView('game');
-          }}
-          onJoinRoom={(code, pName) => {
-            handleJoinRoom(code, pName);
-            setCurrentView('game');
-          }}
+          onClose={handleCloseOnlineLobby}
+          onCreateRoom={handleCreateRoom}
+          onJoinRoom={handleJoinRoom}
           currentRoomCode={roomCode}
           waitingForOpponent={waitingForOpponent}
           playerName={playerName}
@@ -948,29 +956,7 @@ export default function GamePage() {
 
       <OnlineLobbyModal
         isOpen={showLobby}
-        onClose={() => {
-          setShowLobby(false);
-          if (waitingForOpponent) {
-            if (realtimeBroadcastRef.current) {
-              realtimeBroadcastRef.current({
-                type: 'PLAYER_LEFT',
-                playerId: clientPlayerId,
-                playerName: profile.name || playerName || (clientPlayerId === 1 ? 'Player 1' : 'Player 2'),
-              });
-            }
-            if (channelLeaveRef.current) {
-              channelLeaveRef.current();
-              channelLeaveRef.current = null;
-            }
-            if (handshakeIntervalRef.current) {
-              clearInterval(handshakeIntervalRef.current);
-              handshakeIntervalRef.current = null;
-            }
-            setOpponentLeftInfo(null);
-            setWaitingForOpponent(false);
-            setRoomCode(null);
-          }
-        }}
+        onClose={handleCloseOnlineLobby}
         onCreateRoom={handleCreateRoom}
         onJoinRoom={handleJoinRoom}
         currentRoomCode={roomCode}
@@ -991,8 +977,9 @@ export default function GamePage() {
         isOpen={showGroups}
         onClose={() => setShowGroups(false)}
         onStartOnlineMatch={() => {
+          setShowGroups(false);
           handleCreateRoom(profile.name || 'Player 1');
-          setCurrentView('game');
+          setShowLobby(true);
         }}
       />
 
