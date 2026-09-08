@@ -45,6 +45,9 @@ export const GameBoard = forwardRef<GameBoardHandle, GameBoardProps>(({
   const boardSize = gameState.boardSize || 9;
   const isCoreRace = gameState.variant === 'core_race';
   const isSprintRace = gameState.variant === 'sprint_race';
+  // Race modes (Sprint Race and King of the Core) are never inverted so all players share the exact same perspective
+  // with their starting pawn at the bottom of the board and racing towards the goal.
+  const effectiveIsFlipped = !isSprintRace && !isCoreRace && isFlipped;
 
   const activePlayerTheme = PLAYER_THEMES[gameState.currentTurn] || PLAYER_THEMES[1];
   const isMyTurn = !disabled && gameState.currentTurn === clientPlayerId && gameState.status === 'playing';
@@ -68,7 +71,7 @@ export const GameBoard = forwardRef<GameBoardHandle, GameBoardProps>(({
       let normX = Math.max(0, Math.min(1, (x - rect.left) / rect.width));
       let normY = Math.max(0, Math.min(1, (y - rect.top) / rect.height));
 
-      if (isFlipped) {
+      if (effectiveIsFlipped) {
         normX = 1 - normX;
         normY = 1 - normY;
       }
@@ -78,7 +81,7 @@ export const GameBoard = forwardRef<GameBoardHandle, GameBoardProps>(({
 
       return { r, c };
     },
-  }), [isFlipped, boardSize]);
+  }), [effectiveIsFlipped, boardSize]);
 
   // Compute valid pawn moves for the active player against all other active opponents
   const otherOpponentPositions = getActivePlayerIds(gameState)
@@ -165,12 +168,12 @@ export const GameBoard = forwardRef<GameBoardHandle, GameBoardProps>(({
             <div className="absolute -top-2.5 left-6 right-6 flex items-center justify-center pointer-events-none z-20">
               <span
                 className={`text-[9px] font-extrabold uppercase tracking-wider px-3 py-0.5 rounded-full border shadow-md ${
-                  isFlipped
+                  effectiveIsFlipped
                     ? 'text-rose-700 bg-rose-50 border-rose-300 dark:text-rose-200 dark:bg-gradient-to-r dark:from-rose-950 dark:via-rose-900 dark:to-rose-950 dark:border-rose-400/40'
                     : 'text-blue-700 bg-blue-50 border-blue-300 dark:text-sky-200 dark:bg-gradient-to-r dark:from-blue-950 dark:via-blue-900 dark:to-blue-950 dark:border-sky-400/40'
                 }`}
               >
-                {isFlipped
+                {effectiveIsFlipped
                   ? `▲ ${gameState.players[2]?.name || 'Player 2'} Finish Line ▲`
                   : `▲ ${gameState.players[1]?.name || 'Player 1'} Finish Line ▲`}
               </span>
@@ -178,12 +181,12 @@ export const GameBoard = forwardRef<GameBoardHandle, GameBoardProps>(({
             <div className="absolute -bottom-2.5 left-6 right-6 flex items-center justify-center pointer-events-none z-20">
               <span
                 className={`text-[9px] font-extrabold uppercase tracking-wider px-3 py-0.5 rounded-full border shadow-md ${
-                  isFlipped
+                  effectiveIsFlipped
                     ? 'text-blue-700 bg-blue-50 border-blue-300 dark:text-sky-200 dark:bg-gradient-to-r dark:from-blue-950 dark:via-blue-900 dark:to-blue-950 dark:border-sky-400/40'
                     : 'text-rose-700 bg-rose-50 border-rose-300 dark:text-rose-200 dark:bg-gradient-to-r dark:from-rose-950 dark:via-rose-900 dark:to-rose-950 dark:border-rose-400/40'
                 }`}
               >
-                {isFlipped
+                {effectiveIsFlipped
                   ? `▼ ${gameState.players[1]?.name || 'Player 1'} Finish Line ▼`
                   : `▼ ${gameState.players[2]?.name || 'Player 2'} Finish Line ▼`}
               </span>
@@ -196,7 +199,7 @@ export const GameBoard = forwardRef<GameBoardHandle, GameBoardProps>(({
           ref={innerGridRef}
           className="relative w-full h-full grid select-none touch-manipulation transition-transform duration-300"
           style={{
-            transform: isFlipped ? 'rotate(180deg)' : undefined,
+            transform: effectiveIsFlipped ? 'rotate(180deg)' : undefined,
             gridTemplateColumns: `repeat(${boardSize - 1}, 1fr clamp(4px, 1.4vw, 8px)) 1fr`,
             gridTemplateRows: `repeat(${boardSize - 1}, 1fr clamp(4px, 1.4vw, 8px)) 1fr`,
           }}
@@ -295,7 +298,7 @@ export const GameBoard = forwardRef<GameBoardHandle, GameBoardProps>(({
                       {playerOnSquare.emoji ? (
                         <span
                           style={{
-                            transform: isFlipped ? 'rotate(180deg)' : undefined,
+                            transform: effectiveIsFlipped ? 'rotate(180deg)' : undefined,
                             filter: `drop-shadow(0 2px 3px rgba(0,0,0,0.35)) drop-shadow(0 0 4px ${playerTheme.ringColor})`,
                           }}
                           className="text-xl sm:text-2xl select-none leading-none flex items-center justify-center transition-transform hover:scale-110"
@@ -307,7 +310,7 @@ export const GameBoard = forwardRef<GameBoardHandle, GameBoardProps>(({
                           className={`w-[82%] h-[82%] rounded-full ${playerTheme.bgClass} border border-white/40 shadow-md flex items-center justify-center font-bold text-white`}
                         >
                           <User
-                            style={{ transform: isFlipped ? 'rotate(180deg)' : undefined }}
+                            style={{ transform: effectiveIsFlipped ? 'rotate(180deg)' : undefined }}
                             className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-white/95 drop-shadow"
                           />
                         </div>

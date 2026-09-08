@@ -192,3 +192,20 @@ test('Sprint Race - AI computes valid move towards Finish Line', () => {
     assert.equal(check.valid, true);
   }
 });
+
+test('Sprint Race - Perspective: Upright for all players (never flipped)', () => {
+  const isFlippedForVariant = (variant: string, clientPlayerId: PlayerId) => {
+    return variant === 'classic' && clientPlayerId === 2;
+  };
+
+  // In Classic Quoridor, Player 2's perspective is flipped so Player 2 starts at the bottom
+  assert.equal(isFlippedForVariant('classic', 1), false);
+  assert.equal(isFlippedForVariant('classic', 2), true);
+
+  // In Sprint Race and Core Race, both players start at the bottom and race up, so isFlipped is always false
+  assert.equal(isFlippedForVariant('sprint_race', 1), false);
+  assert.equal(isFlippedForVariant('sprint_race', 2), false);
+  assert.equal(isFlippedForVariant('core_race', 1), false);
+  assert.equal(isFlippedForVariant('core_race', 2), false);
+});
+

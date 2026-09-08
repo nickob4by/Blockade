@@ -1396,7 +1396,10 @@ export default function GamePage() {
     opponentLeftInfo !== null;
 
   const opponentPlayerId: PlayerId = clientPlayerId === 1 ? 2 : 1;
-  const isFlipped = clientPlayerId === 2;
+  // Only 1v1 Classic mode flips the board for Player 2 (since P2 starts at row 0 and races down).
+  // In Sprint Race (and Core Race), all players start at the bottom and race up, so all players
+  // have the exact same upright perspective with their pawn starting at the bottom of the board.
+  const isFlipped = gameState.variant === 'classic' && clientPlayerId === 2;
 
   if (currentView === 'menu') {
     return (
@@ -1638,7 +1641,7 @@ export default function GamePage() {
             isCurrentTurn={gameState.currentTurn === opponentPlayerId}
             walls={gameState.walls}
             isClientPlayer={false}
-            targetDescription={gameState.variant === 'sprint_race' ? 'Finish Line (Row 1)' : 'Bottom Row'}
+            targetDescription={gameState.variant === 'sprint_race' ? 'Finish Line' : 'Bottom Row'}
           />
         )}
 
@@ -1661,7 +1664,7 @@ export default function GamePage() {
             isCurrentTurn={gameState.currentTurn === clientPlayerId}
             walls={gameState.walls}
             isClientPlayer={isOnlineMode ? true : undefined}
-            targetDescription={gameState.variant === 'sprint_race' ? 'Finish Line (Row 1)' : 'Top Row'}
+            targetDescription={gameState.variant === 'sprint_race' ? 'Finish Line' : 'Top Row'}
           />
         )}
       </div>
