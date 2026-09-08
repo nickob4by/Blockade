@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useAuth } from '@/lib/auth/AuthContext';
 import {
   X,
@@ -26,7 +26,8 @@ import {
   Crown,
 } from 'lucide-react';
 import { AuthModal } from './AuthModal';
-import { PartyLobbyModal, ActiveLobbyInfo } from './PartyLobbyModal';
+import { PartyLobbyModal } from './PartyLobbyModal';
+import { ActiveLobbyInfo, subscribeToPartyLobby, PartyLobbyMember } from '@/lib/groups/partyLobbyService';
 import { PlayerId, GameVariant } from '@/lib/game/types';
 import { getSupabaseClient } from '@/lib/supabase/client';
 import {
@@ -81,6 +82,36 @@ export const GroupsModal: React.FC<GroupsModalProps> = ({
   const [activeLobby, setActiveLobby] = useState<ActiveLobbyInfo | null>(null);
   const [challengeTarget, setChallengeTarget] = useState<GroupMember | null>(null);
   const [challengeVariant, setChallengeVariant] = useState<GameVariant>('classic');
+
+  const handleClosePartyLobby = useCallback(() => {
+    setShowPartyLobby(false);
+  }, []);
+
+  const handleStartPartyMatchCallback = useCallback(
+    (
+      members: PartyLobbyMember[],
+      boardSize: number,
+      variant: GameVariant,
+      roomCode?: string
+    ) => {
+      setShowPartyLobby(false);
+      if (onStartPartyMatch) {
+        onStartPartyMatch({
+          boardSize,
+          variant,
+          roomCode,
+          players: members.map((m) => ({
+            id: m.slot,
+            name: m.name,
+            emoji: m.emoji,
+          })),
+        });
+        onClose();
+      }
+    },
+    [onStartPartyMatch, onClose]
+  );
+
 
   const currentUserId = user?.id || profile.id || 'guest_user';
   const currentUserName = profile.name || 'Player 1';
@@ -162,129 +193,35 @@ export const GroupsModal: React.FC<GroupsModalProps> = ({
     };
   }, [selectedGroup?.id, selectedGroup?.code, user, currentUserId, currentUserName, profile.emoji]);
 
-  // Real-time Party Lobby subscription & presence for selected group
+  // Real-time Party Lobby subscription for selected group
   useEffect(() => {
     if (!selectedGroup || !selectedGroup.code) {
       setActiveLobby(null);
       return;
     }
 
-    const supabase = getSupabaseClient();
-    if (!supabase) return;
-
-    const cleanGroup = selectedGroup.code.trim().toLowerCase();
-    const channelName = `party_lobby:${cleanGroup}`;
-
-    const channel = supabase.channel(channelName, {
-      config: {
-        broadcast: { self: false },
-        presence: { key: `viewer_${currentUserId}` },
+    const sub = subscribeToPartyLobby(selectedGroup.code, currentUserId, {
+      onLobbyAnnounce: (lobby) => {
+        if (lobby?.hostId) {
+          setActiveLobby(lobby);
+        }
+      },
+      onLobbySync: (lobby) => {
+        if (lobby?.hostId) {
+          setActiveLobby(lobby);
+        }
+      },
+      onLobbyClosed: (payload) => {
+        if (payload?.reason !== 'match_started') {
+          setActiveLobby(null);
+        }
       },
     });
 
-    const updateLobbyFromPresence = () => {
-      try {
-        const state = channel.presenceState();
-        let foundHostLobby: ActiveLobbyInfo | null = null;
-        for (const presences of Object.values(state)) {
-          if (Array.isArray(presences)) {
-            for (const p of presences as any[]) {
-              if (p?.isHost && p?.hostId) {
-                foundHostLobby = {
-                  hostId: p.hostId,
-                  hostName: p.hostName || 'Host',
-                  hostEmoji: p.hostEmoji,
-                  variant: p.variant || 'sprint_race',
-                  maxPlayers: p.maxPlayers || 4,
-                  currentPlayers: p.currentPlayers || p.members?.length || 1,
-                  members: p.members || [],
-                  updatedAt: p.updatedAt || Date.now(),
-                };
-                break;
-              }
-            }
-          }
-          if (foundHostLobby) break;
-        }
-
-        if (foundHostLobby) {
-          setActiveLobby(foundHostLobby);
-        } else {
-          setActiveLobby((prev) => {
-            if (prev && Date.now() - prev.updatedAt > 6000) {
-              return null;
-            }
-            return prev;
-          });
-        }
-      } catch {
-        // Ignore
-      }
-    };
-
-    channel
-      .on('presence', { event: 'sync' }, updateLobbyFromPresence)
-      .on('presence', { event: 'join' }, updateLobbyFromPresence)
-      .on('presence', { event: 'leave' }, updateLobbyFromPresence)
-      .on('broadcast', { event: 'lobby_announce' }, ({ payload }) => {
-        if (payload?.hostId) {
-          setActiveLobby({
-            hostId: payload.hostId,
-            hostName: payload.hostName || 'Host',
-            hostEmoji: payload.hostEmoji,
-            variant: payload.variant || 'sprint_race',
-            maxPlayers: payload.maxPlayers || 4,
-            currentPlayers: payload.currentPlayers || payload.members?.length || 1,
-            members: payload.members || [],
-            updatedAt: Date.now(),
-          });
-        }
-      })
-      .on('broadcast', { event: 'lobby_sync' }, ({ payload }) => {
-        if (payload?.members) {
-          setActiveLobby((prev) => {
-            if (!prev) {
-              if (!payload.hostId) return null;
-              return {
-                hostId: payload.hostId,
-                hostName: payload.hostName || 'Host',
-                hostEmoji: payload.hostEmoji,
-                variant: payload.variant || 'sprint_race',
-                maxPlayers: payload.maxPlayers || 4,
-                currentPlayers: payload.members.length,
-                members: payload.members,
-                updatedAt: Date.now(),
-              };
-            }
-            return {
-              ...prev,
-              members: payload.members,
-              currentPlayers: payload.members.length,
-              maxPlayers: payload.maxPlayers || prev.maxPlayers,
-              variant: payload.variant || prev.variant,
-              updatedAt: Date.now(),
-            };
-          });
-        }
-      })
-      .on('broadcast', { event: 'lobby_closed' }, () => {
-        setActiveLobby(null);
-      })
-      .subscribe((status) => {
-        if (status === 'SUBSCRIBED') {
-          // Send request to check if a lobby is active
-          channel.send({
-            type: 'broadcast',
-            event: 'request_lobby_info',
-            payload: {},
-          });
-        }
-      });
-
-    // Cleanup interval for stale lobbies
+    // Cleanup interval for stale lobbies (e.g. 12s of total silence from host)
     const interval = setInterval(() => {
       setActiveLobby((prev) => {
-        if (prev && Date.now() - prev.updatedAt > 10000) {
+        if (prev && Date.now() - prev.updatedAt > 12000) {
           return null;
         }
         return prev;
@@ -293,8 +230,7 @@ export const GroupsModal: React.FC<GroupsModalProps> = ({
 
     return () => {
       clearInterval(interval);
-      channel.unsubscribe();
-      supabase.removeChannel(channel);
+      sub.unsubscribe();
     };
   }, [selectedGroup?.code, currentUserId]);
 
@@ -1254,7 +1190,7 @@ export const GroupsModal: React.FC<GroupsModalProps> = ({
       {selectedGroup && (
         <PartyLobbyModal
           isOpen={showPartyLobby}
-          onClose={() => setShowPartyLobby(false)}
+          onClose={handleClosePartyLobby}
           groupCode={selectedGroup.code}
           groupName={selectedGroup.name}
           isHost={isHostPartyLobby}
@@ -1262,22 +1198,7 @@ export const GroupsModal: React.FC<GroupsModalProps> = ({
           currentUserName={currentUserName}
           currentUserEmoji={profile.emoji}
           initialLobby={activeLobby}
-          onStartMatch={(members, boardSize, variant, roomCode) => {
-            setShowPartyLobby(false);
-            if (onStartPartyMatch) {
-              onStartPartyMatch({
-                boardSize,
-                variant,
-                roomCode,
-                players: members.map((m) => ({
-                  id: m.slot,
-                  name: m.name,
-                  emoji: m.emoji,
-                })),
-              });
-              onClose();
-            }
-          }}
+          onStartMatch={handleStartPartyMatchCallback}
         />
       )}
 
