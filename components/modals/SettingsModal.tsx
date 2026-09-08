@@ -232,7 +232,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
                     className={`h-11 rounded-xl flex items-center justify-center text-xl transition-all tap-bounce ${
                       isSelected
                         ? 'bg-sky-500/25 border-2 border-sky-500 dark:border-sky-400 scale-105 shadow-md shadow-sky-500/20'
-                        : 'bg-white dark:bg-zinc-900 hover:bg-slate-100 dark:hover:bg-zinc-850 border border-slate-200 dark:border-zinc-800/80 hover:border-slate-300 dark:hover:border-zinc-700'
+                        : 'bg-white dark:bg-zinc-900 hover:bg-slate-100 dark:hover:bg-zinc-800 border border-slate-200 dark:border-zinc-800/80 hover:border-slate-300 dark:hover:border-zinc-700'
                     }`}
                   >
                     {emoji}

@@ -170,17 +170,17 @@ export const MainMenu: React.FC<MainMenuProps> = ({
         {/* 3. Game Mode Action Cards */}
         <div className="w-full space-y-3">
           {/* 1v1 Mode Variant Toggle */}
-          <div className="w-full flex items-center p-1 rounded-2xl bg-slate-200/80 dark:bg-zinc-850/80 border border-slate-300 dark:border-zinc-750 text-xs font-bold">
+          <div className="w-full flex items-center p-1 rounded-2xl bg-slate-200/90 dark:bg-zinc-900 border border-slate-300 dark:border-zinc-800 text-xs font-bold shadow-inner">
             <button
               type="button"
               onClick={() => setSelected1v1Variant('classic')}
               className={`flex-1 py-1.5 px-3 rounded-xl flex items-center justify-center gap-1.5 transition-all ${
                 selected1v1Variant === 'classic'
-                  ? 'bg-white dark:bg-zinc-900 text-slate-900 dark:text-white shadow-sm'
-                  : 'text-slate-600 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-white'
+                  ? 'bg-white dark:bg-zinc-800 text-blue-600 dark:text-blue-400 shadow-sm border border-slate-200/80 dark:border-zinc-700/60 font-extrabold'
+                  : 'text-slate-600 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-zinc-200'
               }`}
             >
-              <Shield className="w-3.5 h-3.5 text-blue-500" />
+              <Shield className={`w-3.5 h-3.5 ${selected1v1Variant === 'classic' ? 'text-blue-500 dark:text-blue-400' : 'text-slate-400 dark:text-zinc-500'}`} />
               <span>Classic (Opposite)</span>
             </button>
             <button
@@ -188,11 +188,11 @@ export const MainMenu: React.FC<MainMenuProps> = ({
               onClick={() => setSelected1v1Variant('sprint_race')}
               className={`flex-1 py-1.5 px-3 rounded-xl flex items-center justify-center gap-1.5 transition-all ${
                 selected1v1Variant === 'sprint_race'
-                  ? 'bg-amber-500 text-slate-950 shadow-sm font-extrabold'
-                  : 'text-slate-600 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-white'
+                  ? 'bg-amber-500 text-slate-950 shadow-sm font-extrabold border border-amber-400/80 dark:border-amber-400/50'
+                  : 'text-slate-600 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-zinc-200'
               }`}
             >
-              <Zap className="w-3.5 h-3.5 fill-current text-slate-950 dark:text-slate-950" />
+              <Zap className={`w-3.5 h-3.5 ${selected1v1Variant === 'sprint_race' ? 'fill-current text-slate-950' : 'text-slate-400 dark:text-zinc-500'}`} />
               <span>Sprint Race (Same Side)</span>
             </button>
           </div>
@@ -201,7 +201,7 @@ export const MainMenu: React.FC<MainMenuProps> = ({
           <button
             type="button"
             onClick={() => onSelectMode('ai', selected1v1Variant)}
-            className="w-full group p-4 rounded-2xl bg-white dark:bg-zinc-900/90 hover:bg-slate-50 dark:hover:bg-zinc-850 border border-slate-200 dark:border-zinc-800 hover:border-sky-500/50 shadow-md dark:shadow-xl transition-all duration-150 flex items-center justify-between text-left tap-bounce"
+            className="w-full group p-4 rounded-2xl bg-white dark:bg-zinc-900/90 hover:bg-slate-50 dark:hover:bg-zinc-800/80 border border-slate-200 dark:border-zinc-800 hover:border-sky-500/50 shadow-md dark:shadow-xl transition-all duration-150 flex items-center justify-between text-left tap-bounce"
           >
             <div className="flex items-center gap-3.5">
               <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-rose-500/20 to-rose-600/10 border border-rose-500/30 flex items-center justify-center text-rose-500 dark:text-rose-400 group-hover:scale-105 transition-transform">
@@ -228,7 +228,7 @@ export const MainMenu: React.FC<MainMenuProps> = ({
           <button
             type="button"
             onClick={() => onSelectMode('local', selected1v1Variant)}
-            className="w-full group p-4 rounded-2xl bg-white dark:bg-zinc-900/90 hover:bg-slate-50 dark:hover:bg-zinc-850 border border-slate-200 dark:border-zinc-800 hover:border-blue-500/50 shadow-md dark:shadow-xl transition-all duration-150 flex items-center justify-between text-left tap-bounce"
+            className="w-full group p-4 rounded-2xl bg-white dark:bg-zinc-900/90 hover:bg-slate-50 dark:hover:bg-zinc-800/80 border border-slate-200 dark:border-zinc-800 hover:border-blue-500/50 shadow-md dark:shadow-xl transition-all duration-150 flex items-center justify-between text-left tap-bounce"
           >
             <div className="flex items-center gap-3.5">
               <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-blue-500/20 to-sky-600/10 border border-blue-500/30 flex items-center justify-center text-blue-500 dark:text-blue-400 group-hover:scale-105 transition-transform">

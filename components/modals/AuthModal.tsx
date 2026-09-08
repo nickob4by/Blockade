@@ -276,7 +276,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                       className={`h-8 rounded-lg flex items-center justify-center text-lg transition-all tap-bounce ${
                         selectedEmoji === emoji
                           ? 'bg-sky-500/25 border-2 border-sky-400 scale-105 shadow-sm'
-                          : 'hover:bg-zinc-850 border border-transparent'
+                          : 'hover:bg-zinc-800 border border-transparent'
                       }`}
                     >
                       {emoji}

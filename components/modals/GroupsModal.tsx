@@ -513,7 +513,7 @@ export const GroupsModal: React.FC<GroupsModalProps> = ({
                               setSelectedGroupId(group.id);
                               setFeedbackMsg(null);
                             }}
-                            className="group p-3.5 rounded-2xl bg-slate-50 hover:bg-slate-100 dark:bg-zinc-950 dark:hover:bg-zinc-850 border border-slate-200 dark:border-zinc-800/80 hover:border-sky-400/50 dark:hover:border-sky-500/40 transition-all cursor-pointer flex items-center justify-between gap-3 tap-bounce shadow-sm"
+                            className="group p-3.5 rounded-2xl bg-slate-50 hover:bg-slate-100 dark:bg-zinc-950 dark:hover:bg-zinc-900 border border-slate-200 dark:border-zinc-800/80 hover:border-sky-400/50 dark:hover:border-sky-500/40 transition-all cursor-pointer flex items-center justify-between gap-3 tap-bounce shadow-sm"
                           >
                             <div className="flex items-center gap-3 min-w-0">
                               <div className="w-10 h-10 rounded-xl bg-sky-500/10 border border-sky-400/30 flex items-center justify-center text-xl flex-shrink-0 group-hover:scale-105 transition-transform">
