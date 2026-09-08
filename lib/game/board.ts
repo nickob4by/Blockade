@@ -144,7 +144,7 @@ export function getCoreRaceConfig(playerCount: number): CoreRaceConfig {
     if (playerCount <= 3) {
       return {
         boardSize,
-        wallsPerPlayer: 6,
+        wallsPerPlayer: 8,
         coreTargets,
         spawns: {
           1: { r: 8, c: 4 },  // South (dist 4)
@@ -161,10 +161,10 @@ export function getCoreRaceConfig(playerCount: number): CoreRaceConfig {
       };
     }
 
-    // 4 players: 4 cardinal directions (South, North, West, East), 5 walls each
+    // 4 players: 4 cardinal directions (South, North, West, East), 6 walls each
     return {
       boardSize,
-      wallsPerPlayer: 5,
+      wallsPerPlayer: 6,
       coreTargets,
       spawns: {
         1: { r: 8, c: 4 },  // South (dist 4)
@@ -182,13 +182,14 @@ export function getCoreRaceConfig(playerCount: number): CoreRaceConfig {
   }
 
   // 5 or 6 players: 11x11 board, center is (5, 5), distance is exactly 5
+  // 5 players get 7 walls, 6 players get 6 walls
   const boardSize = 11;
   const center = 5;
   const coreTargets = [{ r: center, c: center }];
 
   return {
     boardSize,
-    wallsPerPlayer: 5,
+    wallsPerPlayer: playerCount === 5 ? 7 : 6,
     coreTargets,
     spawns: {
       1: { r: 10, c: 5 }, // South (dist 5)
@@ -223,16 +224,16 @@ export function getSprintRaceConfig(playerCount: number): SprintRaceConfig {
 
   if (count <= 4) {
     boardSize = 9;
-    wallsPerPlayer = count === 2 ? 10 : count === 3 ? 6 : 5;
+    wallsPerPlayer = count === 2 ? 10 : count === 3 ? 8 : 6;
   } else if (count <= 6) {
     boardSize = 11;
-    wallsPerPlayer = 5;
+    wallsPerPlayer = count === 5 ? 7 : 6;
   } else if (count <= 8) {
     boardSize = 13;
-    wallsPerPlayer = 4;
+    wallsPerPlayer = 5;
   } else {
     boardSize = 15;
-    wallsPerPlayer = 3;
+    wallsPerPlayer = 4;
   }
 
   const startRow = boardSize - 1;

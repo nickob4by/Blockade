@@ -18,10 +18,10 @@ import {
 } from '../lib/game/pathfinding';
 import { Coordinate, PlayerId, Wall } from '../lib/game/types';
 
-test('Core Race - Dynamic Board Config for 3 Players (9x9, 6 walls, distance 4)', () => {
+test('Core Race - Dynamic Board Config for 3 Players (9x9, 8 walls, distance 4)', () => {
   const config = getCoreRaceConfig(3);
   assert.equal(config.boardSize, 9);
-  assert.equal(config.wallsPerPlayer, 6);
+  assert.equal(config.wallsPerPlayer, 8);
   assert.equal(config.coreTargets.length, 1);
   assert.deepEqual(config.coreTargets[0], { r: 4, c: 4 });
 
@@ -38,7 +38,7 @@ test('Core Race - Dynamic Board Config for 3 Players (9x9, 6 walls, distance 4)'
 test('Core Race - Dynamic Board Config for 4 and 6 Players (9x9 and 11x11, distance 4 and 5)', () => {
   const config4 = getCoreRaceConfig(4);
   assert.equal(config4.boardSize, 9);
-  assert.equal(config4.wallsPerPlayer, 5);
+  assert.equal(config4.wallsPerPlayer, 6);
   assert.deepEqual(config4.coreTargets[0], { r: 4, c: 4 });
 
   const core4 = config4.coreTargets[0];
@@ -50,7 +50,7 @@ test('Core Race - Dynamic Board Config for 4 and 6 Players (9x9 and 11x11, dista
 
   const config6 = getCoreRaceConfig(6);
   assert.equal(config6.boardSize, 11);
-  assert.equal(config6.wallsPerPlayer, 5);
+  assert.equal(config6.wallsPerPlayer, 6);
   const core6 = config6.coreTargets[0];
   for (let p = 1; p <= 6; p++) {
     const spawn = config6.spawns[p as PlayerId];
@@ -72,9 +72,9 @@ test('Core Race - State Initialization with 3 Players', () => {
   assert.equal(state.players[1].name, 'Alice');
   assert.equal(state.players[2].name, 'Bob');
   assert.equal(state.players[3].name, 'Charlie');
-  assert.equal(state.players[1].wallsLeft, 6);
-  assert.equal(state.players[2].wallsLeft, 6);
-  assert.equal(state.players[3].wallsLeft, 6);
+  assert.equal(state.players[1].wallsLeft, 8);
+  assert.equal(state.players[2].wallsLeft, 8);
+  assert.equal(state.players[3].wallsLeft, 8);
   assert.equal(state.players[4].isEliminated, true);
   assert.equal(state.status, 'playing');
 });
