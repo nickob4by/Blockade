@@ -16,6 +16,7 @@ import { OnlineLobbyModal } from '@/components/modals/OnlineLobbyModal';
 import { SupabaseConfigModal } from '@/components/modals/SupabaseConfigModal';
 import { GroupsModal } from '@/components/modals/GroupsModal';
 import { OpponentLeftModal } from '@/components/modals/OpponentLeftModal';
+import { OpponentResignedModal } from '@/components/modals/OpponentResignedModal';
 import { ResignConfirmModal } from '@/components/modals/ResignConfirmModal';
 import { SettingsModal } from '@/components/modals/SettingsModal';
 import { MainMenu } from '@/components/menu/MainMenu';
@@ -94,6 +95,11 @@ export default function GamePage() {
     isOpen: boolean;
   } | null>(null);
 
+  const [opponentResignedInfo, setOpponentResignedInfo] = useState<{
+    name: string;
+    isOpen: boolean;
+  } | null>(null);
+
   const realtimeBroadcastRef = useRef<((payload: RealtimePayload) => Promise<boolean>) | null>(null);
   const channelLeaveRef = useRef<(() => void) | null>(null);
   const handshakeIntervalRef = useRef<NodeJS.Timeout | null>(null);
@@ -136,6 +142,7 @@ export default function GamePage() {
   // Clean exit after match closure / opponent left
   const handleExitAfterOpponentLeft = useCallback(() => {
     setOpponentLeftInfo(null);
+    setOpponentResignedInfo(null);
     setRematchStatus('idle');
     if (modeRef.current === 'online' && realtimeBroadcastRef.current) {
       realtimeBroadcastRef.current({
@@ -219,6 +226,7 @@ export default function GamePage() {
   // Reset / Restart Game
   const handleRestart = useCallback(() => {
     setRematchStatus('idle');
+    setOpponentResignedInfo(null);
     const newState = createInitialGameState(mode);
     const p1Name = gameState.players[1]?.name || playerName.trim() || profile.name || 'Player 1';
     newState.players[1].name = p1Name;
@@ -816,6 +824,9 @@ export default function GamePage() {
             }
           } else if (payload.type === 'RESIGN') {
             const winningPlayerId: PlayerId = payload.playerId === 1 ? 2 : 1;
+            const oppName =
+              gameStateRef.current.players[payload.playerId]?.name ||
+              (payload.playerId === 1 ? 'Player 1' : 'Player 2');
             sounds.playWin();
             setGameState((prev) => ({
               ...prev,
@@ -823,6 +834,10 @@ export default function GamePage() {
               winner: winningPlayerId,
               resignedPlayerId: payload.playerId,
             }));
+            setOpponentResignedInfo({
+              name: oppName,
+              isOpen: true,
+            });
           } else if (payload.type === 'PLAYER_LEFT') {
             if (payload.playerId !== (isHostRole ? 1 : 2)) {
               handleOpponentLeft(payload.playerId, payload.playerName);
@@ -1487,6 +1502,16 @@ export default function GamePage() {
         isOpen={showResignConfirm}
         onConfirm={handleResign}
         onCancel={() => setShowResignConfirm(false)}
+      />
+
+      <OpponentResignedModal
+        isOpen={Boolean(opponentResignedInfo?.isOpen)}
+        opponentName={opponentResignedInfo?.name || 'Opponent'}
+        onContinue={() => setOpponentResignedInfo(null)}
+        onExitToMenu={handleExitAfterOpponentLeft}
+        rematchStatus={rematchStatus}
+        onAcceptRematch={handleAcceptRematch}
+        onDeclineRematch={handleDeclineRematch}
       />
 
       <OpponentLeftModal

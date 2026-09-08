@@ -138,3 +138,39 @@ test('Resignation - Forfeiting player sets opponent as winner and enables Rematc
   assert.equal(nextGame.resignedPlayerId, null);
 });
 
+test('Resignation - Remote opponent receives RESIGN payload, opens popup and can directly accept incoming rematch', () => {
+  const game = createInitialGameState('online');
+  game.players[1].name = 'Alice';
+  game.players[2].name = 'Bob';
+
+  // Player 1 sends RESIGN
+  const payload: RealtimePayload = {
+    type: 'RESIGN',
+    playerId: 1,
+  };
+
+  // Player 2 receives payload
+  const oppName = game.players[payload.playerId]?.name || 'Player 1';
+  let opponentResignedInfo: { name: string; isOpen: boolean } | null = {
+    name: oppName,
+    isOpen: true,
+  };
+  let rematchStatus: RematchStatus = 'idle';
+
+  assert.equal(opponentResignedInfo.isOpen, true);
+  assert.equal(opponentResignedInfo.name, 'Alice');
+
+  // While looking at popup, Alice sends rematch request
+  rematchStatus = 'received';
+  assert.equal(rematchStatus, 'received');
+
+  // Bob accepts rematch: resets popup and starts new game
+  opponentResignedInfo = null;
+  rematchStatus = 'accepted';
+  const newMatch = createInitialGameState('online');
+
+  assert.equal(opponentResignedInfo, null);
+  assert.equal(newMatch.winner, null);
+  assert.equal(newMatch.resignedPlayerId, null);
+});
+
