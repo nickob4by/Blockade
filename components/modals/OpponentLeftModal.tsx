@@ -7,12 +7,16 @@ interface OpponentLeftModalProps {
   isOpen: boolean;
   opponentName: string;
   onExitToMenu: () => void;
+  title?: string;
+  message?: string;
 }
 
 export const OpponentLeftModal: React.FC<OpponentLeftModalProps> = ({
   isOpen,
   opponentName,
   onExitToMenu,
+  title = 'Opponent Left',
+  message,
 }) => {
   if (!isOpen) return null;
 
@@ -25,9 +29,15 @@ export const OpponentLeftModal: React.FC<OpponentLeftModalProps> = ({
         </div>
 
         <div>
-          <h3 className="text-xl font-extrabold text-slate-900 dark:text-white">Opponent Left</h3>
+          <h3 className="text-xl font-extrabold text-slate-900 dark:text-white">{title}</h3>
           <p className="text-sm text-slate-600 dark:text-zinc-400 mt-2 leading-relaxed">
-            <strong className="text-slate-900 dark:text-zinc-200 font-semibold">{opponentName}</strong> has left the game. The match has ended and the room is closed.
+            {message ? (
+              message
+            ) : (
+              <>
+                <strong className="text-slate-900 dark:text-zinc-200 font-semibold">{opponentName}</strong> has left the game. The match has ended and the room is closed.
+              </>
+            )}
           </p>
         </div>
 

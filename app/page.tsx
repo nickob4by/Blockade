@@ -21,6 +21,7 @@ import { OpponentResignedModal } from '@/components/modals/OpponentResignedModal
 import { ResignConfirmModal } from '@/components/modals/ResignConfirmModal';
 import { SettingsModal } from '@/components/modals/SettingsModal';
 import { MainMenu } from '@/components/menu/MainMenu';
+import { UserX, X } from 'lucide-react';
 import { useAuth } from '@/lib/auth/AuthContext';
 import { useTheme } from '@/lib/theme/ThemeContext';
 import { sounds } from '@/lib/audio/sounds';
@@ -94,7 +95,20 @@ export default function GamePage() {
   const [opponentLeftInfo, setOpponentLeftInfo] = useState<{
     name: string;
     isOpen: boolean;
+    title?: string;
+    message?: string;
   } | null>(null);
+
+  const [isPartyMatch, setIsPartyMatch] = useState<boolean>(false);
+  const isPartyMatchRef = useRef<boolean>(false);
+  isPartyMatchRef.current = isPartyMatch;
+
+  const [departedPlayerIds, setDepartedPlayerIds] = useState<PlayerId[]>([]);
+  const departedPlayerIdsRef = useRef<PlayerId[]>([]);
+  departedPlayerIdsRef.current = departedPlayerIds;
+
+  const [inGameAlert, setInGameAlert] = useState<string | null>(null);
+  const inGameAlertTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   const [opponentResignedInfo, setOpponentResignedInfo] = useState<{
     name: string;
@@ -160,6 +174,15 @@ export default function GamePage() {
       clearInterval(handshakeIntervalRef.current);
       handshakeIntervalRef.current = null;
     }
+    setIsPartyMatch(false);
+    isPartyMatchRef.current = false;
+    setDepartedPlayerIds([]);
+    departedPlayerIdsRef.current = [];
+    setInGameAlert(null);
+    if (inGameAlertTimeoutRef.current) {
+      clearTimeout(inGameAlertTimeoutRef.current);
+      inGameAlertTimeoutRef.current = null;
+    }
     setWaitingForOpponent(false);
     setRoomCode(null);
     setMode('local');
@@ -188,6 +211,15 @@ export default function GamePage() {
         clearInterval(handshakeIntervalRef.current);
         handshakeIntervalRef.current = null;
       }
+      setIsPartyMatch(false);
+      isPartyMatchRef.current = false;
+      setDepartedPlayerIds([]);
+      departedPlayerIdsRef.current = [];
+      setInGameAlert(null);
+      if (inGameAlertTimeoutRef.current) {
+        clearTimeout(inGameAlertTimeoutRef.current);
+        inGameAlertTimeoutRef.current = null;
+      }
       setOpponentLeftInfo(null);
       setWaitingForOpponent(false);
       setRoomCode(null);
@@ -204,18 +236,124 @@ export default function GamePage() {
       return;
     }
 
-    sounds.playAlert();
-    setActiveDrag(null);
-    activeDragRef.current = null;
+    const isMultiplayer =
+      isPartyMatchRef.current ||
+      gameStateRef.current.variant === 'core_race' ||
+      getActivePlayerIds(gameStateRef.current).length > 2;
 
     const oppName =
       customName ||
       gameStateRef.current.players[leftPlayerId]?.name ||
-      (leftPlayerId === 1 ? 'Host' : 'Opponent');
+      `Player ${leftPlayerId}`;
+
+    if (isMultiplayer) {
+      // Avoid duplicate handling if this player was already recorded as departed
+      if (departedPlayerIdsRef.current.includes(leftPlayerId)) {
+        return;
+      }
+
+      const nextDeparted = [...departedPlayerIdsRef.current, leftPlayerId];
+      setDepartedPlayerIds(nextDeparted);
+
+      // Remaining active players (excluding this departing player)
+      const currentActive = getActivePlayerIds(gameStateRef.current);
+      const remainingActive = currentActive.filter((id) => id !== leftPlayerId);
+
+      // Rule: In multiplayer (3+ players), when a player leaves, let the other players continue to play,
+      // unless 2 players left the match (or fewer than 2 players remain).
+      if (nextDeparted.length < 2 && remainingActive.length >= 2) {
+        sounds.playAlert();
+
+        // Eliminate the departed player so engine and board ignore them
+        const updatedPlayers = {
+          ...gameStateRef.current.players,
+          [leftPlayerId]: {
+            ...gameStateRef.current.players[leftPlayerId],
+            isEliminated: true,
+          },
+        };
+
+        // If it was the departing player's turn, advance clockwise to next active player
+        let nextTurn = gameStateRef.current.currentTurn;
+        if (gameStateRef.current.currentTurn === leftPlayerId) {
+          nextTurn = getNextTurnPlayerId({
+            ...gameStateRef.current,
+            players: updatedPlayers,
+          });
+        }
+
+        const nextState: GameState = {
+          ...gameStateRef.current,
+          players: updatedPlayers,
+          currentTurn: nextTurn,
+        };
+
+        setGameState(nextState);
+
+        // Broadcast updated state to all peers
+        if (realtimeBroadcastRef.current) {
+          realtimeBroadcastRef.current({
+            type: 'SYNC_STATE',
+            state: nextState,
+          });
+        }
+
+        // Show non-blocking in-game notification banner
+        if (inGameAlertTimeoutRef.current) {
+          clearTimeout(inGameAlertTimeoutRef.current);
+        }
+        setInGameAlert(`${oppName} left the match and was eliminated. (${remainingActive.length} players remaining)`);
+        inGameAlertTimeoutRef.current = setTimeout(() => {
+          setInGameAlert(null);
+        }, 5000);
+
+        return;
+      }
+
+      // 2 players have left the match OR only 1 player remains -> match concludes
+      sounds.playAlert();
+      setActiveDrag(null);
+      activeDragRef.current = null;
+
+      if (remainingActive.length === 1) {
+        // Last player standing wins by abandonment
+        const soleWinner = remainingActive[0];
+        setGameState((prev) => ({
+          ...prev,
+          players: {
+            ...prev.players,
+            [leftPlayerId]: {
+              ...prev.players[leftPlayerId],
+              isEliminated: true,
+            },
+          },
+          status: soleWinner === 1 ? 'player1_won' : (soleWinner === 2 ? 'player2_won' : 'game_over'),
+          winner: soleWinner,
+        }));
+        sounds.playWin();
+        return;
+      }
+
+      // 2 players left the match
+      setOpponentLeftInfo({
+        name: oppName,
+        isOpen: true,
+        title: 'Match Ended',
+        message: '2 players have left the match. The room is now closed.',
+      });
+      return;
+    }
+
+    // 1v1 Mode: single opponent left, match ends immediately
+    sounds.playAlert();
+    setActiveDrag(null);
+    activeDragRef.current = null;
 
     setOpponentLeftInfo({
       name: oppName,
       isOpen: true,
+      title: 'Opponent Left',
+      message: `${oppName} has left the game. The match has ended and the room is closed.`,
     });
   }, []);
 
@@ -324,6 +462,10 @@ export default function GamePage() {
       activeDragRef.current = null;
       setCurrentView('game');
 
+      setIsPartyMatch(true);
+      setDepartedPlayerIds([]);
+      setInGameAlert(null);
+
       // Subscribe to multiplayer game room for party moves & sync
       const { broadcast, leave } = subscribeToGameRoom(
         effectiveRoom,
@@ -349,7 +491,14 @@ export default function GamePage() {
             }
           }
         },
-        () => {}
+        () => {},
+        {
+          playerId: mySlot,
+          playerName: profile.name || playerName || `Player ${mySlot}`,
+          onOpponentLeave: (oppId) => {
+            handleOpponentLeft(oppId);
+          },
+        }
       );
 
       channelLeaveRef.current = leave;
@@ -382,7 +531,22 @@ export default function GamePage() {
     setShowResignConfirm(false);
     if (gameState.status !== 'playing' || gameState.winner) return;
 
-    // Determine resigning and winning player:
+    const isParty =
+      isPartyMatchRef.current ||
+      gameState.variant === 'core_race' ||
+      getActivePlayerIds(gameState).length > 2;
+
+    if (isParty) {
+      if (modeRef.current === 'online') {
+        handleExitAfterOpponentLeft();
+        return;
+      }
+      // Local pass & play party resign: eliminate current player and continue
+      handleOpponentLeft(gameState.currentTurn);
+      return;
+    }
+
+    // Determine resigning and winning player (1v1):
     // In online mode: clientPlayerId forfeits.
     // In local pass & play: currentTurn player forfeits.
     // In vs AI: Player 1 forfeits.
@@ -411,7 +575,7 @@ export default function GamePage() {
       winner: winningPlayerId,
       resignedPlayerId: resigningPlayerId,
     }));
-  }, [gameState.status, gameState.winner, gameState.currentTurn, clientPlayerId]);
+  }, [gameState, clientPlayerId, handleExitAfterOpponentLeft, handleOpponentLeft]);
 
   // Rematch action handlers for online multiplayer
   const handleRequestRematch = useCallback(() => {
@@ -611,6 +775,15 @@ export default function GamePage() {
         clearInterval(handshakeIntervalRef.current);
         handshakeIntervalRef.current = null;
       }
+      setIsPartyMatch(false);
+      isPartyMatchRef.current = false;
+      setDepartedPlayerIds([]);
+      departedPlayerIdsRef.current = [];
+      setInGameAlert(null);
+      if (inGameAlertTimeoutRef.current) {
+        clearTimeout(inGameAlertTimeoutRef.current);
+        inGameAlertTimeoutRef.current = null;
+      }
       setOpponentLeftInfo(null);
       setWaitingForOpponent(false);
       setRoomCode(null);
@@ -644,6 +817,15 @@ export default function GamePage() {
     if (handshakeIntervalRef.current) {
       clearInterval(handshakeIntervalRef.current);
       handshakeIntervalRef.current = null;
+    }
+    setIsPartyMatch(false);
+    isPartyMatchRef.current = false;
+    setDepartedPlayerIds([]);
+    departedPlayerIdsRef.current = [];
+    setInGameAlert(null);
+    if (inGameAlertTimeoutRef.current) {
+      clearTimeout(inGameAlertTimeoutRef.current);
+      inGameAlertTimeoutRef.current = null;
     }
     setOpponentLeftInfo(null);
     setWaitingForOpponent(false);
@@ -992,23 +1174,36 @@ export default function GamePage() {
               setRematchStatus('idle');
             }
           } else if (payload.type === 'RESIGN') {
-            const winningPlayerId: PlayerId = payload.playerId === 1 ? 2 : 1;
-            const oppName =
-              gameStateRef.current.players[payload.playerId]?.name ||
-              (payload.playerId === 1 ? 'Player 1' : 'Player 2');
-            sounds.playWin();
-            setGameState((prev) => ({
-              ...prev,
-              status: winningPlayerId === 1 ? 'player1_won' : 'player2_won',
-              winner: winningPlayerId,
-              resignedPlayerId: payload.playerId,
-            }));
-            setOpponentResignedInfo({
-              name: oppName,
-              isOpen: true,
-            });
+            const isParty =
+              isPartyMatchRef.current ||
+              gameStateRef.current.variant === 'core_race' ||
+              getActivePlayerIds(gameStateRef.current).length > 2;
+
+            if (isParty) {
+              const oppName =
+                gameStateRef.current.players[payload.playerId]?.name ||
+                `Player ${payload.playerId}`;
+              handleOpponentLeft(payload.playerId, oppName);
+            } else {
+              const winningPlayerId: PlayerId = payload.playerId === 1 ? 2 : 1;
+              const oppName =
+                gameStateRef.current.players[payload.playerId]?.name ||
+                (payload.playerId === 1 ? 'Player 1' : 'Player 2');
+              sounds.playWin();
+              setGameState((prev) => ({
+                ...prev,
+                status: winningPlayerId === 1 ? 'player1_won' : 'player2_won',
+                winner: winningPlayerId,
+                resignedPlayerId: payload.playerId,
+              }));
+              setOpponentResignedInfo({
+                name: oppName,
+                isOpen: true,
+              });
+            }
           } else if (payload.type === 'PLAYER_LEFT') {
-            if (payload.playerId !== (isHostRole ? 1 : 2)) {
+            const myPlayerId: PlayerId = isHostRole ? 1 : 2;
+            if (payload.playerId !== myPlayerId) {
               handleOpponentLeft(payload.playerId, payload.playerName);
             }
           }
@@ -1597,7 +1792,25 @@ export default function GamePage() {
 
       {/* 2. Middle Game Core: Turn Timer -> Opponents/Roster -> Board -> Player */}
       <div className="w-full flex flex-col items-center justify-center gap-3 sm:gap-4 my-auto">
-        {gameState.variant === 'core_race' || getActivePlayerIds(gameState).length > 2 ? (
+        {/* In-Game Alert / Departure Toast Banner */}
+        {inGameAlert && (
+          <div className="w-full max-w-md px-3 py-1.5 rounded-xl bg-amber-500/15 border border-amber-500/40 text-amber-900 dark:text-amber-200 text-xs font-semibold flex items-center justify-between gap-2 shadow-sm animate-fade-in">
+            <div className="flex items-center gap-2 truncate">
+              <UserX className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0" />
+              <span className="truncate">{inGameAlert}</span>
+            </div>
+            <button
+              type="button"
+              onClick={() => setInGameAlert(null)}
+              className="p-0.5 rounded-lg hover:bg-amber-500/20 text-amber-700 dark:text-amber-300 transition-colors"
+              title="Dismiss"
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
+          </div>
+        )}
+
+        {gameState.variant === 'core_race' || isPartyMatch || getActivePlayerIds(gameState).length > 2 ? (
           <>
             {/* Rapid Turn Countdown Timer */}
             <TurnTimerBar
@@ -1658,7 +1871,7 @@ export default function GamePage() {
         />
 
         {/* Standard 1v1 Client Player Card (Bottom) */}
-        {!(gameState.variant === 'core_race' || getActivePlayerIds(gameState).length > 2) && (
+        {!(gameState.variant === 'core_race' || isPartyMatch || getActivePlayerIds(gameState).length > 2) && (
           <PlayerCard
             player={gameState.players[clientPlayerId]}
             isCurrentTurn={gameState.currentTurn === clientPlayerId}
@@ -1748,6 +1961,8 @@ export default function GamePage() {
       <OpponentLeftModal
         isOpen={Boolean(opponentLeftInfo?.isOpen)}
         opponentName={opponentLeftInfo?.name || 'Opponent'}
+        title={opponentLeftInfo?.title}
+        message={opponentLeftInfo?.message}
         onExitToMenu={handleExitAfterOpponentLeft}
       />
 

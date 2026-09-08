@@ -26,7 +26,11 @@ export function getNextTurnPlayerId(state: GameState): PlayerId {
   if (active.length <= 1) return state.currentTurn;
 
   const currentIndex = active.indexOf(state.currentTurn);
-  if (currentIndex === -1) return active[0];
+  if (currentIndex === -1) {
+    // Current player was just eliminated. Find the next active player in clockwise sequence
+    const next = active.find((id) => id > state.currentTurn);
+    return next !== undefined ? next : active[0];
+  }
 
   const nextIndex = (currentIndex + 1) % active.length;
   return active[nextIndex];

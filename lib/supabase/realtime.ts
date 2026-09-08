@@ -56,18 +56,20 @@ export function subscribeToGameRoom(
 
   if (presenceInfo) {
     channel.on('presence', { event: 'leave' }, ({ key, leftPresences }) => {
-      const oppKey = String(presenceInfo.playerId === 1 ? 2 : 1);
-      const opponentId: PlayerId = presenceInfo.playerId === 1 ? 2 : 1;
-      const isOpponent =
-        key === oppKey ||
-        (Array.isArray(leftPresences) &&
-          leftPresences.some(
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            (p: any) => p?.playerId === opponentId || String(p?.playerId) === oppKey
-          ));
-
-      if (isOpponent && presenceInfo.onOpponentLeave) {
-        presenceInfo.onOpponentLeave(opponentId);
+      const myId = presenceInfo.playerId;
+      if (Array.isArray(leftPresences) && leftPresences.length > 0) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        leftPresences.forEach((p: any) => {
+          const id = Number(p?.playerId || key) as PlayerId;
+          if (id && id !== myId && presenceInfo.onOpponentLeave) {
+            presenceInfo.onOpponentLeave(id);
+          }
+        });
+      } else if (key && key !== String(myId)) {
+        const id = Number(key) as PlayerId;
+        if (id && presenceInfo.onOpponentLeave) {
+          presenceInfo.onOpponentLeave(id);
+        }
       }
     });
   }
