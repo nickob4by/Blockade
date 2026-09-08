@@ -4,6 +4,7 @@ import React, { useEffect } from 'react';
 import confetti from 'canvas-confetti';
 import { GameState, PlayerId } from '@/lib/game/types';
 import { sounds } from '@/lib/audio/sounds';
+import { PLAYER_THEMES } from '@/lib/game/board';
 import {
   Trophy,
   RotateCcw,
@@ -16,6 +17,7 @@ import {
   AlertCircle,
   Swords,
   Flag,
+  Crown,
 } from 'lucide-react';
 
 export type RematchStatus =
@@ -91,18 +93,20 @@ export const GameOverModal: React.FC<GameOverModalProps> = ({
         {/* Victory Badge */}
         <div
           className={`absolute -top-12 left-1/2 -translate-x-1/2 w-24 h-24 rounded-full flex items-center justify-center shadow-xl border-2 border-white/80 ${
-            winner === 1
-              ? 'bg-blue-600 shadow-tactile-p1'
-              : 'bg-rose-600 shadow-tactile-p2'
+            (PLAYER_THEMES[winner] || PLAYER_THEMES[1]).bgClass
           }`}
         >
-          <Trophy className="w-12 h-12 text-white animate-bounce" />
+          {gameState.variant === 'core_race' ? (
+            <Crown className="w-12 h-12 text-white animate-bounce" />
+          ) : (
+            <Trophy className="w-12 h-12 text-white animate-bounce" />
+          )}
         </div>
 
         <div className="mt-8">
           <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-amber-500/20 text-amber-600 dark:text-amber-300 border border-amber-500/30 mb-2">
             <Sparkles className="w-3.5 h-3.5 text-amber-500 dark:text-amber-400" />
-            Victory!
+            {gameState.variant === 'core_race' ? 'King of the Core!' : 'Victory!'}
           </div>
 
           <h2 className="text-2xl sm:text-3xl font-extrabold text-slate-900 dark:text-white">
@@ -129,6 +133,8 @@ export const GameOverModal: React.FC<GameOverModalProps> = ({
                     : `${gameState.players[gameState.resignedPlayerId]?.name || 'Player'} resigned the match.`}
                 </span>
               </>
+            ) : gameState.variant === 'core_race' ? (
+              'Captured the Golden Center Core and conquered the labyrinth!'
             ) : (
               'Successfully crossed to the other side of the grid!'
             )}

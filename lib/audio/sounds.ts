@@ -275,6 +275,33 @@ class SoundController {
       // Ignore
     }
   }
+
+  public playGameStart() {
+    if (!this.enabled) return;
+    try {
+      this.init();
+      if (!this.ctx) return;
+
+      const t = this.ctx.currentTime;
+      const notes = [440, 554.37, 659.25, 880]; // A4, C#5, E5, A5
+      notes.forEach((freq, idx) => {
+        if (!this.ctx) return;
+        const osc = this.ctx.createOscillator();
+        const gain = this.ctx.createGain();
+        osc.connect(gain);
+        gain.connect(this.ctx.destination);
+        osc.type = 'sine';
+        const st = t + idx * 0.08;
+        osc.frequency.setValueAtTime(freq, st);
+        gain.gain.setValueAtTime(0.18, st);
+        gain.gain.exponentialRampToValueAtTime(0.001, st + 0.2);
+        osc.start(st);
+        osc.stop(st + 0.2);
+      });
+    } catch {
+      // Ignore
+    }
+  }
 }
 
 export const sounds = new SoundController();

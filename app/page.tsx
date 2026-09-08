@@ -2,13 +2,14 @@
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Coordinate, GameMode, GameState, PlayerId, WallOrientation } from '@/lib/game/types';
-import { createInitialGameState } from '@/lib/game/board';
-import { applyPawnMove, applyWallPlacement, canPlaceWall } from '@/lib/game/engine';
+import { createInitialGameState, createInitialCoreRaceState, PLAYER_THEMES } from '@/lib/game/board';
+import { applyPawnMove, applyWallPlacement, canPlaceWall, getActivePlayerIds, getNextTurnPlayerId } from '@/lib/game/engine';
 import { computeAIMove } from '@/lib/game/ai';
 import { isSupabaseConfigured } from '@/lib/supabase/client';
 import { subscribeToGameRoom, RealtimePayload } from '@/lib/supabase/realtime';
 import { GameBoard, GameBoardHandle, ActiveDragInfo } from '@/components/board/GameBoard';
 import { PlayerCard } from '@/components/board/PlayerCard';
+import { TurnTimerBar } from '@/components/controls/TurnTimerBar';
 import { MobileControls } from '@/components/controls/MobileControls';
 import { GameOverModal, RematchStatus } from '@/components/modals/GameOverModal';
 import { RulesModal } from '@/components/modals/RulesModal';
@@ -249,6 +250,46 @@ export default function GamePage() {
       });
     }
   }, [mode, gameState.players, playerName, profile.name, profile.emoji]);
+
+  // Start King of the Core party match from Group
+  const handleStartPartyMatch = useCallback(
+    ({
+      boardSize,
+      players,
+    }: {
+      boardSize: number;
+      players: Array<{ id: PlayerId; name: string; emoji?: string }>;
+    }) => {
+      setShowGroups(false);
+      sounds.playGameStart();
+      const initialState = createInitialCoreRaceState(players);
+      setGameState(initialState);
+      setMode('party');
+
+      const mySlot =
+        players.find(
+          (p) =>
+            p.name.trim().toLowerCase() ===
+            (profile.name || playerName || 'Player 1').trim().toLowerCase()
+        )?.id || 1;
+
+      setClientPlayerId(mySlot);
+      setActiveDrag(null);
+      activeDragRef.current = null;
+    },
+    [profile.name, playerName]
+  );
+
+  // Turn Timeout for King of the Core Party Mode
+  const handleTurnTimeout = useCallback(() => {
+    if (gameState.status !== 'playing' || gameState.winner) return;
+    const nextTurn = getNextTurnPlayerId(gameState);
+    sounds.playAlert();
+    setGameState((prev) => ({
+      ...prev,
+      currentTurn: nextTurn,
+    }));
+  }, [gameState]);
 
   // Resign Match
   const handleResign = useCallback(() => {
@@ -1405,18 +1446,57 @@ export default function GamePage() {
         </div>
       )}
 
-      {/* 2. Middle Game Core: Opponent -> Board -> Player */}
-      <div className="w-full flex flex-col items-center justify-center gap-5 sm:gap-6 my-auto">
-        {/* Opponent Card (Top) */}
-        <PlayerCard
-          player={gameState.players[opponentPlayerId]}
-          isCurrentTurn={gameState.currentTurn === opponentPlayerId}
-          walls={gameState.walls}
-          isClientPlayer={false}
-          targetDescription="Bottom Row"
-        />
+      {/* 2. Middle Game Core: Turn Timer -> Opponents/Roster -> Board -> Player */}
+      <div className="w-full flex flex-col items-center justify-center gap-3 sm:gap-4 my-auto">
+        {gameState.variant === 'core_race' || mode === 'party' ? (
+          <>
+            {/* Rapid Turn Countdown Timer */}
+            <TurnTimerBar
+              timeLimit={gameState.turnTimeLimit || 15}
+              currentTurn={gameState.currentTurn}
+              playerName={gameState.players[gameState.currentTurn]?.name || 'Player'}
+              isMyTurn={gameState.currentTurn === clientPlayerId}
+              onTimeout={handleTurnTimeout}
+              disabled={gameState.status !== 'playing' || Boolean(gameState.winner)}
+            />
 
-        {/* 9x9 Touch Game Board */}
+            {/* Multi-Player Active Roster Strip */}
+            <div className="flex items-center justify-center gap-1.5 flex-wrap px-2 py-0.5 max-w-md mx-auto">
+              {getActivePlayerIds(gameState).map((pId) => {
+                const p = gameState.players[pId];
+                const theme = PLAYER_THEMES[pId];
+                const isTurn = gameState.currentTurn === pId;
+                const isYou = pId === clientPlayerId;
+
+                return (
+                  <div
+                    key={pId}
+                    className={`px-2.5 py-1 rounded-xl border text-[11px] font-bold flex items-center gap-1.5 transition-all ${
+                      isTurn
+                        ? `${theme.bgClass} text-white shadow-md scale-105 border-white/60`
+                        : 'bg-white/80 dark:bg-zinc-900/80 border-slate-200 dark:border-zinc-800 text-slate-700 dark:text-zinc-300'
+                    }`}
+                  >
+                    <span>{p.emoji || `P${pId}`}</span>
+                    <span className="truncate max-w-[68px]">{isYou ? 'You' : p.name}</span>
+                    <span className="text-[10px] opacity-85">({p.wallsLeft}🧱)</span>
+                  </div>
+                );
+              })}
+            </div>
+          </>
+        ) : (
+          /* Standard 1v1 Opponent Card (Top) */
+          <PlayerCard
+            player={gameState.players[opponentPlayerId]}
+            isCurrentTurn={gameState.currentTurn === opponentPlayerId}
+            walls={gameState.walls}
+            isClientPlayer={false}
+            targetDescription="Bottom Row"
+          />
+        )}
+
+        {/* Dynamic Responsive Game Board */}
         <GameBoard
           ref={boardRef}
           gameState={gameState}
@@ -1428,14 +1508,16 @@ export default function GamePage() {
           isFlipped={isFlipped}
         />
 
-        {/* Client Player Card (Bottom) */}
-        <PlayerCard
-          player={gameState.players[clientPlayerId]}
-          isCurrentTurn={gameState.currentTurn === clientPlayerId}
-          walls={gameState.walls}
-          isClientPlayer={isOnlineMode ? true : undefined}
-          targetDescription="Top Row"
-        />
+        {/* Standard 1v1 Client Player Card (Bottom) */}
+        {!(gameState.variant === 'core_race' || mode === 'party') && (
+          <PlayerCard
+            player={gameState.players[clientPlayerId]}
+            isCurrentTurn={gameState.currentTurn === clientPlayerId}
+            walls={gameState.walls}
+            isClientPlayer={isOnlineMode ? true : undefined}
+            targetDescription="Top Row"
+          />
+        )}
       </div>
 
       {/* 3. Bottom Thumb Zone Controls & Wall Tray */}
@@ -1548,6 +1630,7 @@ export default function GamePage() {
           setShowLobby(true);
         }}
         onChallengePlayer={handleChallengePlayer}
+        onStartPartyMatch={handleStartPartyMatch}
       />
 
       {/* Incoming Challenge Notification Modal */}

@@ -17,8 +17,11 @@ export function computeAIMove(state: GameState): AIAction {
   const aiState = state.players[aiId];
   const humanState = state.players[humanId];
 
-  const aiPath = findShortestPath(aiState.position, aiState.targetRow, state.walls);
-  const humanPath = findShortestPath(humanState.position, humanState.targetRow, state.walls);
+  const aiTargetRow = aiState.targetRow ?? 8;
+  const humanTargetRow = humanState.targetRow ?? 0;
+
+  const aiPath = findShortestPath(aiState.position, aiTargetRow, state.walls);
+  const humanPath = findShortestPath(humanState.position, humanTargetRow, state.walls);
 
   const aiDist = aiPath ? aiPath.length - 1 : 99;
   const humanDist = humanPath ? humanPath.length - 1 : 99;
@@ -26,7 +29,7 @@ export function computeAIMove(state: GameState): AIAction {
   const validMoves = getValidPawnMoves(aiState.position, humanState.position, state.walls);
 
   // If AI can win this turn, do it immediately!
-  const winningMove = validMoves.find((m) => m.r === aiState.targetRow);
+  const winningMove = validMoves.find((m) => m.r === aiTargetRow);
   if (winningMove) {
     return { type: 'move', target: winningMove };
   }
@@ -67,8 +70,8 @@ export function computeAIMove(state: GameState): AIAction {
 
         // Simulate wall placement
         const simWalls = [...state.walls, { ...candidate, placedBy: aiId }];
-        const newHumanPath = findShortestPath(humanState.position, humanState.targetRow, simWalls);
-        const newAiPath = findShortestPath(aiState.position, aiState.targetRow, simWalls);
+        const newHumanPath = findShortestPath(humanState.position, humanTargetRow, simWalls);
+        const newAiPath = findShortestPath(aiState.position, aiTargetRow, simWalls);
 
         if (!newHumanPath || !newAiPath) continue;
 
@@ -105,7 +108,7 @@ export function computeAIMove(state: GameState): AIAction {
   let minDistance = 999;
 
   for (const move of validMoves) {
-    const pathFromMove = findShortestPath(move, aiState.targetRow, state.walls);
+    const pathFromMove = findShortestPath(move, aiTargetRow, state.walls);
     const dist = pathFromMove ? pathFromMove.length - 1 : 999;
     if (dist < minDistance) {
       minDistance = dist;

@@ -1,11 +1,35 @@
 import { Coordinate, GameState, PlayerId, Wall, WallOrientation } from './types';
-import { isSameCoord } from './board';
-import { doesWallTrapAnyPlayer, getValidPawnMoves } from './pathfinding';
-import { isWallCollision } from './board';
+import { isSameCoord, isWallCollision } from './board';
+import { doesWallTrapAllPlayers, doesWallTrapAnyPlayer, getValidPawnMoves } from './pathfinding';
 
 export interface ValidationResult {
   valid: boolean;
   reason?: string;
+}
+
+/**
+ * Returns the list of non-eliminated player IDs participating in this match.
+ */
+export function getActivePlayerIds(state: GameState): PlayerId[] {
+  const allIds: PlayerId[] = [1, 2, 3, 4, 5, 6];
+  return allIds.filter((id) => {
+    const p = state.players[id];
+    return p && !p.isEliminated && p.id !== state.resignedPlayerId;
+  });
+}
+
+/**
+ * Returns the next player in clockwise turn order among active players.
+ */
+export function getNextTurnPlayerId(state: GameState): PlayerId {
+  const active = getActivePlayerIds(state);
+  if (active.length <= 1) return state.currentTurn;
+
+  const currentIndex = active.indexOf(state.currentTurn);
+  if (currentIndex === -1) return active[0];
+
+  const nextIndex = (currentIndex + 1) % active.length;
+  return active[nextIndex];
 }
 
 export function canPlaceWall(
@@ -17,32 +41,54 @@ export function canPlaceWall(
   }
 
   const currentPlayer = state.players[state.currentTurn];
-  if (currentPlayer.wallsLeft <= 0) {
+  if (!currentPlayer || currentPlayer.wallsLeft <= 0) {
     return { valid: false, reason: 'No walls remaining for this player.' };
   }
 
+  const boardSize = state.boardSize || 9;
+
   // Check collision with existing walls or boundary
-  if (isWallCollision(state.walls, candidate)) {
+  if (isWallCollision(state.walls, candidate, boardSize)) {
     return { valid: false, reason: 'Wall collides with existing wall or board edge.' };
   }
 
-  // Check if wall traps either player
+  // Check if wall traps any player
   const candidateWall: Wall = {
     ...candidate,
     placedBy: state.currentTurn,
   };
 
-  const traps = doesWallTrapAnyPlayer(
-    candidateWall,
-    state.players[1].position,
-    state.players[2].position,
-    state.walls,
-    state.players[1].targetRow,
-    state.players[2].targetRow
-  );
+  const activeIds = getActivePlayerIds(state);
 
-  if (traps) {
-    return { valid: false, reason: 'Wall would completely block a player from reaching the goal!' };
+  if (state.variant === 'core_race' || activeIds.length > 2) {
+    const playerGoals = activeIds.map((id) => {
+      const p = state.players[id];
+      const targets = p.targetCore || state.coreTargets || [{ r: Math.floor(boardSize / 2), c: Math.floor(boardSize / 2) }];
+      return {
+        pos: p.position,
+        target: targets,
+      };
+    });
+
+    const traps = doesWallTrapAllPlayers(candidateWall, playerGoals, state.walls, boardSize);
+    if (traps) {
+      return { valid: false, reason: 'Wall would completely block a player from reaching the Center Core!' };
+    }
+  } else {
+    // Classic 1v1 path check
+    const traps = doesWallTrapAnyPlayer(
+      candidateWall,
+      state.players[1].position,
+      state.players[2].position,
+      state.walls,
+      state.players[1].targetRow ?? 0,
+      state.players[2].targetRow ?? 8,
+      boardSize
+    );
+
+    if (traps) {
+      return { valid: false, reason: 'Wall would completely block a player from reaching the goal!' };
+    }
   }
 
   return { valid: true };
@@ -57,11 +103,19 @@ export function applyPawnMove(
   }
 
   const currentPId = state.currentTurn;
-  const opponentPId: PlayerId = currentPId === 1 ? 2 : 1;
   const currentPlayer = state.players[currentPId];
-  const opponent = state.players[opponentPId];
+  if (!currentPlayer) {
+    return { success: false, nextState: state, error: 'Player not found.' };
+  }
 
-  const validMoves = getValidPawnMoves(currentPlayer.position, opponent.position, state.walls);
+  const boardSize = state.boardSize || 9;
+
+  // Collect positions of all other active opponents
+  const opponentPositions = getActivePlayerIds(state)
+    .filter((id) => id !== currentPId)
+    .map((id) => state.players[id].position);
+
+  const validMoves = getValidPawnMoves(currentPlayer.position, opponentPositions, state.walls, boardSize);
   const isValid = validMoves.some((m) => isSameCoord(m, target));
 
   if (!isValid) {
@@ -69,7 +123,27 @@ export function applyPawnMove(
   }
 
   const newPosition = { ...target };
-  const hasWon = newPosition.r === currentPlayer.targetRow;
+
+  // Determine if this move triggers victory
+  let hasWon = false;
+  if (state.variant === 'core_race') {
+    const coreTargets = currentPlayer.targetCore || state.coreTargets || [
+      { r: Math.floor(boardSize / 2), c: Math.floor(boardSize / 2) },
+    ];
+    hasWon = coreTargets.some((t) => isSameCoord(t, newPosition));
+  } else {
+    hasWon = newPosition.r === (currentPlayer.targetRow ?? 0);
+  }
+
+  const nextTurn = hasWon ? currentPId : getNextTurnPlayerId(state);
+
+  const status = hasWon
+    ? currentPId === 1
+      ? 'player1_won'
+      : currentPId === 2
+      ? 'player2_won'
+      : 'game_over'
+    : 'playing';
 
   const nextState: GameState = {
     ...state,
@@ -80,8 +154,8 @@ export function applyPawnMove(
         position: newPosition,
       },
     },
-    currentTurn: hasWon ? currentPId : opponentPId,
-    status: hasWon ? (currentPId === 1 ? 'player1_won' : 'player2_won') : 'playing',
+    currentTurn: nextTurn,
+    status,
     winner: hasWon ? currentPId : null,
     history: [
       ...state.history,
@@ -107,8 +181,8 @@ export function applyWallPlacement(
   }
 
   const currentPId = state.currentTurn;
-  const opponentPId: PlayerId = currentPId === 1 ? 2 : 1;
   const currentPlayer = state.players[currentPId];
+  const nextTurn = getNextTurnPlayerId(state);
 
   const newWall: Wall = {
     ...placement,
@@ -125,7 +199,7 @@ export function applyWallPlacement(
       },
     },
     walls: [...state.walls, newWall],
-    currentTurn: opponentPId,
+    currentTurn: nextTurn,
     history: [
       ...state.history,
       {

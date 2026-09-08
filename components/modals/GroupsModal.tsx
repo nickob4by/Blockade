@@ -23,8 +23,11 @@ import {
   Gamepad2,
   Trash2,
   Share2,
+  Crown,
 } from 'lucide-react';
 import { AuthModal } from './AuthModal';
+import { PartyLobbyModal } from './PartyLobbyModal';
+import { PlayerId } from '@/lib/game/types';
 import {
   FriendGroup,
   GroupMember,
@@ -44,6 +47,10 @@ interface GroupsModalProps {
   onClose: () => void;
   onStartOnlineMatch?: (opponentName: string) => void;
   onChallengePlayer?: (member: GroupMember, group?: FriendGroup) => void;
+  onStartPartyMatch?: (config: {
+    boardSize: number;
+    players: Array<{ id: PlayerId; name: string; emoji?: string }>;
+  }) => void;
 }
 
 export const GroupsModal: React.FC<GroupsModalProps> = ({
@@ -51,6 +58,7 @@ export const GroupsModal: React.FC<GroupsModalProps> = ({
   onClose,
   onStartOnlineMatch,
   onChallengePlayer,
+  onStartPartyMatch,
 }) => {
   const { user, profile } = useAuth();
   const [groups, setGroups] = useState<FriendGroup[]>([]);
@@ -65,6 +73,7 @@ export const GroupsModal: React.FC<GroupsModalProps> = ({
   const [memberFilter, setMemberFilter] = useState<'all' | 'online' | 'in_game' | 'offline'>('all');
   const [livePresences, setLivePresences] = useState<Record<string, { name: string; status: MemberStatus; emoji?: string }>>({});
   const [isJoining, setIsJoining] = useState(false);
+  const [showPartyLobby, setShowPartyLobby] = useState(false);
 
   const currentUserId = user?.id || profile.id || 'guest_user';
   const currentUserName = profile.name || 'Player 1';
@@ -707,6 +716,35 @@ export const GroupsModal: React.FC<GroupsModalProps> = ({
                 </button>
               </div>
 
+              {/* King of the Core Party Host Banner */}
+              <div className="p-3.5 rounded-2xl bg-gradient-to-r from-amber-500/15 via-amber-500/10 to-transparent border border-amber-500/30 flex items-center justify-between gap-3 shadow-sm">
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <div className="w-9 h-9 rounded-xl bg-amber-500 text-slate-950 flex items-center justify-center font-extrabold shadow-md flex-shrink-0">
+                    <Crown className="w-5 h-5" />
+                  </div>
+                  <div className="truncate">
+                    <div className="font-extrabold text-xs text-slate-900 dark:text-zinc-100 flex items-center gap-1.5">
+                      <span>King of the Core</span>
+                      <span className="text-[9px] font-bold px-1.5 py-0.2 rounded-full bg-amber-500/20 text-amber-700 dark:text-amber-300">
+                        3-6 Players
+                      </span>
+                    </div>
+                    <div className="text-[10px] text-slate-500 dark:text-zinc-400 mt-0.5">
+                      Dynamic 13x13 & 15x15 map · Race to the center
+                    </div>
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => setShowPartyLobby(true)}
+                  className="py-2 px-3.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs flex items-center gap-1.5 shadow-md tap-bounce flex-shrink-0"
+                >
+                  <Crown className="w-3.5 h-3.5 fill-current" />
+                  <span>Host Match</span>
+                </button>
+              </div>
+
               {/* Status Filter Chips */}
               <div className="flex items-center gap-1 overflow-x-auto pb-1 text-[11px]">
                 <button
@@ -911,6 +949,34 @@ export const GroupsModal: React.FC<GroupsModalProps> = ({
           </button>
         </div>
       </div>
+
+      {/* King of the Core Party Lobby Waiting Room */}
+      {selectedGroup && (
+        <PartyLobbyModal
+          isOpen={showPartyLobby}
+          onClose={() => setShowPartyLobby(false)}
+          groupCode={selectedGroup.code}
+          groupName={selectedGroup.name}
+          isHost={true}
+          currentUserId={currentUserId}
+          currentUserName={currentUserName}
+          currentUserEmoji={profile.emoji}
+          onStartMatch={(members, boardSize) => {
+            setShowPartyLobby(false);
+            if (onStartPartyMatch) {
+              onStartPartyMatch({
+                boardSize,
+                players: members.map((m) => ({
+                  id: m.slot,
+                  name: m.name,
+                  emoji: m.emoji,
+                })),
+              });
+              onClose();
+            }
+          }}
+        />
+      )}
 
       {/* In-Website Registration & Sign In Modal */}
       <AuthModal

@@ -1,8 +1,8 @@
-import { Wall, WallOrientation } from '@/lib/game/types';
+import { PlayerId, Wall, WallOrientation } from '@/lib/game/types';
 
 export interface MergedWallGroup {
   orientation: WallOrientation;
-  placedBy: 1 | 2;
+  placedBy: PlayerId;
   r: number;
   c: number;
   rStart: number;
@@ -358,7 +358,7 @@ export function computeWallLayout(
 export interface WallJunction {
   r: number;
   c: number;
-  placedBy: 1 | 2;
+  placedBy: PlayerId;
   gridRowStart: number;
   gridRowEnd: number;
   gridColStart: number;
@@ -379,10 +379,16 @@ export interface WallJunction {
  */
 export function getWallJunctions(walls: Wall[]): WallJunction[] {
   const junctions: WallJunction[] = [];
+  if (!walls || walls.length === 0) return junctions;
 
-  for (let r = 0; r < 8; r++) {
-    for (let c = 0; c < 8; c++) {
-      for (const p of [1, 2] as const) {
+  const maxCoord = Math.max(...walls.map((w) => Math.max(w.r, w.c))) + 1;
+  const maxLimit = Math.max(8, maxCoord);
+
+  const players: PlayerId[] = [1, 2, 3, 4, 5, 6];
+
+  for (let r = 0; r < maxLimit; r++) {
+    for (let c = 0; c < maxLimit; c++) {
+      for (const p of players) {
         const hasUp = walls.some(
           (w) => w.placedBy === p && w.orientation === 'V' && w.c === c && (w.r === r - 1 || w.r === r)
         );

@@ -10,40 +10,49 @@ const ORTHOGONAL_DIRS = [
 
 /**
  * Returns all valid pawn destination coordinates for the current player.
- * Implements full Quoridor pawn movement including straight and diagonal jumps.
+ * Implements full Quoridor pawn movement including straight and diagonal jumps,
+ * supporting single or multiple opponents on any board size.
  */
 export function getValidPawnMoves(
   playerPos: Coordinate,
-  opponentPos: Coordinate,
-  walls: Wall[]
+  opponentPos: Coordinate | Coordinate[],
+  walls: Wall[],
+  boardSize: number = BOARD_SIZE
 ): Coordinate[] {
+  const opponents: Coordinate[] = Array.isArray(opponentPos) ? opponentPos : [opponentPos];
   const validMoves: Coordinate[] = [];
 
   for (const dir of ORTHOGONAL_DIRS) {
     const nextCoord: Coordinate = { r: playerPos.r + dir.r, c: playerPos.c + dir.c };
 
-    if (!isWithinBoard(nextCoord)) continue;
+    if (!isWithinBoard(nextCoord, boardSize)) continue;
     if (isStepBlockedByWall(playerPos, nextCoord, walls)) continue;
 
-    // If neighbor square is empty, standard move
-    if (!isSameCoord(nextCoord, opponentPos)) {
+    // Check if neighbor square is occupied by any opponent
+    const blockingOpponent = opponents.find((opp) => isSameCoord(nextCoord, opp));
+
+    if (!blockingOpponent) {
+      // Empty square: standard move
       validMoves.push(nextCoord);
       continue;
     }
 
-    // Neighbor square is occupied by opponent: calculate jump options
+    // Neighbor square is occupied by an opponent: calculate jump options
     const straightJump: Coordinate = {
-      r: opponentPos.r + dir.r,
-      c: opponentPos.c + dir.c,
+      r: blockingOpponent.r + dir.r,
+      c: blockingOpponent.c + dir.c,
     };
 
+    const isStraightOccupied = opponents.some((opp) => isSameCoord(straightJump, opp));
     const canStraightJump =
-      isWithinBoard(straightJump) && !isStepBlockedByWall(opponentPos, straightJump, walls);
+      isWithinBoard(straightJump, boardSize) &&
+      !isStepBlockedByWall(blockingOpponent, straightJump, walls) &&
+      !isStraightOccupied;
 
     if (canStraightJump) {
       validMoves.push(straightJump);
     } else {
-      // Straight jump is blocked by a wall or board edge:
+      // Straight jump is blocked by a wall, board edge, or another pawn:
       // Player can jump diagonally to either flank of the opponent
       const perpendicularDirs =
         dir.r !== 0
@@ -58,13 +67,16 @@ export function getValidPawnMoves(
 
       for (const pDir of perpendicularDirs) {
         const diagonalTarget: Coordinate = {
-          r: opponentPos.r + pDir.r,
-          c: opponentPos.c + pDir.c,
+          r: blockingOpponent.r + pDir.r,
+          c: blockingOpponent.c + pDir.c,
         };
 
+        const isDiagOccupied = opponents.some((opp) => isSameCoord(diagonalTarget, opp));
+
         if (
-          isWithinBoard(diagonalTarget) &&
-          !isStepBlockedByWall(opponentPos, diagonalTarget, walls)
+          isWithinBoard(diagonalTarget, boardSize) &&
+          !isStepBlockedByWall(blockingOpponent, diagonalTarget, walls) &&
+          !isDiagOccupied
         ) {
           validMoves.push(diagonalTarget);
         }
@@ -72,7 +84,15 @@ export function getValidPawnMoves(
     }
   }
 
-  return validMoves;
+  // Deduplicate results
+  const uniqueMoves: Coordinate[] = [];
+  validMoves.forEach((m) => {
+    if (!uniqueMoves.some((u) => isSameCoord(u, m))) {
+      uniqueMoves.push(m);
+    }
+  });
+
+  return uniqueMoves;
 }
 
 /**
@@ -82,21 +102,22 @@ export function getValidPawnMoves(
 export function findShortestPath(
   start: Coordinate,
   targetRow: number,
-  walls: Wall[]
+  walls: Wall[],
+  boardSize: number = BOARD_SIZE
 ): Coordinate[] | null {
   if (start.r === targetRow) {
     return [start];
   }
 
   const queue: Coordinate[] = [start];
-  const visited: boolean[][] = Array.from({ length: BOARD_SIZE }, () =>
-    Array(BOARD_SIZE).fill(false)
+  const visited: boolean[][] = Array.from({ length: boardSize }, () =>
+    Array(boardSize).fill(false)
   );
   visited[start.r][start.c] = true;
 
   // Track parent for path reconstruction: parent[r][c] = Coordinate
-  const parent: (Coordinate | null)[][] = Array.from({ length: BOARD_SIZE }, () =>
-    Array(BOARD_SIZE).fill(null)
+  const parent: (Coordinate | null)[][] = Array.from({ length: boardSize }, () =>
+    Array(boardSize).fill(null)
   );
 
   let targetFound: Coordinate | null = null;
@@ -112,7 +133,7 @@ export function findShortestPath(
     for (const dir of ORTHOGONAL_DIRS) {
       const next: Coordinate = { r: current.r + dir.r, c: current.c + dir.c };
 
-      if (!isWithinBoard(next) || visited[next.r][next.c]) continue;
+      if (!isWithinBoard(next, boardSize) || visited[next.r][next.c]) continue;
       if (isStepBlockedByWall(current, next, walls)) continue;
 
       visited[next.r][next.c] = true;
@@ -135,19 +156,80 @@ export function findShortestPath(
 }
 
 /**
- * Checks if a player has at least one valid path to their goal row.
+ * BFS algorithm to find the shortest path from start to any cell in a set of target coordinates
+ * (e.g. Center Core in King of the Core mode).
  */
-export function hasValidPathToGoal(
+export function findShortestPathToTargets(
   start: Coordinate,
-  targetRow: number,
-  walls: Wall[]
-): boolean {
-  return findShortestPath(start, targetRow, walls) !== null;
+  targets: Coordinate[],
+  walls: Wall[],
+  boardSize: number = BOARD_SIZE
+): Coordinate[] | null {
+  if (targets.some((t) => isSameCoord(start, t))) {
+    return [start];
+  }
+
+  const queue: Coordinate[] = [start];
+  const visited: boolean[][] = Array.from({ length: boardSize }, () =>
+    Array(boardSize).fill(false)
+  );
+  visited[start.r][start.c] = true;
+
+  const parent: (Coordinate | null)[][] = Array.from({ length: boardSize }, () =>
+    Array(boardSize).fill(null)
+  );
+
+  let targetFound: Coordinate | null = null;
+
+  while (queue.length > 0) {
+    const current = queue.shift()!;
+
+    if (targets.some((t) => isSameCoord(current, t))) {
+      targetFound = current;
+      break;
+    }
+
+    for (const dir of ORTHOGONAL_DIRS) {
+      const next: Coordinate = { r: current.r + dir.r, c: current.c + dir.c };
+
+      if (!isWithinBoard(next, boardSize) || visited[next.r][next.c]) continue;
+      if (isStepBlockedByWall(current, next, walls)) continue;
+
+      visited[next.r][next.c] = true;
+      parent[next.r][next.c] = current;
+      queue.push(next);
+    }
+  }
+
+  if (!targetFound) return null;
+
+  const path: Coordinate[] = [];
+  let curr: Coordinate | null = targetFound;
+  while (curr !== null) {
+    path.unshift(curr);
+    curr = parent[curr.r][curr.c];
+  }
+
+  return path;
 }
 
 /**
- * Verifies that placing a candidate wall does not trap either player.
- * (Quoridor rule: each player must always have at least one valid path to finish).
+ * Checks if a player has at least one valid path to their goal row or targets.
+ */
+export function hasValidPathToGoal(
+  start: Coordinate,
+  target: number | Coordinate[],
+  walls: Wall[],
+  boardSize: number = BOARD_SIZE
+): boolean {
+  if (typeof target === 'number') {
+    return findShortestPath(start, target, walls, boardSize) !== null;
+  }
+  return findShortestPathToTargets(start, target, walls, boardSize) !== null;
+}
+
+/**
+ * Verifies that placing a candidate wall does not trap either player in 1v1.
  */
 export function doesWallTrapAnyPlayer(
   candidateWall: Wall,
@@ -155,13 +237,33 @@ export function doesWallTrapAnyPlayer(
   p2Pos: Coordinate,
   currentWalls: Wall[],
   p1TargetRow: number = 0,
-  p2TargetRow: number = 8
+  p2TargetRow: number = 8,
+  boardSize: number = BOARD_SIZE
 ): boolean {
   const simulatedWalls = [...currentWalls, candidateWall];
 
-  const p1HasPath = hasValidPathToGoal(p1Pos, p1TargetRow, simulatedWalls);
+  const p1HasPath = hasValidPathToGoal(p1Pos, p1TargetRow, simulatedWalls, boardSize);
   if (!p1HasPath) return true;
 
-  const p2HasPath = hasValidPathToGoal(p2Pos, p2TargetRow, simulatedWalls);
+  const p2HasPath = hasValidPathToGoal(p2Pos, p2TargetRow, simulatedWalls, boardSize);
   return !p2HasPath;
+}
+
+/**
+ * Verifies that placing a candidate wall does not trap ANY active player in a multi-player game.
+ */
+export function doesWallTrapAllPlayers(
+  candidateWall: Wall,
+  players: Array<{ pos: Coordinate; target: number | Coordinate[] }>,
+  currentWalls: Wall[],
+  boardSize: number = BOARD_SIZE
+): boolean {
+  const simulatedWalls = [...currentWalls, candidateWall];
+
+  for (const p of players) {
+    const hasPath = hasValidPathToGoal(p.pos, p.target, simulatedWalls, boardSize);
+    if (!hasPath) return true; // At least one player is trapped!
+  }
+
+  return false;
 }
