@@ -15,6 +15,7 @@ import {
   XCircle,
   AlertCircle,
   Swords,
+  Flag,
 } from 'lucide-react';
 
 export type RematchStatus =
@@ -112,8 +113,25 @@ export const GameOverModal: React.FC<GameOverModalProps> = ({
               : `${winningPlayer.name} Wins!`}
           </h2>
 
-          <p className="text-sm text-slate-500 dark:text-zinc-400 mt-2">
-            Successfully crossed to the other side of the grid!
+          <p className="text-sm text-slate-500 dark:text-zinc-400 mt-2 flex items-center justify-center gap-1.5">
+            {gameState.resignedPlayerId ? (
+              <>
+                <Flag className="w-3.5 h-3.5 text-rose-500 inline-block" />
+                <span>
+                  {gameState.mode === 'online'
+                    ? isClientWinner
+                      ? `${opponentName || 'Opponent'} resigned the match.`
+                      : 'You resigned the match.'
+                    : gameState.mode === 'ai'
+                    ? isClientWinner
+                      ? 'BlockBot resigned the match.'
+                      : 'You resigned the match.'
+                    : `${gameState.players[gameState.resignedPlayerId]?.name || 'Player'} resigned the match.`}
+                </span>
+              </>
+            ) : (
+              'Successfully crossed to the other side of the grid!'
+            )}
           </p>
 
           {/* Match summary stats */}

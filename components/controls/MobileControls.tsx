@@ -9,10 +9,12 @@ import {
   Volume2,
   VolumeX,
   BookOpen,
+  Flag,
 } from 'lucide-react';
 
 interface MobileControlsProps {
   onRestart?: () => void;
+  onResign?: () => void;
   onOpenRules: () => void;
   wallsLeft: number;
   currentTurn: PlayerId;
@@ -25,6 +27,7 @@ interface MobileControlsProps {
 
 export const MobileControls: React.FC<MobileControlsProps> = ({
   onRestart,
+  onResign,
   onOpenRules,
   wallsLeft,
   currentTurn,
@@ -82,6 +85,17 @@ export const MobileControls: React.FC<MobileControlsProps> = ({
               <VolumeX className="w-3.5 h-3.5 text-slate-400 dark:text-zinc-500" />
             )}
           </button>
+
+          {onResign && (
+            <button
+              type="button"
+              onClick={onResign}
+              className="p-1.5 rounded-lg bg-slate-100 hover:bg-rose-100 dark:bg-zinc-800 dark:hover:bg-rose-950/40 text-slate-700 hover:text-rose-600 dark:text-zinc-300 dark:hover:text-rose-400 border border-slate-200 dark:border-zinc-700/60 tap-bounce"
+              title="Resign Match"
+            >
+              <Flag className="w-3.5 h-3.5 text-rose-500" />
+            </button>
+          )}
 
           {onRestart && (
             <button

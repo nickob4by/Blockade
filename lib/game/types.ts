@@ -46,4 +46,5 @@ export interface GameState {
   winner: PlayerId | null;
   history: MoveRecord[];
   mode: GameMode;
+  resignedPlayerId?: PlayerId | null;
 }

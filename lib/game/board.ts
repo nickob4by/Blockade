@@ -40,6 +40,7 @@ export function createInitialGameState(mode: GameMode = 'local'): GameState {
     winner: null,
     history: [],
     mode,
+    resignedPlayerId: null,
   };
 }
 

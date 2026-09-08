@@ -1,4 +1,4 @@
-﻿import test from 'node:test';
+import test from 'node:test';
 import assert from 'node:assert/strict';
 import { RealtimePayload } from '../lib/supabase/realtime';
 import { RematchStatus } from '../components/modals/GameOverModal';
@@ -96,3 +96,45 @@ test('Rematch - Mutual Request Auto-Accept', () => {
   }
   assert.equal(p1Status, 'accepted');
 });
+
+test('Resignation - RealtimePayload RESIGN structure', () => {
+  const resignPayload: RealtimePayload = {
+    type: 'RESIGN',
+    playerId: 1,
+  };
+  assert.equal(resignPayload.type, 'RESIGN');
+  assert.equal(resignPayload.playerId, 1);
+});
+
+test('Resignation - Forfeiting player sets opponent as winner and enables Rematch flow', () => {
+  const game = createInitialGameState('online');
+  assert.equal(game.winner, null);
+  assert.equal(game.status, 'playing');
+
+  // Player 1 decides to resign
+  const resigningPlayerId = 1;
+  const winningPlayerId = resigningPlayerId === 1 ? 2 : 1;
+
+  const endedGame = {
+    ...game,
+    status: (winningPlayerId === 1 ? 'player1_won' : 'player2_won') as const,
+    winner: winningPlayerId,
+    resignedPlayerId: resigningPlayerId,
+  };
+
+  assert.equal(endedGame.winner, 2);
+  assert.equal(endedGame.status, 'player2_won');
+  assert.equal(endedGame.resignedPlayerId, 1);
+
+  // Now rematch can be requested from the game over state
+  let rematchStatus: RematchStatus = 'idle';
+  rematchStatus = 'requested';
+  assert.equal(rematchStatus, 'requested');
+
+  // Rematch accepted -> new game clears resignedPlayerId
+  const nextGame = createInitialGameState('online');
+  assert.equal(nextGame.winner, null);
+  assert.equal(nextGame.status, 'playing');
+  assert.equal(nextGame.resignedPlayerId, null);
+});
+

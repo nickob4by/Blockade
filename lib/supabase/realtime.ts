@@ -14,7 +14,8 @@ export type RealtimePayload =
   | { type: 'PLAYER_LEFT'; playerId: PlayerId; playerName?: string }
   | { type: 'REMATCH_REQUEST'; requestedBy: PlayerId; requesterName: string }
   | { type: 'REMATCH_RESPONSE'; respondedBy: PlayerId; accepted: boolean; responderName?: string }
-  | { type: 'REMATCH_CANCEL'; requestedBy: PlayerId };
+  | { type: 'REMATCH_CANCEL'; requestedBy: PlayerId }
+  | { type: 'RESIGN'; playerId: PlayerId };
 
 export interface PresenceInfo {
   playerId: PlayerId;

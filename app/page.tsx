@@ -16,6 +16,7 @@ import { OnlineLobbyModal } from '@/components/modals/OnlineLobbyModal';
 import { SupabaseConfigModal } from '@/components/modals/SupabaseConfigModal';
 import { GroupsModal } from '@/components/modals/GroupsModal';
 import { OpponentLeftModal } from '@/components/modals/OpponentLeftModal';
+import { ResignConfirmModal } from '@/components/modals/ResignConfirmModal';
 import { SettingsModal } from '@/components/modals/SettingsModal';
 import { MainMenu } from '@/components/menu/MainMenu';
 import { useAuth } from '@/lib/auth/AuthContext';
@@ -39,7 +40,7 @@ import {
   fetchUserGroupsAsync,
   subscribeToGroupPresence,
 } from '@/lib/groups/groupService';
-import { Users, Bot, Globe, ArrowLeft, RefreshCw, Settings, Sun, Moon } from 'lucide-react';
+import { Users, Bot, Globe, ArrowLeft, RefreshCw, Settings, Sun, Moon, Flag } from 'lucide-react';
 
 export default function GamePage() {
   const { user, profile } = useAuth();
@@ -64,6 +65,7 @@ export default function GamePage() {
   const [showSupabaseConfig, setShowSupabaseConfig] = useState(false);
   const [showExitConfirm, setShowExitConfirm] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
+  const [showResignConfirm, setShowResignConfirm] = useState(false);
 
   // Realtime Match Challenge State
   const [incomingChallenge, setIncomingChallenge] = useState<MatchChallenge | null>(null);
@@ -239,6 +241,42 @@ export default function GamePage() {
       });
     }
   }, [mode, gameState.players, playerName, profile.name, profile.emoji]);
+
+  // Resign Match
+  const handleResign = useCallback(() => {
+    setShowResignConfirm(false);
+    if (gameState.status !== 'playing' || gameState.winner) return;
+
+    // Determine resigning and winning player:
+    // In online mode: clientPlayerId forfeits.
+    // In local pass & play: currentTurn player forfeits.
+    // In vs AI: Player 1 forfeits.
+    const resigningPlayerId: PlayerId =
+      modeRef.current === 'online'
+        ? clientPlayerId
+        : modeRef.current === 'local'
+        ? gameState.currentTurn
+        : 1;
+
+    const winningPlayerId: PlayerId = resigningPlayerId === 1 ? 2 : 1;
+
+    sounds.playAlert();
+
+    // Broadcast RESIGN to opponent in online mode
+    if (modeRef.current === 'online' && realtimeBroadcastRef.current) {
+      realtimeBroadcastRef.current({
+        type: 'RESIGN',
+        playerId: resigningPlayerId,
+      });
+    }
+
+    setGameState((prev) => ({
+      ...prev,
+      status: winningPlayerId === 1 ? 'player1_won' : 'player2_won',
+      winner: winningPlayerId,
+      resignedPlayerId: resigningPlayerId,
+    }));
+  }, [gameState.status, gameState.winner, gameState.currentTurn, clientPlayerId]);
 
   // Rematch action handlers for online multiplayer
   const handleRequestRematch = useCallback(() => {
@@ -776,6 +814,15 @@ export default function GamePage() {
             if (rematchStatusRef.current === 'received') {
               setRematchStatus('idle');
             }
+          } else if (payload.type === 'RESIGN') {
+            const winningPlayerId: PlayerId = payload.playerId === 1 ? 2 : 1;
+            sounds.playWin();
+            setGameState((prev) => ({
+              ...prev,
+              status: winningPlayerId === 1 ? 'player1_won' : 'player2_won',
+              winner: winningPlayerId,
+              resignedPlayerId: payload.playerId,
+            }));
           } else if (payload.type === 'PLAYER_LEFT') {
             if (payload.playerId !== (isHostRole ? 1 : 2)) {
               handleOpponentLeft(payload.playerId, payload.playerName);
@@ -1287,6 +1334,19 @@ export default function GamePage() {
             )}
           </button>
 
+          {/* In-Game Resign Button */}
+          {gameState.status === 'playing' && !gameState.winner && (
+            <button
+              type="button"
+              onClick={() => setShowResignConfirm(true)}
+              title="Resign Match"
+              className="flex items-center gap-1 px-2.5 py-1 rounded-xl bg-white dark:bg-zinc-900 hover:bg-rose-50 dark:hover:bg-rose-950/40 border border-slate-200 dark:border-zinc-800 hover:border-rose-200 dark:hover:border-rose-800/60 text-slate-600 dark:text-zinc-400 hover:text-rose-600 dark:hover:text-rose-400 text-xs font-semibold tap-bounce shadow-sm transition-colors"
+            >
+              <Flag className="w-3.5 h-3.5 text-rose-500" />
+              <span className="hidden sm:inline">Resign</span>
+            </button>
+          )}
+
           {!isOnlineMode && (
             <button
               type="button"
@@ -1366,6 +1426,7 @@ export default function GamePage() {
       {/* 3. Bottom Thumb Zone Controls & Wall Tray */}
       <MobileControls
         onRestart={!isOnlineMode ? handleRestart : undefined}
+        onResign={gameState.status === 'playing' && !gameState.winner ? () => setShowResignConfirm(true) : undefined}
         onOpenRules={() => setShowRules(true)}
         wallsLeft={gameState.players[gameState.currentTurn].wallsLeft}
         currentTurn={gameState.currentTurn}
@@ -1420,6 +1481,12 @@ export default function GamePage() {
         onDeclineRematch={handleDeclineRematch}
         onCancelRematch={handleCancelRematch}
         opponentName={gameState.players[opponentPlayerId]?.name || 'Opponent'}
+      />
+
+      <ResignConfirmModal
+        isOpen={showResignConfirm}
+        onConfirm={handleResign}
+        onCancel={() => setShowResignConfirm(false)}
       />
 
       <OpponentLeftModal
