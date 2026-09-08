@@ -4,6 +4,7 @@ import React, { useRef, useState } from 'react';
 import { PlayerId, WallOrientation } from '@/lib/game/types';
 import { sounds } from '@/lib/audio/sounds';
 import { SplitSquareHorizontal, SplitSquareVertical, Move } from 'lucide-react';
+import { PLAYER_THEMES } from '@/lib/game/board';
 
 interface WallTrayProps {
   wallsLeft: number;
@@ -28,7 +29,7 @@ export const WallTray: React.FC<WallTrayProps> = ({
   const activePointerId = useRef<number | null>(null);
 
   const canDrag = isMyTurn && wallsLeft > 0;
-  const isP1 = currentTurn === 1;
+  const theme = PLAYER_THEMES[currentTurn] || PLAYER_THEMES[1];
 
   const handlePointerDown = (
     e: React.PointerEvent<HTMLButtonElement>,
@@ -76,10 +77,10 @@ export const WallTray: React.FC<WallTrayProps> = ({
     <div className="w-full flex flex-col items-center gap-1">
       <div className="flex items-center justify-between w-full px-1">
         <span className="text-[10px] uppercase font-bold tracking-wider text-slate-500 dark:text-zinc-400 flex items-center gap-1">
-          <Move className={`w-3 h-3 ${isP1 ? 'text-blue-500 dark:text-blue-400' : 'text-rose-500 dark:text-rose-400'}`} />
+          <Move className={`w-3 h-3 ${theme.textClass}`} />
           Drag Wall onto Board
         </span>
-        <span className={`text-[11px] font-semibold ${isP1 ? 'text-blue-600 dark:text-blue-300' : 'text-rose-600 dark:text-rose-300'}`}>
+        <span className={`text-[11px] font-semibold ${theme.textClass}`}>
           {wallsLeft} <span className="text-slate-400 dark:text-zinc-500 font-normal">left</span>
         </span>
       </div>
@@ -90,30 +91,30 @@ export const WallTray: React.FC<WallTrayProps> = ({
           type="button"
           onPointerDown={(e) => handlePointerDown(e, 'H')}
           disabled={!canDrag}
+          style={
+            activeToken === 'H'
+              ? {
+                  borderColor: theme.ringColor,
+                  backgroundColor: theme.ringColor.replace(/[\d.]+\)$/, '0.18)'),
+                }
+              : undefined
+          }
           className={`relative flex items-center justify-center gap-2 py-2 px-3 rounded-xl border transition-all duration-150 touch-none select-none ${
             !canDrag
               ? 'opacity-40 bg-slate-100 dark:bg-zinc-900 border-slate-200 dark:border-zinc-800 cursor-not-allowed text-slate-400 dark:text-zinc-500'
               : activeToken === 'H'
-              ? isP1
-                ? 'bg-blue-500/20 border-blue-500 dark:border-blue-400 shadow-sm scale-98'
-                : 'bg-rose-500/20 border-rose-500 dark:border-rose-400 shadow-sm scale-98'
-              : isP1
-              ? 'bg-white dark:bg-zinc-900/90 hover:bg-slate-50 dark:hover:bg-zinc-800/90 border-slate-200 dark:border-zinc-800 hover:border-blue-500/40 text-slate-800 dark:text-zinc-200 shadow-sm dark:shadow-tactile-sm active:scale-95'
-              : 'bg-white dark:bg-zinc-900/90 hover:bg-slate-50 dark:hover:bg-zinc-800/90 border-slate-200 dark:border-zinc-800 hover:border-rose-500/40 text-slate-800 dark:text-zinc-200 shadow-sm dark:shadow-tactile-sm active:scale-95'
+              ? 'shadow-sm scale-98'
+              : 'bg-white dark:bg-zinc-900/90 hover:bg-slate-50 dark:hover:bg-zinc-800/90 border-slate-200 dark:border-zinc-800 text-slate-800 dark:text-zinc-200 shadow-sm dark:shadow-tactile-sm active:scale-95'
           }`}
           aria-label="Drag Horizontal Wall"
         >
-          <SplitSquareHorizontal className={`w-4 h-4 flex-shrink-0 ${isP1 ? 'text-blue-500 dark:text-blue-400' : 'text-rose-500 dark:text-rose-400'}`} />
+          <SplitSquareHorizontal className={`w-4 h-4 flex-shrink-0 ${theme.textClass}`} />
           <div className="flex flex-col items-start leading-tight">
             <span className="text-xs font-bold tracking-wide text-slate-800 dark:text-zinc-100">Horizontal</span>
             <span className="text-[9px] text-slate-500 dark:text-zinc-400">Hold & Drag</span>
           </div>
           <div
-            className={`w-6 h-1.5 rounded-full shadow-sm ml-auto flex-shrink-0 ${
-              isP1
-                ? 'bg-blue-500'
-                : 'bg-rose-500'
-            }`}
+            className={`w-6 h-1.5 rounded-full shadow-sm ml-auto flex-shrink-0 border ${theme.wallBg} ${theme.wallBorder}`}
           />
         </button>
 
@@ -122,30 +123,30 @@ export const WallTray: React.FC<WallTrayProps> = ({
           type="button"
           onPointerDown={(e) => handlePointerDown(e, 'V')}
           disabled={!canDrag}
+          style={
+            activeToken === 'V'
+              ? {
+                  borderColor: theme.ringColor,
+                  backgroundColor: theme.ringColor.replace(/[\d.]+\)$/, '0.18)'),
+                }
+              : undefined
+          }
           className={`relative flex items-center justify-center gap-2 py-2 px-3 rounded-xl border transition-all duration-150 touch-none select-none ${
             !canDrag
               ? 'opacity-40 bg-slate-100 dark:bg-zinc-900 border-slate-200 dark:border-zinc-800 cursor-not-allowed text-slate-400 dark:text-zinc-500'
               : activeToken === 'V'
-              ? isP1
-                ? 'bg-blue-500/20 border-blue-500 dark:border-blue-400 shadow-sm scale-98'
-                : 'bg-rose-500/20 border-rose-500 dark:border-rose-400 shadow-sm scale-98'
-              : isP1
-              ? 'bg-white dark:bg-zinc-900/90 hover:bg-slate-50 dark:hover:bg-zinc-800/90 border-slate-200 dark:border-zinc-800 hover:border-blue-500/40 text-slate-800 dark:text-zinc-200 shadow-sm dark:shadow-tactile-sm active:scale-95'
-              : 'bg-white dark:bg-zinc-900/90 hover:bg-slate-50 dark:hover:bg-zinc-800/90 border-slate-200 dark:border-zinc-800 hover:border-rose-500/40 text-slate-800 dark:text-zinc-200 shadow-sm dark:shadow-tactile-sm active:scale-95'
+              ? 'shadow-sm scale-98'
+              : 'bg-white dark:bg-zinc-900/90 hover:bg-slate-50 dark:hover:bg-zinc-800/90 border-slate-200 dark:border-zinc-800 text-slate-800 dark:text-zinc-200 shadow-sm dark:shadow-tactile-sm active:scale-95'
           }`}
           aria-label="Drag Vertical Wall"
         >
-          <SplitSquareVertical className={`w-4 h-4 flex-shrink-0 ${isP1 ? 'text-blue-500 dark:text-blue-400' : 'text-rose-500 dark:text-rose-400'}`} />
+          <SplitSquareVertical className={`w-4 h-4 flex-shrink-0 ${theme.textClass}`} />
           <div className="flex flex-col items-start leading-tight">
             <span className="text-xs font-bold tracking-wide text-slate-800 dark:text-zinc-100">Vertical</span>
             <span className="text-[9px] text-slate-500 dark:text-zinc-400">Hold & Drag</span>
           </div>
           <div
-            className={`w-1.5 h-5 rounded-full shadow-sm ml-auto flex-shrink-0 ${
-              isP1
-                ? 'bg-blue-500'
-                : 'bg-rose-500'
-            }`}
+            className={`w-1.5 h-5 rounded-full shadow-sm ml-auto flex-shrink-0 border ${theme.wallBg} ${theme.wallBorder}`}
           />
         </button>
       </div>

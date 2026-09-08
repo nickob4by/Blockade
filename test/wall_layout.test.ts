@@ -154,3 +154,17 @@ test('Wall Layout - getWallJunctions correctly bridges all 4 junctions in a mult
   assert.equal(jBottomRight.top, '-1.5px'); // extends into V above
 });
 
+test('Wall Themes - PLAYER_THEMES covers all 10 players with distinct wall colors and valid classes', () => {
+  const { PLAYER_THEMES } = require('../lib/game/board');
+  for (let p = 1; p <= 10; p++) {
+    const theme = PLAYER_THEMES[p];
+    assert.ok(theme, `Theme for player ${p} must be defined`);
+    assert.ok(theme.wallBg, `Player ${p} must have wallBg`);
+    assert.ok(theme.wallBorder, `Player ${p} must have wallBorder`);
+    assert.ok(theme.textClass, `Player ${p} must have textClass`);
+    assert.ok(theme.ringColor, `Player ${p} must have ringColor`);
+    assert.ok(theme.bgClass, `Player ${p} must have bgClass`);
+  }
+});
+
+

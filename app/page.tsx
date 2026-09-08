@@ -1883,48 +1883,54 @@ export default function GamePage() {
       </div>
 
       {/* 3. Bottom Thumb Zone Controls & Wall Tray */}
-      <MobileControls
-        onRestart={!isOnlineMode ? handleRestart : undefined}
-        onResign={gameState.status === 'playing' && !gameState.winner ? () => setShowResignConfirm(true) : undefined}
-        onOpenRules={() => setShowRules(true)}
-        wallsLeft={gameState.players[gameState.currentTurn]?.wallsLeft ?? 0}
-        currentTurn={gameState.currentTurn}
-        isMyTurn={isMyTurn}
-        onDragStart={handleDragStart}
-        onDragMove={handleDragMove}
-        onDragEnd={handleDragEnd}
-        isDragging={activeDrag !== null}
-      />
+      {(() => {
+        const activeControlPlayerId: PlayerId = mode === 'local' ? gameState.currentTurn : clientPlayerId;
+        const controlPlayer = gameState.players[activeControlPlayerId];
+        return (
+          <MobileControls
+            onRestart={!isOnlineMode ? handleRestart : undefined}
+            onResign={gameState.status === 'playing' && !gameState.winner ? () => setShowResignConfirm(true) : undefined}
+            onOpenRules={() => setShowRules(true)}
+            wallsLeft={controlPlayer?.wallsLeft ?? 0}
+            currentTurn={activeControlPlayerId}
+            isMyTurn={isMyTurn}
+            onDragStart={handleDragStart}
+            onDragMove={handleDragMove}
+            onDragEnd={handleDragEnd}
+            isDragging={activeDrag !== null}
+          />
+        );
+      })()}
 
       {/* 4. Floating Dragged Token (Player-Themed with 45px upward offset on touch) */}
-      {activeDrag && (
-        <div
-          style={{
-            left: `${activeDrag.currentX}px`,
-            top: `${activeDrag.isTouch ? activeDrag.currentY - 45 : activeDrag.currentY}px`,
-            transform: 'translate(-50%, -50%)',
-          }}
-          className="fixed z-50 pointer-events-none transition-transform duration-75"
-        >
+      {activeDrag && (() => {
+        const activeControlPlayerId: PlayerId = mode === 'local' ? gameState.currentTurn : clientPlayerId;
+        const dragTheme = PLAYER_THEMES[activeControlPlayerId] || PLAYER_THEMES[1];
+        return (
           <div
-            className={`rounded-full shadow-2xl border flex items-center justify-center transition-all ${
-              activeDrag.orientation === 'H' ? 'w-16 h-4' : 'w-4 h-16'
-            } ${
-              activeDrag.snappedCoord
-                ? activeDrag.isValid
-                  ? gameState.currentTurn === 1
-                    ? 'bg-blue-500 border-white/70 shadow-tactile-md scale-105'
-                    : 'bg-rose-500 border-white/70 shadow-tactile-md scale-105'
-                  : 'bg-red-500 border-red-300 shadow-tactile-md scale-105 animate-pulse'
-                : gameState.currentTurn === 1
-                ? 'bg-blue-500/80 border-blue-300/40 shadow-md opacity-90'
-                : 'bg-rose-500/80 border-rose-300/40 shadow-md opacity-90'
-            }`}
+            style={{
+              left: `${activeDrag.currentX}px`,
+              top: `${activeDrag.isTouch ? activeDrag.currentY - 45 : activeDrag.currentY}px`,
+              transform: 'translate(-50%, -50%)',
+            }}
+            className="fixed z-50 pointer-events-none transition-transform duration-75"
           >
-            <span className="w-1.5 h-1.5 rounded-full bg-white/70" />
+            <div
+              className={`rounded-full shadow-2xl border flex items-center justify-center transition-all ${
+                activeDrag.orientation === 'H' ? 'w-16 h-4' : 'w-4 h-16'
+              } ${
+                activeDrag.snappedCoord
+                  ? activeDrag.isValid
+                    ? `${dragTheme.wallBg} ${dragTheme.wallBorder} shadow-tactile-md scale-105`
+                    : 'bg-red-500 border-red-300 shadow-tactile-md scale-105 animate-pulse'
+                  : `${dragTheme.wallBg}/80 ${dragTheme.wallBorder} shadow-md opacity-90`
+              }`}
+            >
+              <span className="w-1.5 h-1.5 rounded-full bg-white/70" />
+            </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
 
       {/* Modals */}
       <RulesModal isOpen={showRules} onClose={() => setShowRules(false)} />
