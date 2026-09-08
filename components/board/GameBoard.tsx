@@ -6,7 +6,7 @@ import { BOARD_SIZE, isSameCoord, PLAYER_THEMES } from '@/lib/game/board';
 import { canPlaceWall, getActivePlayerIds } from '@/lib/game/engine';
 import { getValidPawnMoves } from '@/lib/game/pathfinding';
 import { sounds } from '@/lib/audio/sounds';
-import { User, Crown, Flag } from 'lucide-react';
+import { User, Crown, Zap } from 'lucide-react';
 import { getMergedWallGroups, computeWallLayout, getWallJunctions, MergedWallGroup } from '@/lib/game/wallLayout';
 
 export interface GameBoardHandle {
@@ -153,6 +153,13 @@ export const GameBoard = forwardRef<GameBoardHandle, GameBoardProps>(({
               <span>Race to the Center Core</span>
             </span>
           </div>
+        ) : isSprintRace ? (
+          <div className="absolute -top-2.5 left-6 right-6 flex items-center justify-center pointer-events-none z-20">
+            <span className="text-[9px] font-extrabold uppercase tracking-wider px-3.5 py-0.5 rounded-full border shadow-md text-amber-950 bg-amber-300/95 border-amber-400 dark:text-amber-200 dark:bg-gradient-to-r dark:from-amber-950 dark:via-amber-900 dark:to-amber-950 dark:border-amber-400/60 flex items-center gap-1.5 shadow-tactile-sm">
+              <Zap className="w-3 h-3 fill-current text-amber-600 dark:text-amber-400" />
+              <span>▲ Finish Line ▲</span>
+            </span>
+          </div>
         ) : (
           <>
             <div className="absolute -top-2.5 left-6 right-6 flex items-center justify-center pointer-events-none z-20">
@@ -244,7 +251,6 @@ export const GameBoard = forwardRef<GameBoardHandle, GameBoardProps>(({
 
               const isValidMove = validPawnMoves.some((m) => isSameCoord(m, coord));
               const isCoreTile = isCoreRace && (gameState.coreTargets || []).some((t) => isSameCoord(t, coord));
-              const isSprintFinish = isSprintRace && r === 0;
               const isP1FinishLine = !isCoreRace && !isSprintRace && r === 0;
               const isP2FinishLine = !isCoreRace && !isSprintRace && r === boardSize - 1;
 
@@ -269,8 +275,6 @@ export const GameBoard = forwardRef<GameBoardHandle, GameBoardProps>(({
                   } ${
                     isCoreTile
                       ? 'bg-amber-400/20 dark:bg-amber-500/15 border-2 border-amber-400/80 dark:border-amber-400 shadow-[0_0_12px_rgba(245,158,11,0.4)] hover:border-amber-300'
-                      : isSprintFinish
-                      ? 'bg-amber-400/[0.12] dark:bg-amber-500/[0.08] border border-amber-400/60 dark:border-amber-400/40 hover:border-amber-400'
                       : isP1FinishLine
                       ? 'bg-blue-500/[0.08] dark:bg-blue-500/[0.04] border border-slate-200/90 dark:border-zinc-800/80 hover:border-slate-300 dark:hover:border-zinc-700/60'
                       : isP2FinishLine
@@ -282,13 +286,6 @@ export const GameBoard = forwardRef<GameBoardHandle, GameBoardProps>(({
                   {isCoreTile && !playerOnSquare && (
                     <div className="absolute inset-0 flex items-center justify-center pointer-events-none animate-pulse">
                       <Crown className="w-4 h-4 text-amber-500 drop-shadow-[0_1px_4px_rgba(245,158,11,0.8)]" />
-                    </div>
-                  )}
-
-                  {/* Finish Flag on Sprint Race Finish Row */}
-                  {isSprintFinish && !playerOnSquare && (
-                    <div className="absolute inset-0 flex items-center justify-center pointer-events-none opacity-40">
-                      <Flag className="w-3 h-3 text-amber-500" />
                     </div>
                   )}
 
