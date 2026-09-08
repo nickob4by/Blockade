@@ -51,9 +51,10 @@ interface GroupsModalProps {
   onChallengePlayer?: (member: GroupMember, group?: FriendGroup, variant?: GameVariant) => void;
   onStartPartyMatch?: (config: {
     boardSize?: number;
-    players: Array<{ id: PlayerId; name: string; emoji?: string }>;
+    players: Array<{ id: PlayerId; name: string; emoji?: string; userId?: string }>;
     variant?: GameVariant;
     roomCode?: string;
+    mySlot?: PlayerId;
   }) => void;
 }
 
@@ -83,6 +84,9 @@ export const GroupsModal: React.FC<GroupsModalProps> = ({
   const [challengeTarget, setChallengeTarget] = useState<GroupMember | null>(null);
   const [challengeVariant, setChallengeVariant] = useState<GameVariant>('classic');
 
+  const currentUserId = user?.id || profile.id || 'guest_user';
+  const currentUserName = profile.name || 'Guest';
+
   const handleClosePartyLobby = useCallback(() => {
     setShowPartyLobby(false);
   }, []);
@@ -96,25 +100,27 @@ export const GroupsModal: React.FC<GroupsModalProps> = ({
     ) => {
       setShowPartyLobby(false);
       if (onStartPartyMatch) {
+        const myMember = members.find((m) => m.id === currentUserId);
+        const mySlot = myMember?.slot;
+
         onStartPartyMatch({
           boardSize,
           variant,
           roomCode,
+          mySlot,
           players: members.map((m) => ({
             id: m.slot,
             name: m.name,
             emoji: m.emoji,
+            userId: m.id,
           })),
         });
         onClose();
       }
     },
-    [onStartPartyMatch, onClose]
+    [onStartPartyMatch, onClose, currentUserId]
   );
 
-
-  const currentUserId = user?.id || profile.id || 'guest_user';
-  const currentUserName = profile.name || 'Player 1';
 
   // Load groups when modal opens or user changes
   useEffect(() => {

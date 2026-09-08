@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useRef, useImperativeHandle, forwardRef } from 'react';
+import React, { useState, useEffect, useMemo, useRef, useImperativeHandle, forwardRef } from 'react';
 import { Coordinate, GameState, PlayerId, Wall, WallOrientation } from '@/lib/game/types';
 import { BOARD_SIZE, isSameCoord, PLAYER_THEMES } from '@/lib/game/board';
 import { canPlaceWall, getActivePlayerIds } from '@/lib/game/engine';
@@ -82,6 +82,16 @@ export const GameBoard = forwardRef<GameBoardHandle, GameBoardProps>(({
       return { r, c };
     },
   }), [effectiveIsFlipped, boardSize]);
+
+  // Memoize merged wall groups and junctions to eliminate recalculation during drag
+  const mergedWallGroups = useMemo(
+    () => getMergedWallGroups(gameState.walls),
+    [gameState.walls]
+  );
+  const wallJunctions = useMemo(
+    () => getWallJunctions(gameState.walls),
+    [gameState.walls]
+  );
 
   // Compute valid pawn moves for the active player against all other active opponents
   const otherOpponentPositions = getActivePlayerIds(gameState)
@@ -333,7 +343,7 @@ export const GameBoard = forwardRef<GameBoardHandle, GameBoardProps>(({
           )}
 
           {/* 2. Render Placed Walls with Seamless Connections */}
-          {getMergedWallGroups(gameState.walls).map((group) => {
+          {mergedWallGroups.map((group) => {
             const layout = computeWallLayout(group, gameState.walls);
             const wallTheme = PLAYER_THEMES[group.placedBy] || PLAYER_THEMES[1];
 
@@ -359,7 +369,7 @@ export const GameBoard = forwardRef<GameBoardHandle, GameBoardProps>(({
           })}
 
           {/* 2b. Render Seamless Wall Junction Connectors for Perpendicular Intersections */}
-          {getWallJunctions(gameState.walls).map((junction) => {
+          {wallJunctions.map((junction) => {
             const junctionTheme = PLAYER_THEMES[junction.placedBy] || PLAYER_THEMES[1];
 
             return (

@@ -417,21 +417,27 @@ export default function GamePage() {
       players,
       variant = 'sprint_race',
       roomCode,
+      mySlot: explicitSlot,
     }: {
       boardSize?: number;
-      players: Array<{ id: PlayerId; name: string; emoji?: string }>;
+      players: Array<{ id: PlayerId; name: string; emoji?: string; userId?: string }>;
       variant?: GameVariant;
       roomCode?: string;
+      mySlot?: PlayerId;
     }) => {
       setShowGroups(false);
       sounds.playGameStart();
 
+      const currentUid = user?.id || profile.id;
       const mySlot =
+        explicitSlot ||
+        (currentUid ? players.find((p) => p.userId === currentUid)?.id : undefined) ||
         players.find(
           (p) =>
             p.name.trim().toLowerCase() ===
             (profile.name || playerName || 'Player 1').trim().toLowerCase()
-        )?.id || 1;
+        )?.id ||
+        1;
 
       const isHostRole = mySlot === 1;
 
@@ -463,7 +469,9 @@ export default function GamePage() {
       setCurrentView('game');
 
       setIsPartyMatch(true);
+      isPartyMatchRef.current = true;
       setDepartedPlayerIds([]);
+      departedPlayerIdsRef.current = [];
       setInGameAlert(null);
 
       // Subscribe to multiplayer game room for party moves & sync
@@ -472,26 +480,90 @@ export default function GamePage() {
         (payload) => {
           if (payload.type === 'MOVE_PAWN') {
             sounds.playMove();
-            setGameState((prev) => applyPawnMove(prev, payload.target).nextState);
+            if (payload.state) {
+              setGameState(payload.state);
+              if (payload.state.winner) {
+                sounds.playWin();
+              }
+            } else {
+              setGameState((prev) => {
+                const next = applyPawnMove(prev, payload.target).nextState;
+                if (next.winner) sounds.playWin();
+                return next;
+              });
+            }
           } else if (payload.type === 'PLACE_WALL') {
             sounds.playWall();
-            setGameState(
-              (prev) =>
-                applyWallPlacement(prev, {
-                  r: payload.r,
-                  c: payload.c,
-                  orientation: payload.orientation,
-                }).nextState
-            );
+            if (payload.state) {
+              setGameState(payload.state);
+            } else {
+              setGameState(
+                (prev) =>
+                  applyWallPlacement(prev, {
+                    r: payload.r,
+                    c: payload.c,
+                    orientation: payload.orientation,
+                  }).nextState
+              );
+            }
+          } else if (payload.type === 'VICTORY') {
+            sounds.playWin();
+            setGameState((prev) => ({
+              ...(payload.state || prev),
+              winner: payload.winner,
+              status:
+                payload.winner === 1
+                  ? 'player1_won'
+                  : payload.winner === 2
+                  ? 'player2_won'
+                  : 'game_over',
+            }));
+          } else if (payload.type === 'TURN_TIMEOUT') {
+            sounds.playAlert();
+            if (payload.state) {
+              setGameState(payload.state);
+            } else {
+              setGameState((prev) => ({
+                ...prev,
+                currentTurn: payload.currentTurn,
+              }));
+            }
+          } else if (payload.type === 'REQUEST_SYNC') {
+            if (isHostRole && gameStateRef.current) {
+              broadcast({
+                type: 'SYNC_STATE',
+                state: gameStateRef.current,
+              });
+            }
+          } else if (payload.type === 'RESTART_GAME') {
+            handleRestart();
           } else if (payload.type === 'SYNC_STATE') {
             setGameState(payload.state);
+            if (payload.state.winner) {
+              sounds.playWin();
+            }
           } else if (payload.type === 'PLAYER_LEFT') {
             if (payload.playerId !== mySlot) {
               handleOpponentLeft(payload.playerId, payload.playerName);
             }
           }
         },
-        () => {},
+        (status) => {
+          if (status === 'SUBSCRIBED') {
+            if (isHostRole) {
+              broadcast({
+                type: 'SYNC_STATE',
+                state: initialState,
+              });
+            } else {
+              // Request current state from host upon subscribing
+              broadcast({
+                type: 'REQUEST_SYNC',
+                requestedBy: mySlot,
+              });
+            }
+          }
+        },
         {
           playerId: mySlot,
           playerName: profile.name || playerName || `Player ${mySlot}`,
@@ -512,19 +584,36 @@ export default function GamePage() {
         });
       }
     },
-    [profile.name, playerName, handleOpponentLeft]
+    [user?.id, profile.id, profile.name, playerName, handleOpponentLeft, handleRestart]
   );
 
   // Turn Timeout for King of the Core Party Mode
   const handleTurnTimeout = useCallback(() => {
     if (gameState.status !== 'playing' || gameState.winner) return;
+
+    // In online mode, only the player whose turn it is (or the host) coordinates the timeout
+    if (mode === 'online') {
+      const isMyTimeout = gameState.currentTurn === clientPlayerId;
+      const isHostFallback = clientPlayerId === 1;
+      if (!isMyTimeout && !isHostFallback) return;
+    }
+
     const nextTurn = getNextTurnPlayerId(gameState);
-    sounds.playAlert();
-    setGameState((prev) => ({
-      ...prev,
+    const nextState: GameState = {
+      ...gameState,
       currentTurn: nextTurn,
-    }));
-  }, [gameState]);
+    };
+    sounds.playAlert();
+    setGameState(nextState);
+
+    if (mode === 'online' && realtimeBroadcastRef.current) {
+      realtimeBroadcastRef.current({
+        type: 'TURN_TIMEOUT',
+        currentTurn: nextTurn,
+        state: nextState,
+      });
+    }
+  }, [gameState, mode, clientPlayerId]);
 
   // Resign Match
   const handleResign = useCallback(() => {
@@ -847,7 +936,19 @@ export default function GamePage() {
         type: 'MOVE_PAWN',
         playerId: clientPlayerId,
         target,
+        state: res.nextState,
       });
+
+      // If this move resulted in a win, broadcast VICTORY event to guarantee all players receive pop up
+      if (res.nextState.winner) {
+        sounds.playWin();
+        realtimeBroadcastRef.current({
+          type: 'VICTORY',
+          winner: res.nextState.winner,
+          state: res.nextState,
+          winnerName: res.nextState.players[res.nextState.winner]?.name,
+        });
+      }
     }
   };
 
@@ -865,6 +966,7 @@ export default function GamePage() {
         type: 'PLACE_WALL',
         playerId: clientPlayerId,
         ...placement,
+        state: res.nextState,
       });
     }
   }, [gameState, mode, clientPlayerId]);
@@ -1128,17 +1230,37 @@ export default function GamePage() {
             sounds.playWall();
           } else if (payload.type === 'MOVE_PAWN') {
             sounds.playMove();
-            setGameState((prev) => applyPawnMove(prev, payload.target).nextState);
+            if (payload.state) {
+              setGameState(payload.state);
+              if (payload.state.winner) sounds.playWin();
+            } else {
+              setGameState((prev) => {
+                const next = applyPawnMove(prev, payload.target).nextState;
+                if (next.winner) sounds.playWin();
+                return next;
+              });
+            }
           } else if (payload.type === 'PLACE_WALL') {
             sounds.playWall();
-            setGameState(
-              (prev) =>
-                applyWallPlacement(prev, {
-                  r: payload.r,
-                  c: payload.c,
-                  orientation: payload.orientation,
-                }).nextState
-            );
+            if (payload.state) {
+              setGameState(payload.state);
+            } else {
+              setGameState(
+                (prev) =>
+                  applyWallPlacement(prev, {
+                    r: payload.r,
+                    c: payload.c,
+                    orientation: payload.orientation,
+                  }).nextState
+              );
+            }
+          } else if (payload.type === 'VICTORY') {
+            sounds.playWin();
+            setGameState((prev) => ({
+              ...(payload.state || prev),
+              winner: payload.winner,
+              status: payload.winner === 1 ? 'player1_won' : payload.winner === 2 ? 'player2_won' : 'game_over',
+            }));
           } else if (payload.type === 'RESTART_GAME') {
             handleRestart();
           } else if (payload.type === 'REMATCH_REQUEST') {

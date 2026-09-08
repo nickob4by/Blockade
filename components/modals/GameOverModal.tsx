@@ -59,6 +59,10 @@ export const GameOverModal: React.FC<GameOverModalProps> = ({
 
   const winningPlayer = gameState.players[winner];
   const isClientWinner = clientPlayerId ? winner === clientPlayerId : false;
+  const isMultiplayerParty =
+    gameState.variant === 'core_race' ||
+    gameState.variant === 'sprint_race' ||
+    Object.values(gameState.players).filter((p) => !p.isEliminated).length > 2;
 
   useEffect(() => {
     sounds.playWin();
@@ -163,8 +167,28 @@ export const GameOverModal: React.FC<GameOverModalProps> = ({
 
           {/* Action buttons */}
           <div className="space-y-3 mt-4">
-            {/* Non-online mode: Simple Play Again */}
-            {gameState.mode !== 'online' && (
+            {/* Multiplayer Party Mode (3+ players, Sprint Race, or Core Race) */}
+            {isMultiplayerParty ? (
+              <>
+                {/* Host has Play Again button */}
+                {(!clientPlayerId || clientPlayerId === 1) ? (
+                  <button
+                    type="button"
+                    onClick={onRestart}
+                    className="w-full py-3 px-4 rounded-xl font-bold text-white text-sm sm:text-base flex items-center justify-center gap-2 shadow-sm transition-transform active:scale-95 bg-amber-600 hover:bg-amber-500"
+                  >
+                    <RotateCcw className="w-4 h-4" />
+                    Play Again
+                  </button>
+                ) : (
+                  <div className="p-3 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-700 dark:text-amber-400 text-xs font-semibold flex items-center justify-center gap-2">
+                    <Loader2 className="w-3.5 h-3.5 animate-spin text-amber-500" />
+                    <span>Waiting for host to restart match...</span>
+                  </div>
+                )}
+              </>
+            ) : gameState.mode !== 'online' ? (
+              /* Non-online 1v1 mode: Simple Play Again */
               <button
                 type="button"
                 onClick={onRestart}
@@ -177,10 +201,8 @@ export const GameOverModal: React.FC<GameOverModalProps> = ({
                 <RotateCcw className="w-4 h-4" />
                 Play Again
               </button>
-            )}
-
-            {/* Online mode: Interactive Rematch Flow */}
-            {gameState.mode === 'online' && (
+            ) : (
+              /* 1v1 Online mode: Interactive Rematch Flow */
               <>
                 {/* Rematch Request Received: Prompt user to Accept or Decline */}
                 {rematchStatus === 'received' && (

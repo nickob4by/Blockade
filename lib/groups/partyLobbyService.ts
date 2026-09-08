@@ -135,12 +135,14 @@ export function subscribeToPartyLobby(
       .on('broadcast', { event: 'lobby_sync' }, ({ payload }) => {
         const cur = lobbyChannelRegistry.get(topicKey);
         if (!cur || !payload) return;
+        const variant = payload.variant || 'sprint_race';
+        const defaultMax = variant === 'core_race' ? 6 : 10;
         const lobby: ActiveLobbyInfo = {
           hostId: payload.hostId,
           hostName: payload.hostName || 'Host',
           hostEmoji: payload.hostEmoji,
-          variant: payload.variant || 'sprint_race',
-          maxPlayers: payload.maxPlayers || 4,
+          variant,
+          maxPlayers: payload.maxPlayers || defaultMax,
           currentPlayers: payload.members ? payload.members.length : payload.currentPlayers || 1,
           members: Array.isArray(payload.members) ? payload.members : [],
           updatedAt: Date.now(),
@@ -155,12 +157,14 @@ export function subscribeToPartyLobby(
       .on('broadcast', { event: 'lobby_announce' }, ({ payload }) => {
         const cur = lobbyChannelRegistry.get(topicKey);
         if (!cur || !payload) return;
+        const variant = payload.variant || 'sprint_race';
+        const defaultMax = variant === 'core_race' ? 6 : 10;
         const lobby: ActiveLobbyInfo = {
           hostId: payload.hostId,
           hostName: payload.hostName || 'Host',
           hostEmoji: payload.hostEmoji,
-          variant: payload.variant || 'sprint_race',
-          maxPlayers: payload.maxPlayers || 4,
+          variant,
+          maxPlayers: payload.maxPlayers || defaultMax,
           currentPlayers: payload.members ? payload.members.length : payload.currentPlayers || 1,
           members: Array.isArray(payload.members) ? payload.members : [],
           updatedAt: Date.now(),

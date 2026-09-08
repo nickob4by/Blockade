@@ -32,7 +32,7 @@ export function getSupabaseClient(): SupabaseClient | null {
     supabaseInstance = createClient(supabaseUrl, supabaseAnonKey, {
       realtime: {
         params: {
-          eventsPerSecond: 10,
+          eventsPerSecond: 40,
         },
       },
     });

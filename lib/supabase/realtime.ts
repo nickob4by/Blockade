@@ -7,8 +7,10 @@ export type RealtimePayload =
   | { type: 'PLAYER_JOIN_ACK'; playerId: PlayerId; playerName: string; playerEmoji?: string }
   | { type: 'REQUEST_SYNC'; requestedBy: PlayerId }
   | { type: 'SYNC_STATE'; state: GameState }
-  | { type: 'MOVE_PAWN'; playerId: PlayerId; target: Coordinate }
-  | { type: 'PLACE_WALL'; playerId: PlayerId; r: number; c: number; orientation: WallOrientation }
+  | { type: 'MOVE_PAWN'; playerId: PlayerId; target: Coordinate; state?: GameState }
+  | { type: 'PLACE_WALL'; playerId: PlayerId; r: number; c: number; orientation: WallOrientation; state?: GameState }
+  | { type: 'VICTORY'; winner: PlayerId; state: GameState; winnerName?: string }
+  | { type: 'TURN_TIMEOUT'; currentTurn: PlayerId; state: GameState }
   | { type: 'RESTART_GAME'; requestedBy: PlayerId }
   | { type: 'CHAT_EMOTE'; playerId: PlayerId; emote: string }
   | { type: 'PLAYER_LEFT'; playerId: PlayerId; playerName?: string }
@@ -45,7 +47,7 @@ export function subscribeToGameRoom(
   const cleanCode = roomCode.trim().toUpperCase();
   const channel = supabase.channel(`game:${cleanCode}`, {
     config: {
-      broadcast: { self: false },
+      broadcast: { self: false, ack: false },
       presence: presenceInfo ? { key: String(presenceInfo.playerId) } : undefined,
     },
   });

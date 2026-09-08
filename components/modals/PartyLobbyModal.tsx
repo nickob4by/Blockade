@@ -57,8 +57,9 @@ export const PartyLobbyModal: React.FC<PartyLobbyModalProps> = ({
   const [gameVariant, setGameVariant] = useState<GameVariant>(
     initialLobby?.variant || 'sprint_race'
   );
+  const defaultMaxPlayers = (initialLobby?.variant || 'sprint_race') === 'core_race' ? 6 : 10;
   const [maxPlayers, setMaxPlayers] = useState<number>(
-    initialLobby?.maxPlayers || 4
+    initialLobby?.maxPlayers || defaultMaxPlayers
   );
   const [lobbyMembers, setLobbyMembers] = useState<PartyLobbyMember[]>(() => {
     if (isHost) {
