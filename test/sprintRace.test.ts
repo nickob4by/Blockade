@@ -25,53 +25,53 @@ test('Sprint Race - Dynamic Board Config for 2 to 10 players', () => {
   assert.equal(config2.spawns[2].r, 8);
   assert.notEqual(config2.spawns[1].c, config2.spawns[2].c);
 
-  // 3 & 4 Players: 11x11 board, 6 walls each
+  // 3 & 4 Players: 9x9 board
   const config3 = getSprintRaceConfig(3);
-  assert.equal(config3.boardSize, 11);
+  assert.equal(config3.boardSize, 9);
   assert.equal(config3.wallsPerPlayer, 6);
   for (let p = 1; p <= 3; p++) {
-    assert.equal(config3.spawns[p as PlayerId].r, 10);
+    assert.equal(config3.spawns[p as PlayerId].r, 8);
   }
 
   const config4 = getSprintRaceConfig(4);
-  assert.equal(config4.boardSize, 11);
-  assert.equal(config4.wallsPerPlayer, 6);
+  assert.equal(config4.boardSize, 9);
+  assert.equal(config4.wallsPerPlayer, 5);
   const cols4 = new Set<number>();
   for (let p = 1; p <= 4; p++) {
-    assert.equal(config4.spawns[p as PlayerId].r, 10);
+    assert.equal(config4.spawns[p as PlayerId].r, 8);
     cols4.add(config4.spawns[p as PlayerId].c);
   }
   assert.equal(cols4.size, 4, 'All 4 players must have unique start columns');
 
-  // 5 & 6 Players: 15x15 board, 5 walls each
+  // 5 & 6 Players: 11x11 board, 5 walls each
   const config6 = getSprintRaceConfig(6);
-  assert.equal(config6.boardSize, 15);
+  assert.equal(config6.boardSize, 11);
   assert.equal(config6.wallsPerPlayer, 5);
   const cols6 = new Set<number>();
   for (let p = 1; p <= 6; p++) {
-    assert.equal(config6.spawns[p as PlayerId].r, 14);
+    assert.equal(config6.spawns[p as PlayerId].r, 10);
     cols6.add(config6.spawns[p as PlayerId].c);
   }
   assert.equal(cols6.size, 6, 'All 6 players must have unique start columns');
 
-  // 7 & 8 Players: 17x17 board, 4 walls each
+  // 7 & 8 Players: 13x13 board, 4 walls each
   const config8 = getSprintRaceConfig(8);
-  assert.equal(config8.boardSize, 17);
+  assert.equal(config8.boardSize, 13);
   assert.equal(config8.wallsPerPlayer, 4);
   const cols8 = new Set<number>();
   for (let p = 1; p <= 8; p++) {
-    assert.equal(config8.spawns[p as PlayerId].r, 16);
+    assert.equal(config8.spawns[p as PlayerId].r, 12);
     cols8.add(config8.spawns[p as PlayerId].c);
   }
   assert.equal(cols8.size, 8, 'All 8 players must have unique start columns');
 
-  // 9 & 10 Players: 21x21 board, 4 walls each
+  // 9 & 10 Players: 15x15 board, 3 walls each
   const config10 = getSprintRaceConfig(10);
-  assert.equal(config10.boardSize, 21);
-  assert.equal(config10.wallsPerPlayer, 4);
+  assert.equal(config10.boardSize, 15);
+  assert.equal(config10.wallsPerPlayer, 3);
   const cols10 = new Set<number>();
   for (let p = 1; p <= 10; p++) {
-    assert.equal(config10.spawns[p as PlayerId].r, 20);
+    assert.equal(config10.spawns[p as PlayerId].r, 14);
     cols10.add(config10.spawns[p as PlayerId].c);
   }
   assert.equal(cols10.size, 10, 'All 10 players must have unique start columns');
@@ -111,7 +111,7 @@ test('Sprint Race - State Initialization with 2 and 5 players', () => {
     { id: 5, name: 'P5' },
   ]);
   assert.equal(p5State.variant, 'sprint_race');
-  assert.equal(p5State.boardSize, 15);
+  assert.equal(p5State.boardSize, 11);
   assert.equal(getActivePlayerIds(p5State).length, 5);
   assert.equal(p5State.players[5].name, 'P5');
   assert.equal(p5State.players[5].wallsLeft, 5);

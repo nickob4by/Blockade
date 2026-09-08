@@ -107,7 +107,7 @@ test('Multiplayer Sync - Winning move triggers victory and populates winner for 
   ];
 
   let state = createInitialSprintRaceState(players);
-  // Set Player 4 at row 1, col 9 (one step from finish line at row 0)
+  // Set Player 4 at row 1, col 7 (one step from finish line at row 0 on 9x9 board)
   state = {
     ...state,
     currentTurn: 4,
@@ -115,13 +115,13 @@ test('Multiplayer Sync - Winning move triggers victory and populates winner for 
       ...state.players,
       4: {
         ...state.players[4],
-        position: { r: 1, c: 9 },
+        position: { r: 1, c: 7 },
       },
     },
   };
 
   // Player 4 steps into row 0 (finish line)
-  const winningMove = applyPawnMove(state, { r: 0, c: 9 });
+  const winningMove = applyPawnMove(state, { r: 0, c: 7 });
   assert.equal(winningMove.success, true);
   assert.equal(winningMove.nextState.winner, 4, 'Winner must be Player 4');
   assert.equal(winningMove.nextState.status, 'game_over', 'Status must be game_over');

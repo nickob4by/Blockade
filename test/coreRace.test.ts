@@ -18,44 +18,44 @@ import {
 } from '../lib/game/pathfinding';
 import { Coordinate, PlayerId, Wall } from '../lib/game/types';
 
-test('Core Race - Dynamic Board Config for 3 Players (13x13, 6 walls, distance 6)', () => {
+test('Core Race - Dynamic Board Config for 3 Players (9x9, 6 walls, distance 4)', () => {
   const config = getCoreRaceConfig(3);
-  assert.equal(config.boardSize, 13);
+  assert.equal(config.boardSize, 9);
   assert.equal(config.wallsPerPlayer, 6);
   assert.equal(config.coreTargets.length, 1);
-  assert.deepEqual(config.coreTargets[0], { r: 6, c: 6 });
+  assert.deepEqual(config.coreTargets[0], { r: 4, c: 4 });
 
   const core = config.coreTargets[0];
   const p1Dist = Math.abs(config.spawns[1].r - core.r) + Math.abs(config.spawns[1].c - core.c);
   const p2Dist = Math.abs(config.spawns[2].r - core.r) + Math.abs(config.spawns[2].c - core.c);
   const p3Dist = Math.abs(config.spawns[3].r - core.r) + Math.abs(config.spawns[3].c - core.c);
 
-  assert.equal(p1Dist, 6, 'P1 distance to core must be 6');
-  assert.equal(p2Dist, 6, 'P2 distance to core must be 6');
-  assert.equal(p3Dist, 6, 'P3 distance to core must be 6');
+  assert.equal(p1Dist, 4, 'P1 distance to core must be 4');
+  assert.equal(p2Dist, 4, 'P2 distance to core must be 4');
+  assert.equal(p3Dist, 4, 'P3 distance to core must be 4');
 });
 
-test('Core Race - Dynamic Board Config for 4 and 6 Players (15x15, distance 7)', () => {
+test('Core Race - Dynamic Board Config for 4 and 6 Players (9x9 and 11x11, distance 4 and 5)', () => {
   const config4 = getCoreRaceConfig(4);
-  assert.equal(config4.boardSize, 15);
-  assert.equal(config4.wallsPerPlayer, 7);
-  assert.deepEqual(config4.coreTargets[0], { r: 7, c: 7 });
+  assert.equal(config4.boardSize, 9);
+  assert.equal(config4.wallsPerPlayer, 5);
+  assert.deepEqual(config4.coreTargets[0], { r: 4, c: 4 });
 
   const core4 = config4.coreTargets[0];
   for (let p = 1; p <= 4; p++) {
     const spawn = config4.spawns[p as PlayerId];
     const dist = Math.abs(spawn.r - core4.r) + Math.abs(spawn.c - core4.c);
-    assert.equal(dist, 7, `Player ${p} distance to core on 15x15 must be exactly 7`);
+    assert.equal(dist, 4, `Player ${p} distance to core on 9x9 must be exactly 4`);
   }
 
   const config6 = getCoreRaceConfig(6);
-  assert.equal(config6.boardSize, 15);
-  assert.equal(config6.wallsPerPlayer, 6);
+  assert.equal(config6.boardSize, 11);
+  assert.equal(config6.wallsPerPlayer, 5);
   const core6 = config6.coreTargets[0];
   for (let p = 1; p <= 6; p++) {
     const spawn = config6.spawns[p as PlayerId];
     const dist = Math.abs(spawn.r - core6.r) + Math.abs(spawn.c - core6.c);
-    assert.equal(dist, 7, `Player ${p} distance to core in 6-player match must be exactly 7`);
+    assert.equal(dist, 5, `Player ${p} distance to core in 6-player match must be exactly 5`);
   }
 });
 
@@ -68,7 +68,7 @@ test('Core Race - State Initialization with 3 Players', () => {
 
   assert.equal(state.variant, 'core_race');
   assert.equal(state.mode, 'party');
-  assert.equal(state.boardSize, 13);
+  assert.equal(state.boardSize, 9);
   assert.equal(state.players[1].name, 'Alice');
   assert.equal(state.players[2].name, 'Bob');
   assert.equal(state.players[3].name, 'Charlie');
@@ -119,41 +119,41 @@ test('Core Race - Win Condition by Stepping into Center Core', () => {
     { id: 3, name: 'Charlie' },
   ]);
 
-  // Position Player 1 adjacent to center core (6, 6)
+  // Position Player 1 adjacent to center core (4, 4)
   const preWinState = {
     ...state,
     players: {
       ...state.players,
       1: {
         ...state.players[1],
-        position: { r: 7, c: 6 }, // 1 step South of core (6, 6)
+        position: { r: 5, c: 4 }, // 1 step South of core (4, 4)
       },
     },
     currentTurn: 1 as PlayerId,
   };
 
-  const moveRes = applyPawnMove(preWinState, { r: 6, c: 6 });
+  const moveRes = applyPawnMove(preWinState, { r: 4, c: 4 });
   assert.equal(moveRes.success, true);
   assert.equal(moveRes.nextState.winner, 1);
   assert.ok(moveRes.nextState.status !== 'playing');
 });
 
 test('Core Race - BFS Center Core Pathfinding & Anti-Trapping', () => {
-  const boardSize = 13;
-  const coreTargets = [{ r: 6, c: 6 }];
+  const boardSize = 9;
+  const coreTargets = [{ r: 4, c: 4 }];
   const walls: Wall[] = [];
 
-  const path = findShortestPathToTargets({ r: 12, c: 6 }, coreTargets, walls, boardSize);
+  const path = findShortestPathToTargets({ r: 8, c: 4 }, coreTargets, walls, boardSize);
   assert.ok(path !== null);
-  assert.equal(path.length, 7); // Start + 6 steps = 7 nodes
+  assert.equal(path.length, 5); // Start + 4 steps = 5 nodes
 
-  // Construct state and verify that a wall placement operates on the expanded board
+  // Construct state and verify that a wall placement operates on the board
   const state = createInitialCoreRaceState([
     { id: 1, name: 'Alice' },
     { id: 2, name: 'Bob' },
     { id: 3, name: 'Charlie' },
   ]);
 
-  const wallCheck = canPlaceWall(state, { r: 6, c: 6, orientation: 'H' });
+  const wallCheck = canPlaceWall(state, { r: 4, c: 4, orientation: 'H' });
   assert.equal(wallCheck.valid, true);
 });

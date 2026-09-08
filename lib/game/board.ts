@@ -135,69 +135,72 @@ export interface CoreRaceConfig {
 }
 
 export function getCoreRaceConfig(playerCount: number): CoreRaceConfig {
-  if (playerCount <= 3) {
-    const boardSize = 13;
-    const center = 6;
+  if (playerCount <= 4) {
+    // 3 or 4 players: compact 9x9 board, center is (4, 4), distance is exactly 4
+    const boardSize = 9;
+    const center = 4;
+    const coreTargets = [{ r: center, c: center }];
+
+    if (playerCount <= 3) {
+      return {
+        boardSize,
+        wallsPerPlayer: 6,
+        coreTargets,
+        spawns: {
+          1: { r: 8, c: 4 },  // South (dist 4)
+          2: { r: 4, c: 0 },  // West (dist 4)
+          3: { r: 4, c: 8 },  // East (dist 4)
+          4: { r: 0, c: 4 },  // Fallback
+          5: { r: 0, c: 0 },
+          6: { r: 8, c: 8 },
+          7: { r: 8, c: 0 },
+          8: { r: 0, c: 8 },
+          9: { r: 4, c: 4 },
+          10: { r: 0, c: 0 },
+        },
+      };
+    }
+
+    // 4 players: 4 cardinal directions (South, North, West, East), 5 walls each
     return {
       boardSize,
-      wallsPerPlayer: 6,
-      coreTargets: [{ r: center, c: center }],
-      spawns: {
-        1: { r: 12, c: 6 }, // South (dist 6)
-        2: { r: 6, c: 0 },  // West (dist 6)
-        3: { r: 6, c: 12 }, // East (dist 6)
-        4: { r: 0, c: 6 },  // Fallback
-        5: { r: 0, c: 0 },
-        6: { r: 12, c: 12 },
-        7: { r: 12, c: 0 },
-        8: { r: 0, c: 12 },
-        9: { r: 6, c: 6 },
-        10: { r: 0, c: 0 },
-      },
-    };
-  }
-
-  // 4, 5, or 6 players: 15x15 board, center is (7, 7)
-  const boardSize = 15;
-  const center = 7;
-  const coreTargets = [{ r: center, c: center }];
-
-  if (playerCount === 4) {
-    return {
-      boardSize,
-      wallsPerPlayer: 7,
+      wallsPerPlayer: 5,
       coreTargets,
       spawns: {
-        1: { r: 14, c: 7 }, // South (dist 7)
-        2: { r: 0, c: 7 },  // North (dist 7)
-        3: { r: 7, c: 0 },  // West (dist 7)
-        4: { r: 7, c: 14 }, // East (dist 7)
-        5: { r: 3, c: 4 },
-        6: { r: 11, c: 10 },
-        7: { r: 3, c: 10 },
-        8: { r: 11, c: 4 },
+        1: { r: 8, c: 4 },  // South (dist 4)
+        2: { r: 0, c: 4 },  // North (dist 4)
+        3: { r: 4, c: 0 },  // West (dist 4)
+        4: { r: 4, c: 8 },  // East (dist 4)
+        5: { r: 2, c: 3 },
+        6: { r: 6, c: 5 },
+        7: { r: 2, c: 5 },
+        8: { r: 6, c: 3 },
         9: { r: 0, c: 0 },
-        10: { r: 14, c: 14 },
+        10: { r: 8, c: 8 },
       },
     };
   }
 
-  // 5 or 6 players: 6 equidistant spawns on distance-7 perimeter
+  // 5 or 6 players: 11x11 board, center is (5, 5), distance is exactly 5
+  const boardSize = 11;
+  const center = 5;
+  const coreTargets = [{ r: center, c: center }];
+
   return {
     boardSize,
-    wallsPerPlayer: 6,
+    wallsPerPlayer: 5,
     coreTargets,
     spawns: {
-      1: { r: 14, c: 7 },  // South (dist 7)
-      2: { r: 0, c: 7 },   // North (dist 7)
-      3: { r: 3, c: 4 },   // North-West (dist 7)
-      4: { r: 3, c: 10 },  // North-East (dist 7)
-      5: { r: 11, c: 4 },  // South-West (dist 7)
-      6: { r: 11, c: 10 }, // South-East (dist 7)
-      7: { r: 7, c: 0 },
-      8: { r: 7, c: 14 },
+      1: { r: 10, c: 5 }, // South (dist 5)
+      2: { r: 0, c: 5 },  // North (dist 5)
+      3: { r: 2, c: 3 },  // North-West (dist 5)
+      4: { r: 2, c: 7 },  // North-East (dist 5)
+      5: { r: 8, c: 3 },  // South-West (dist 5)
+      6: { r: 8, c: 7 },  // South-East (dist 5)
+      7: { r: 5, c: 0 },
+      8: { r: 5, c: 10 },
       9: { r: 0, c: 0 },
-      10: { r: 14, c: 14 },
+      10: { r: 10, c: 10 },
     },
   };
 }
@@ -218,21 +221,18 @@ export function getSprintRaceConfig(playerCount: number): SprintRaceConfig {
   let boardSize = 9;
   let wallsPerPlayer = 10;
 
-  if (count === 2) {
+  if (count <= 4) {
     boardSize = 9;
-    wallsPerPlayer = 10;
-  } else if (count <= 4) {
-    boardSize = 11;
-    wallsPerPlayer = 6;
+    wallsPerPlayer = count === 2 ? 10 : count === 3 ? 6 : 5;
   } else if (count <= 6) {
-    boardSize = 15;
+    boardSize = 11;
     wallsPerPlayer = 5;
   } else if (count <= 8) {
-    boardSize = 17;
+    boardSize = 13;
     wallsPerPlayer = 4;
   } else {
-    boardSize = 21;
-    wallsPerPlayer = 4;
+    boardSize = 15;
+    wallsPerPlayer = 3;
   }
 
   const startRow = boardSize - 1;
@@ -254,65 +254,66 @@ export function getSprintRaceConfig(playerCount: number): SprintRaceConfig {
     spawns[1] = { r: startRow, c: 2 };
     spawns[2] = { r: startRow, c: 6 };
   } else if (count === 3) {
-    // 11x11 Grid
-    spawns[1] = { r: startRow, c: 2 };
-    spawns[2] = { r: startRow, c: 5 };
-    spawns[3] = { r: startRow, c: 8 };
-  } else if (count === 4) {
-    // 11x11 Grid
-    spawns[1] = { r: startRow, c: 1 };
-    spawns[2] = { r: startRow, c: 4 };
-    spawns[3] = { r: startRow, c: 6 };
-    spawns[4] = { r: startRow, c: 9 };
-  } else if (count === 5) {
-    // 15x15 Grid
+    // 9x9 Grid: cols 1, 4, 7
     spawns[1] = { r: startRow, c: 1 };
     spawns[2] = { r: startRow, c: 4 };
     spawns[3] = { r: startRow, c: 7 };
-    spawns[4] = { r: startRow, c: 10 };
-    spawns[5] = { r: startRow, c: 13 };
-  } else if (count === 6) {
-    // 15x15 Grid
+  } else if (count === 4) {
+    // 9x9 Grid: cols 1, 3, 5, 7
     spawns[1] = { r: startRow, c: 1 };
     spawns[2] = { r: startRow, c: 3 };
-    spawns[3] = { r: startRow, c: 6 };
-    spawns[4] = { r: startRow, c: 8 };
-    spawns[5] = { r: startRow, c: 11 };
-    spawns[6] = { r: startRow, c: 13 };
-  } else if (count === 7) {
-    // 17x17 Grid
-    spawns[1] = { r: startRow, c: 1 };
-    spawns[2] = { r: startRow, c: 3 };
-    spawns[3] = { r: startRow, c: 6 };
-    spawns[4] = { r: startRow, c: 8 };
-    spawns[5] = { r: startRow, c: 10 };
-    spawns[6] = { r: startRow, c: 13 };
-    spawns[7] = { r: startRow, c: 15 };
-  } else if (count === 8) {
-    // 17x17 Grid
+    spawns[3] = { r: startRow, c: 5 };
+    spawns[4] = { r: startRow, c: 7 };
+  } else if (count === 5) {
+    // 11x11 Grid: cols 1, 3, 5, 7, 9
     spawns[1] = { r: startRow, c: 1 };
     spawns[2] = { r: startRow, c: 3 };
     spawns[3] = { r: startRow, c: 5 };
     spawns[4] = { r: startRow, c: 7 };
     spawns[5] = { r: startRow, c: 9 };
-    spawns[6] = { r: startRow, c: 11 };
-    spawns[7] = { r: startRow, c: 13 };
-    spawns[8] = { r: startRow, c: 15 };
+  } else if (count === 6) {
+    // 11x11 Grid: cols 0, 2, 4, 6, 8, 10
+    spawns[1] = { r: startRow, c: 0 };
+    spawns[2] = { r: startRow, c: 2 };
+    spawns[3] = { r: startRow, c: 4 };
+    spawns[4] = { r: startRow, c: 6 };
+    spawns[5] = { r: startRow, c: 8 };
+    spawns[6] = { r: startRow, c: 10 };
+  } else if (count === 7) {
+    // 13x13 Grid: cols 0, 2, 4, 6, 8, 10, 12
+    spawns[1] = { r: startRow, c: 0 };
+    spawns[2] = { r: startRow, c: 2 };
+    spawns[3] = { r: startRow, c: 4 };
+    spawns[4] = { r: startRow, c: 6 };
+    spawns[5] = { r: startRow, c: 8 };
+    spawns[6] = { r: startRow, c: 10 };
+    spawns[7] = { r: startRow, c: 12 };
+  } else if (count === 8) {
+    // 13x13 Grid: cols 0, 1, 3, 5, 7, 9, 11, 12
+    spawns[1] = { r: startRow, c: 0 };
+    spawns[2] = { r: startRow, c: 1 };
+    spawns[3] = { r: startRow, c: 3 };
+    spawns[4] = { r: startRow, c: 5 };
+    spawns[5] = { r: startRow, c: 7 };
+    spawns[6] = { r: startRow, c: 9 };
+    spawns[7] = { r: startRow, c: 11 };
+    spawns[8] = { r: startRow, c: 12 };
   } else if (count === 9) {
-    // 21x21 Grid
-    spawns[1] = { r: startRow, c: 2 };
-    spawns[2] = { r: startRow, c: 4 };
-    spawns[3] = { r: startRow, c: 6 };
-    spawns[4] = { r: startRow, c: 8 };
-    spawns[5] = { r: startRow, c: 10 };
-    spawns[6] = { r: startRow, c: 12 };
-    spawns[7] = { r: startRow, c: 14 };
-    spawns[8] = { r: startRow, c: 16 };
-    spawns[9] = { r: startRow, c: 18 };
+    // 15x15 Grid: cols 0, 2, 4, 6, 7, 8, 10, 12, 14
+    spawns[1] = { r: startRow, c: 0 };
+    spawns[2] = { r: startRow, c: 2 };
+    spawns[3] = { r: startRow, c: 4 };
+    spawns[4] = { r: startRow, c: 6 };
+    spawns[5] = { r: startRow, c: 7 };
+    spawns[6] = { r: startRow, c: 8 };
+    spawns[7] = { r: startRow, c: 10 };
+    spawns[8] = { r: startRow, c: 12 };
+    spawns[9] = { r: startRow, c: 14 };
   } else {
-    // 10 players on 21x21 Grid: Alternating odd columns
+    // 10 players on 15x15 Grid: cols 0, 1, 3, 5, 6, 8, 9, 11, 13, 14
+    const cols = [0, 1, 3, 5, 6, 8, 9, 11, 13, 14];
     for (let i = 1; i <= 10; i++) {
-      spawns[i as PlayerId] = { r: startRow, c: 2 * i - 1 };
+      spawns[i as PlayerId] = { r: startRow, c: cols[i - 1] };
     }
   }
 
