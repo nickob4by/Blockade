@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { Wall } from '../lib/game/types';
-import { getMergedWallGroups, computeWallLayout } from '../lib/game/wallLayout';
+import { getMergedWallGroups, computeWallLayout, getWallJunctions } from '../lib/game/wallLayout';
 
 test('Wall Layout - getMergedWallGroups merges collinear same-player horizontal walls', () => {
   const walls: Wall[] = [
@@ -94,10 +94,63 @@ test('Wall Layout - Perpendicular corner connection seamlessly bridges the inter
   // Outer corner is rounded at bottom-right, open end is rounded at left
   assert.equal(hLayout.roundedClass, 'wall-rounded-l wall-rounded-br');
 
-  // V meets H at the bottom: rounded-t-[6px], border-b-0, marginBottom: -2px, wall-slab-connected-bottom (no downward shadow!)
+  // V meets H at the bottom: rounded-t-[6px], border-b-0, wall-slab-connected-bottom (no downward shadow!)
   assert.equal(vLayout.roundedClass, 'wall-rounded-t');
   assert.equal(vLayout.borderClass, 'border-b-0');
   assert.equal(vLayout.shadowClass, 'wall-slab-connected-bottom');
-  assert.equal(vLayout.marginBottom, '-2px');
-  assert.equal(vLayout.zIndex, 22);
+
+  // getWallJunctions generates a seamless junction connector at (r=6, c=3)
+  const junctions = getWallJunctions(walls);
+  assert.equal(junctions.length, 1);
+  const j = junctions[0];
+  assert.equal(j.r, 6);
+  assert.equal(j.c, 3);
+  assert.equal(j.placedBy, 1);
+  assert.equal(j.borderClasses, 'border-b border-r');
+  assert.equal(j.roundedClasses, 'wall-rounded-br');
+  assert.equal(j.top, '-1.5px'); // Bridges into V above
+  assert.equal(j.left, '-1.5px'); // Bridges into H to the left
+  assert.equal(j.bottom, '0px');
+  assert.equal(j.right, '0px');
 });
+
+test('Wall Layout - getWallJunctions correctly bridges all 4 junctions in a multi-wall structure', () => {
+  const walls: Wall[] = [
+    // Top horizontal wall: covers c=2, c=3. Right end touches Groove 3
+    { r: 1, c: 2, orientation: 'H', placedBy: 1 },
+    // Left vertical wall: at Groove 2
+    { r: 2, c: 2, orientation: 'V', placedBy: 1 },
+    // Right vertical wall: at Groove 3
+    { r: 2, c: 3, orientation: 'V', placedBy: 1 },
+    // Bottom horizontal wall: covers c=0, c=2, c=4
+    { r: 3, c: 0, orientation: 'H', placedBy: 1 },
+    { r: 3, c: 2, orientation: 'H', placedBy: 1 },
+    { r: 3, c: 4, orientation: 'H', placedBy: 1 },
+  ];
+
+  const junctions = getWallJunctions(walls);
+  assert.equal(junctions.length, 4);
+
+  // Top-left T-junction (r=1, c=2)
+  const jTopLeft = junctions.find((j) => j.r === 1 && j.c === 2)!;
+  assert.equal(jTopLeft.borderClasses, 'border-t');
+  assert.equal(jTopLeft.bottom, '-1.5px'); // extends into V below
+
+  // Top-right L-corner (r=1, c=3)
+  const jTopRight = junctions.find((j) => j.r === 1 && j.c === 3)!;
+  assert.equal(jTopRight.borderClasses, 'border-t border-r');
+  assert.equal(jTopRight.roundedClasses, 'wall-rounded-tr');
+  assert.equal(jTopRight.bottom, '-1.5px'); // extends into V below
+  assert.equal(jTopRight.left, '-1.5px'); // extends into H left
+
+  // Bottom-left T-junction (r=3, c=2)
+  const jBottomLeft = junctions.find((j) => j.r === 3 && j.c === 2)!;
+  assert.equal(jBottomLeft.borderClasses, 'border-b');
+  assert.equal(jBottomLeft.top, '-1.5px'); // extends into V above
+
+  // Bottom-right T-junction (r=3, c=3)
+  const jBottomRight = junctions.find((j) => j.r === 3 && j.c === 3)!;
+  assert.equal(jBottomRight.borderClasses, 'border-b');
+  assert.equal(jBottomRight.top, '-1.5px'); // extends into V above
+});
+

@@ -7,7 +7,7 @@ import { canPlaceWall } from '@/lib/game/engine';
 import { getValidPawnMoves } from '@/lib/game/pathfinding';
 import { sounds } from '@/lib/audio/sounds';
 import { User } from 'lucide-react';
-import { getMergedWallGroups, computeWallLayout, MergedWallGroup } from '@/lib/game/wallLayout';
+import { getMergedWallGroups, computeWallLayout, getWallJunctions, MergedWallGroup } from '@/lib/game/wallLayout';
 
 export interface GameBoardHandle {
   getSnappedIntersection: (x: number, y: number) => { r: number; c: number } | null;
@@ -332,6 +332,40 @@ export const GameBoard = forwardRef<GameBoardHandle, GameBoardProps>(({
             );
           })}
 
+          {/* 2b. Render Seamless Wall Junction Connectors for Perpendicular Intersections */}
+          {getWallJunctions(gameState.walls).map((junction) => {
+            const isP1Wall = junction.placedBy === 1;
+
+            return (
+              <div
+                key={`junction-${junction.placedBy}-${junction.r}-${junction.c}`}
+                style={{
+                  gridRowStart: junction.gridRowStart,
+                  gridRowEnd: junction.gridRowEnd,
+                  gridColumnStart: junction.gridColStart,
+                  gridColumnEnd: junction.gridColEnd,
+                  zIndex: 25,
+                }}
+                className="relative w-full h-full pointer-events-none"
+              >
+                <div
+                  style={{
+                    top: junction.top,
+                    bottom: junction.bottom,
+                    left: junction.left,
+                    right: junction.right,
+                    boxShadow: junction.boxShadow,
+                  }}
+                  className={`absolute ${junction.borderClasses} ${junction.roundedClasses} ${
+                    isP1Wall
+                      ? 'bg-blue-600 dark:bg-blue-500 border-blue-400/60 dark:border-blue-300/40'
+                      : 'bg-rose-600 dark:bg-rose-500 border-rose-400/60 dark:border-rose-300/40'
+                  }`}
+                />
+              </div>
+            );
+          })}
+
           {/* 3. Render Wall Intersection Snap Guides (8x8) */}
           {Array.from({ length: BOARD_SIZE - 1 }).map((_, r) =>
             Array.from({ length: BOARD_SIZE - 1 }).map((_, c) => {
@@ -373,27 +407,68 @@ export const GameBoard = forwardRef<GameBoardHandle, GameBoardProps>(({
               wallIds: ['preview'],
             };
             const previewLayout = computeWallLayout(previewGroup, gameState.walls);
+            const previewJunctions = previewWall.isValid
+              ? getWallJunctions([
+                  ...gameState.walls,
+                  {
+                    r: previewWall.r,
+                    c: previewWall.c,
+                    orientation: previewWall.orientation,
+                    placedBy: gameState.currentTurn as 1 | 2,
+                  },
+                ]).filter((j) => j.placedBy === gameState.currentTurn)
+              : [];
+
             return (
-              <div
-                style={{
-                  gridRowStart: previewLayout.gridRowStart,
-                  gridRowEnd: previewLayout.gridRowEnd,
-                  gridColumnStart: previewLayout.gridColStart,
-                  gridColumnEnd: previewLayout.gridColEnd,
-                  marginRight: previewLayout.marginRight,
-                  marginLeft: previewLayout.marginLeft,
-                  marginTop: previewLayout.marginTop,
-                  marginBottom: previewLayout.marginBottom,
-                  zIndex: previewLayout.zIndex ?? 25,
-                }}
-                className={`pointer-events-none self-stretch h-full w-full transition-all duration-75 border ${previewLayout.shadowClass || 'shadow-md'} ${previewLayout.roundedClass} ${previewLayout.borderClass} ${
-                  previewWall.isValid
-                    ? isP1Turn
-                      ? 'bg-blue-500/45 border-blue-400/80 shadow-md'
-                      : 'bg-rose-500/45 border-rose-400/80 shadow-md'
-                    : 'bg-red-500/35 border-red-400/70 shadow-md animate-pulse'
-                }`}
-              />
+              <>
+                <div
+                  style={{
+                    gridRowStart: previewLayout.gridRowStart,
+                    gridRowEnd: previewLayout.gridRowEnd,
+                    gridColumnStart: previewLayout.gridColStart,
+                    gridColumnEnd: previewLayout.gridColEnd,
+                    marginRight: previewLayout.marginRight,
+                    marginLeft: previewLayout.marginLeft,
+                    marginTop: previewLayout.marginTop,
+                    marginBottom: previewLayout.marginBottom,
+                    zIndex: previewLayout.zIndex ?? 25,
+                  }}
+                  className={`pointer-events-none self-stretch h-full w-full transition-all duration-75 border ${previewLayout.shadowClass || 'shadow-md'} ${previewLayout.roundedClass} ${previewLayout.borderClass} ${
+                    previewWall.isValid
+                      ? isP1Turn
+                        ? 'bg-blue-500/45 border-blue-400/80 shadow-md'
+                        : 'bg-rose-500/45 border-rose-400/80 shadow-md'
+                      : 'bg-red-500/35 border-red-400/70 shadow-md animate-pulse'
+                  }`}
+                />
+                {previewJunctions.map((j) => (
+                  <div
+                    key={`preview-j-${j.r}-${j.c}`}
+                    style={{
+                      gridRowStart: j.gridRowStart,
+                      gridRowEnd: j.gridRowEnd,
+                      gridColumnStart: j.gridColStart,
+                      gridColumnEnd: j.gridColEnd,
+                      zIndex: 26,
+                    }}
+                    className="relative w-full h-full pointer-events-none"
+                  >
+                    <div
+                      style={{
+                        top: j.top,
+                        bottom: j.bottom,
+                        left: j.left,
+                        right: j.right,
+                      }}
+                      className={`absolute ${j.borderClasses} ${j.roundedClasses} ${
+                        isP1Turn
+                          ? 'bg-blue-500/45 border-blue-400/80 shadow-md'
+                          : 'bg-rose-500/45 border-rose-400/80 shadow-md'
+                      }`}
+                    />
+                  </div>
+                ))}
+              </>
             );
           })()}
         </div>

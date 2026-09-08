@@ -332,15 +332,12 @@ export function computeWallLayout(
 
     let marginBottom: string | undefined;
     let marginTop: string | undefined;
-    let zIndex: number | undefined;
 
-    if (hasBottomCollinear || meetsHorizontalBottom) {
-      marginBottom = '-2px';
-      zIndex = 22; // Paint above H's top edge to seamlessly cover the border
+    if (hasBottomCollinear) {
+      marginBottom = '-1px';
     }
-    if (hasTopCollinear || meetsHorizontalTop) {
-      marginTop = '-2px';
-      zIndex = 22;
+    if (hasTopCollinear) {
+      marginTop = '-1px';
     }
 
     return {
@@ -353,7 +350,93 @@ export function computeWallLayout(
       shadowClass,
       marginBottom,
       marginTop,
-      zIndex,
+      zIndex: 20,
     };
   }
 }
+
+export interface WallJunction {
+  r: number;
+  c: number;
+  placedBy: 1 | 2;
+  gridRowStart: number;
+  gridRowEnd: number;
+  gridColStart: number;
+  gridColEnd: number;
+  top: string;
+  bottom: string;
+  left: string;
+  right: string;
+  borderClasses: string;
+  roundedClasses: string;
+  boxShadow?: string;
+}
+
+/**
+ * Computes seamless intersection junction connectors for perpendicular walls of the same player.
+ * These sit at zIndex: 25 and eliminate all internal border cutoffs, lines, and gaps between
+ * horizontal and vertical walls, fusing them into a unified continuous structure.
+ */
+export function getWallJunctions(walls: Wall[]): WallJunction[] {
+  const junctions: WallJunction[] = [];
+
+  for (let r = 0; r < 8; r++) {
+    for (let c = 0; c < 8; c++) {
+      for (const p of [1, 2] as const) {
+        const hasUp = walls.some(
+          (w) => w.placedBy === p && w.orientation === 'V' && w.c === c && (w.r === r - 1 || w.r === r)
+        );
+        const hasDown = walls.some(
+          (w) => w.placedBy === p && w.orientation === 'V' && w.c === c && (w.r === r || w.r === r + 1)
+        );
+        const hasLeft = walls.some(
+          (w) => w.placedBy === p && w.orientation === 'H' && w.r === r && (w.c === c - 1 || w.c === c)
+        );
+        const hasRight = walls.some(
+          (w) => w.placedBy === p && w.orientation === 'H' && w.r === r && (w.c === c || w.c === c + 1)
+        );
+
+        const vCount = (hasUp ? 1 : 0) + (hasDown ? 1 : 0);
+        const hCount = (hasLeft ? 1 : 0) + (hasRight ? 1 : 0);
+
+        // A junction connects at least one vertical arm and at least one horizontal arm
+        if (vCount > 0 && hCount > 0) {
+          const borderTop = !hasUp ? 'border-t' : '';
+          const borderBottom = !hasDown ? 'border-b' : '';
+          const borderLeft = !hasLeft ? 'border-l' : '';
+          const borderRight = !hasRight ? 'border-r' : '';
+          const borderClasses = [borderTop, borderBottom, borderLeft, borderRight].filter(Boolean).join(' ');
+
+          const roundedTL = !hasUp && !hasLeft ? 'wall-rounded-tl' : '';
+          const roundedTR = !hasUp && !hasRight ? 'wall-rounded-tr' : '';
+          const roundedBL = !hasDown && !hasLeft ? 'wall-rounded-bl' : '';
+          const roundedBR = !hasDown && !hasRight ? 'wall-rounded-br' : '';
+          const roundedClasses = [roundedTL, roundedTR, roundedBL, roundedBR].filter(Boolean).join(' ');
+
+          // Top highlight inset if top edge is exterior
+          const boxShadow = !hasUp ? 'inset 0 1px 0 rgba(255, 255, 255, 0.22)' : undefined;
+
+          junctions.push({
+            r,
+            c,
+            placedBy: p,
+            gridRowStart: 2 * r + 2,
+            gridRowEnd: 2 * r + 3,
+            gridColStart: 2 * c + 2,
+            gridColEnd: 2 * c + 3,
+            top: hasUp ? '-1.5px' : '0px',
+            bottom: hasDown ? '-1.5px' : '0px',
+            left: hasLeft ? '-1.5px' : '0px',
+            right: hasRight ? '-1.5px' : '0px',
+            borderClasses,
+            roundedClasses,
+            boxShadow,
+          });
+        }
+      }
+    }
+  }
+
+  return junctions;
+}
+
