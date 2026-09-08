@@ -4,8 +4,22 @@ import React, { createContext, useContext, useEffect, useState, useMemo } from '
 import { User } from '@supabase/supabase-js';
 import { getSupabaseClient, isSupabaseConfigured } from '@/lib/supabase/client';
 import { unsubscribeAllGroupPresence } from '@/lib/groups/groupService';
-import { normalizeAuthEmail } from './utils';
-export { normalizeAuthEmail } from './utils';
+import {
+  normalizeAuthEmail,
+  RememberedAccount,
+  getRememberedAccounts,
+  getLatestRememberedAccount,
+  saveRememberedAccount,
+  removeRememberedAccount,
+} from './utils';
+export {
+  normalizeAuthEmail,
+  getRememberedAccounts,
+  getLatestRememberedAccount,
+  saveRememberedAccount,
+  removeRememberedAccount,
+};
+export type { RememberedAccount };
 
 export interface UserProfile {
   id: string;
@@ -21,8 +35,18 @@ interface AuthContextType {
   profile: UserProfile;
   isLoading: boolean;
   isConfigured: boolean;
-  signUp: (identifier: string, password: string, displayName: string, emoji?: string) => Promise<void>;
-  signIn: (identifier: string, password: string) => Promise<void>;
+  signUp: (
+    identifier: string,
+    password: string,
+    displayName: string,
+    emoji?: string,
+    rememberMe?: boolean
+  ) => Promise<void>;
+  signIn: (
+    identifier: string,
+    password: string,
+    rememberMe?: boolean
+  ) => Promise<void>;
   signOut: () => Promise<void>;
   setGuestName: (name: string) => void;
   updateProfile: (updates: { name?: string; emoji?: string }) => Promise<void>;
@@ -94,7 +118,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
-  const signUp = async (identifier: string, password: string, displayName: string, emoji?: string) => {
+  const signUp = async (
+    identifier: string,
+    password: string,
+    displayName: string,
+    emoji?: string,
+    rememberMe: boolean = true
+  ) => {
     const cleanName = displayName.trim() || identifier.trim() || 'Player';
     const username = identifier.trim();
 
@@ -115,10 +145,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
 
     // Automatically sign in with credentials to initialize the client session
-    await signIn(username, password);
+    await signIn(username, password, rememberMe);
   };
 
-  const signIn = async (identifier: string, password: string) => {
+  const signIn = async (identifier: string, password: string, rememberMe: boolean = true) => {
     const supabase = getSupabaseClient();
     if (!supabase) {
       throw new Error('Database is not configured yet. Please check .env settings.');
@@ -138,11 +168,28 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     if (data?.user) {
       setUser(data.user);
+      const meta = data.user.user_metadata || {};
       const name =
-        data.user.user_metadata?.display_name ||
-        data.user.user_metadata?.name ||
+        meta.display_name ||
+        meta.name ||
         identifier;
       setGuestName(name);
+
+      const cleanUsername = meta.username || identifier.trim();
+      const cleanDisplayName = meta.display_name || meta.name || cleanUsername;
+      const cleanEmoji = meta.emoji || undefined;
+
+      if (rememberMe) {
+        saveRememberedAccount({
+          username: cleanUsername,
+          displayName: cleanDisplayName,
+          emoji: cleanEmoji,
+          avatarUrl: meta.avatar_url,
+          lastLoginAt: Date.now(),
+        });
+      } else {
+        removeRememberedAccount(cleanUsername);
+      }
     }
   };
 
@@ -191,6 +238,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     if (data?.user) {
       setUser(data.user);
+      const currentUsername = newMetadata.username || user.email?.split('@')[0];
+      if (currentUsername) {
+        saveRememberedAccount({
+          username: currentUsername,
+          displayName: newMetadata.display_name || currentUsername,
+          emoji: newMetadata.emoji,
+          avatarUrl: newMetadata.avatar_url,
+          lastLoginAt: Date.now(),
+        });
+      }
     }
 
     try {

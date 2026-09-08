@@ -8,6 +8,13 @@ import {
   joinGroupByCodeAsync,
   leaveGroup,
 } from '../lib/groups/groupService';
+import {
+  getRememberedAccounts,
+  getLatestRememberedAccount,
+  saveRememberedAccount,
+  removeRememberedAccount,
+  RememberedAccount,
+} from '../lib/auth/utils';
 
 // Mock localStorage in Node test environment
 const storage: Record<string, string> = {};
@@ -310,4 +317,94 @@ test('Active Lobby - Ready State & Minimum Player Start Condition', () => {
   // Bob readies up
   members[2].isReady = true;
   assert.equal(canStart(members), true, 'Can start when all 3 players are ready');
+});
+
+test('Remembered Accounts - Returns empty array when storage is empty', () => {
+  localStorage.clear();
+  assert.deepEqual(getRememberedAccounts(), []);
+  assert.equal(getLatestRememberedAccount(), null);
+});
+
+test('Remembered Accounts - Saves and retrieves a single remembered account', () => {
+  localStorage.clear();
+
+  const account1: RememberedAccount = {
+    username: 'Nicko',
+    displayName: 'Nicko B',
+    emoji: '👑',
+    lastLoginAt: 1000,
+  };
+
+  saveRememberedAccount(account1);
+
+  const stored = getRememberedAccounts();
+  assert.equal(stored.length, 1);
+  assert.equal(stored[0].username, 'Nicko');
+  assert.equal(stored[0].displayName, 'Nicko B');
+  assert.equal(stored[0].emoji, '👑');
+
+  assert.deepEqual(getLatestRememberedAccount(), account1);
+});
+
+test('Remembered Accounts - Updates existing account and moves to front without duplicating', () => {
+  localStorage.clear();
+
+  saveRememberedAccount({
+    username: 'Nicko',
+    displayName: 'Nicko B',
+    emoji: '👑',
+    lastLoginAt: 1000,
+  });
+
+  saveRememberedAccount({
+    username: 'Alice',
+    displayName: 'Alice Fox',
+    emoji: '🦊',
+    lastLoginAt: 2000,
+  });
+
+  // Re-login Nicko with updated display name and emoji
+  saveRememberedAccount({
+    username: 'nicko', // case-insensitive check
+    displayName: 'Nicko Master',
+    emoji: '⚡',
+    lastLoginAt: 3000,
+  });
+
+  const stored = getRememberedAccounts();
+  assert.equal(stored.length, 2, 'Must not duplicate account');
+  assert.equal(stored[0].username, 'nicko');
+  assert.equal(stored[0].displayName, 'Nicko Master');
+  assert.equal(stored[0].emoji, '⚡');
+  assert.equal(stored[1].username, 'Alice');
+
+  assert.equal(getLatestRememberedAccount()?.username, 'nicko');
+});
+
+test('Remembered Accounts - Removes account and falls back to next recent account', () => {
+  localStorage.clear();
+
+  saveRememberedAccount({
+    username: 'Player1',
+    displayName: 'P1',
+    lastLoginAt: 100,
+  });
+  saveRememberedAccount({
+    username: 'Player2',
+    displayName: 'P2',
+    lastLoginAt: 200,
+  });
+
+  assert.equal(getLatestRememberedAccount()?.username, 'Player2');
+
+  removeRememberedAccount('player2'); // case-insensitive removal
+
+  const stored = getRememberedAccounts();
+  assert.equal(stored.length, 1);
+  assert.equal(stored[0].username, 'Player1');
+  assert.equal(getLatestRememberedAccount()?.username, 'Player1');
+
+  removeRememberedAccount('Player1');
+  assert.deepEqual(getRememberedAccounts(), []);
+  assert.equal(getLatestRememberedAccount(), null);
 });
