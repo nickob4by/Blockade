@@ -26,8 +26,9 @@ import {
   Crown,
 } from 'lucide-react';
 import { AuthModal } from './AuthModal';
-import { PartyLobbyModal } from './PartyLobbyModal';
+import { PartyLobbyModal, ActiveLobbyInfo } from './PartyLobbyModal';
 import { PlayerId, GameVariant } from '@/lib/game/types';
+import { getSupabaseClient } from '@/lib/supabase/client';
 import {
   FriendGroup,
   GroupMember,
@@ -48,9 +49,10 @@ interface GroupsModalProps {
   onStartOnlineMatch?: (opponentName: string) => void;
   onChallengePlayer?: (member: GroupMember, group?: FriendGroup, variant?: GameVariant) => void;
   onStartPartyMatch?: (config: {
-    boardSize: number;
+    boardSize?: number;
     players: Array<{ id: PlayerId; name: string; emoji?: string }>;
     variant?: GameVariant;
+    roomCode?: string;
   }) => void;
 }
 
@@ -75,6 +77,8 @@ export const GroupsModal: React.FC<GroupsModalProps> = ({
   const [livePresences, setLivePresences] = useState<Record<string, { name: string; status: MemberStatus; emoji?: string }>>({});
   const [isJoining, setIsJoining] = useState(false);
   const [showPartyLobby, setShowPartyLobby] = useState(false);
+  const [isHostPartyLobby, setIsHostPartyLobby] = useState(true);
+  const [activeLobby, setActiveLobby] = useState<ActiveLobbyInfo | null>(null);
   const [challengeTarget, setChallengeTarget] = useState<GroupMember | null>(null);
   const [challengeVariant, setChallengeVariant] = useState<GameVariant>('classic');
 
@@ -157,6 +161,142 @@ export const GroupsModal: React.FC<GroupsModalProps> = ({
       sub.unsubscribe();
     };
   }, [selectedGroup?.id, selectedGroup?.code, user, currentUserId, currentUserName, profile.emoji]);
+
+  // Real-time Party Lobby subscription & presence for selected group
+  useEffect(() => {
+    if (!selectedGroup || !selectedGroup.code) {
+      setActiveLobby(null);
+      return;
+    }
+
+    const supabase = getSupabaseClient();
+    if (!supabase) return;
+
+    const cleanGroup = selectedGroup.code.trim().toLowerCase();
+    const channelName = `party_lobby:${cleanGroup}`;
+
+    const channel = supabase.channel(channelName, {
+      config: {
+        broadcast: { self: false },
+        presence: { key: `viewer_${currentUserId}` },
+      },
+    });
+
+    const updateLobbyFromPresence = () => {
+      try {
+        const state = channel.presenceState();
+        let foundHostLobby: ActiveLobbyInfo | null = null;
+        for (const presences of Object.values(state)) {
+          if (Array.isArray(presences)) {
+            for (const p of presences as any[]) {
+              if (p?.isHost && p?.hostId) {
+                foundHostLobby = {
+                  hostId: p.hostId,
+                  hostName: p.hostName || 'Host',
+                  hostEmoji: p.hostEmoji,
+                  variant: p.variant || 'sprint_race',
+                  maxPlayers: p.maxPlayers || 4,
+                  currentPlayers: p.currentPlayers || p.members?.length || 1,
+                  members: p.members || [],
+                  updatedAt: p.updatedAt || Date.now(),
+                };
+                break;
+              }
+            }
+          }
+          if (foundHostLobby) break;
+        }
+
+        if (foundHostLobby) {
+          setActiveLobby(foundHostLobby);
+        } else {
+          setActiveLobby((prev) => {
+            if (prev && Date.now() - prev.updatedAt > 6000) {
+              return null;
+            }
+            return prev;
+          });
+        }
+      } catch {
+        // Ignore
+      }
+    };
+
+    channel
+      .on('presence', { event: 'sync' }, updateLobbyFromPresence)
+      .on('presence', { event: 'join' }, updateLobbyFromPresence)
+      .on('presence', { event: 'leave' }, updateLobbyFromPresence)
+      .on('broadcast', { event: 'lobby_announce' }, ({ payload }) => {
+        if (payload?.hostId) {
+          setActiveLobby({
+            hostId: payload.hostId,
+            hostName: payload.hostName || 'Host',
+            hostEmoji: payload.hostEmoji,
+            variant: payload.variant || 'sprint_race',
+            maxPlayers: payload.maxPlayers || 4,
+            currentPlayers: payload.currentPlayers || payload.members?.length || 1,
+            members: payload.members || [],
+            updatedAt: Date.now(),
+          });
+        }
+      })
+      .on('broadcast', { event: 'lobby_sync' }, ({ payload }) => {
+        if (payload?.members) {
+          setActiveLobby((prev) => {
+            if (!prev) {
+              if (!payload.hostId) return null;
+              return {
+                hostId: payload.hostId,
+                hostName: payload.hostName || 'Host',
+                hostEmoji: payload.hostEmoji,
+                variant: payload.variant || 'sprint_race',
+                maxPlayers: payload.maxPlayers || 4,
+                currentPlayers: payload.members.length,
+                members: payload.members,
+                updatedAt: Date.now(),
+              };
+            }
+            return {
+              ...prev,
+              members: payload.members,
+              currentPlayers: payload.members.length,
+              maxPlayers: payload.maxPlayers || prev.maxPlayers,
+              variant: payload.variant || prev.variant,
+              updatedAt: Date.now(),
+            };
+          });
+        }
+      })
+      .on('broadcast', { event: 'lobby_closed' }, () => {
+        setActiveLobby(null);
+      })
+      .subscribe((status) => {
+        if (status === 'SUBSCRIBED') {
+          // Send request to check if a lobby is active
+          channel.send({
+            type: 'broadcast',
+            event: 'request_lobby_info',
+            payload: {},
+          });
+        }
+      });
+
+    // Cleanup interval for stale lobbies
+    const interval = setInterval(() => {
+      setActiveLobby((prev) => {
+        if (prev && Date.now() - prev.updatedAt > 10000) {
+          return null;
+        }
+        return prev;
+      });
+    }, 3000);
+
+    return () => {
+      clearInterval(interval);
+      channel.unsubscribe();
+      supabase.removeChannel(channel);
+    };
+  }, [selectedGroup?.code, currentUserId]);
 
   // Calculate live members for selected group (only real users, no dummy mock bots)
   const resolvedMembers: GroupMember[] = useMemo(() => {
@@ -719,34 +859,130 @@ export const GroupsModal: React.FC<GroupsModalProps> = ({
                 </button>
               </div>
 
-              {/* Group Arena Host Banner */}
-              <div className="p-3.5 rounded-2xl bg-gradient-to-r from-amber-500/15 via-amber-500/10 to-transparent border border-amber-500/30 flex items-center justify-between gap-3 shadow-sm">
-                <div className="flex items-center gap-2.5 min-w-0">
-                  <div className="w-9 h-9 rounded-xl bg-amber-500 text-slate-950 flex items-center justify-center font-extrabold shadow-md flex-shrink-0">
-                    <Swords className="w-5 h-5" />
-                  </div>
-                  <div className="truncate">
-                    <div className="font-extrabold text-xs text-slate-900 dark:text-zinc-100 flex items-center gap-1.5">
-                      <span>Group Arena</span>
-                      <span className="text-[9px] font-bold px-1.5 py-0.2 rounded-full bg-amber-500/20 text-amber-700 dark:text-amber-300">
-                        3-10 Players
-                      </span>
-                    </div>
-                    <div className="text-[10px] text-slate-500 dark:text-zinc-400 mt-0.5">
-                      Choose mode & map · Dynamic 11×11 to 21×21 arena
-                    </div>
-                  </div>
-                </div>
+              {/* Active Party Lobby Card or Default Arena Host Banner */}
+              {activeLobby && activeLobby.hostId !== currentUserId ? (
+                (() => {
+                  const isUserAlreadyInLobby = activeLobby.members.some(
+                    (m) => m.id === currentUserId
+                  );
+                  const isLobbyFull = activeLobby.currentPlayers >= activeLobby.maxPlayers;
 
-                <button
-                  type="button"
-                  onClick={() => setShowPartyLobby(true)}
-                  className="py-2 px-3.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs flex items-center gap-1.5 shadow-md tap-bounce flex-shrink-0"
-                >
-                  <Swords className="w-3.5 h-3.5" />
-                  <span>Host Arena</span>
-                </button>
-              </div>
+                  return (
+                    <div className="p-3.5 rounded-2xl bg-gradient-to-r from-emerald-500/15 via-teal-500/10 to-transparent dark:from-emerald-950/40 dark:via-zinc-900/90 dark:to-zinc-900 border-2 border-emerald-500/50 dark:border-emerald-500/40 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-md shadow-emerald-500/10 animate-fadeIn">
+                      <div className="flex items-center gap-3 min-w-0">
+                        <div className="relative flex-shrink-0">
+                          <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-emerald-500 to-teal-600 text-white flex items-center justify-center font-extrabold text-lg shadow-md">
+                            {activeLobby.hostEmoji || '⚔️'}
+                          </div>
+                          <span className="absolute -top-1 -right-1 flex h-3 w-3">
+                            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                            <span className="relative inline-flex rounded-full h-3 w-3 bg-emerald-500"></span>
+                          </span>
+                        </div>
+                        <div className="truncate">
+                          <div className="font-extrabold text-xs sm:text-sm text-slate-900 dark:text-zinc-100 flex items-center gap-1.5 flex-wrap">
+                            <span className="truncate">{activeLobby.hostName}&apos;s Game</span>
+                            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 border border-emerald-500/30">
+                              {activeLobby.variant === 'sprint_race' ? '⚡ Sprint Race' : '👑 King of the Core'}
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-2 mt-1 text-[11px] text-slate-500 dark:text-zinc-400">
+                            <span className="font-semibold text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
+                              <Users className="w-3.5 h-3.5" />
+                              {activeLobby.currentPlayers}/{activeLobby.maxPlayers} Players
+                            </span>
+                            <span>•</span>
+                            <span>
+                              {isLobbyFull ? 'Lobby Full' : 'Open for members'}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-2 flex-shrink-0">
+                        <button
+                          type="button"
+                          disabled={isLobbyFull && !isUserAlreadyInLobby}
+                          onClick={() => {
+                            setIsHostPartyLobby(false);
+                            setShowPartyLobby(true);
+                          }}
+                          className="w-full sm:w-auto py-2.5 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 disabled:pointer-events-none text-white font-extrabold text-xs flex items-center justify-center gap-1.5 shadow-md shadow-emerald-600/25 tap-bounce transition-all"
+                        >
+                          <Gamepad2 className="w-4 h-4" />
+                          <span>
+                            {isUserAlreadyInLobby ? 'Return to Lobby' : 'Join Lobby'}
+                          </span>
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })()
+              ) : activeLobby && activeLobby.hostId === currentUserId ? (
+                /* Active Lobby: You are Hosting Banner */
+                <div className="p-3.5 rounded-2xl bg-gradient-to-r from-amber-500/20 via-amber-500/10 to-transparent border-2 border-amber-500/50 flex items-center justify-between gap-3 shadow-sm">
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    <div className="w-9 h-9 rounded-xl bg-amber-500 text-slate-950 flex items-center justify-center font-extrabold shadow-md flex-shrink-0 text-base">
+                      {profile.emoji || '👑'}
+                    </div>
+                    <div className="truncate">
+                      <div className="font-extrabold text-xs text-slate-900 dark:text-zinc-100 flex items-center gap-1.5 flex-wrap">
+                        <span>Your Active Lobby</span>
+                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-700 dark:text-amber-300 border border-amber-500/30">
+                          {activeLobby.variant === 'sprint_race' ? '⚡ Sprint Race' : '👑 King of the Core'}
+                        </span>
+                      </div>
+                      <div className="text-[10px] text-slate-500 dark:text-zinc-400 mt-0.5">
+                        {activeLobby.currentPlayers}/{activeLobby.maxPlayers} Players connected · Waiting in lobby
+                      </div>
+                    </div>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsHostPartyLobby(true);
+                      setShowPartyLobby(true);
+                    }}
+                    className="py-2 px-3.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs flex items-center gap-1.5 shadow-md tap-bounce flex-shrink-0"
+                  >
+                    <Crown className="w-3.5 h-3.5" />
+                    <span>Resume Lobby</span>
+                  </button>
+                </div>
+              ) : (
+                /* Group Arena Host Banner */
+                <div className="p-3.5 rounded-2xl bg-gradient-to-r from-amber-500/15 via-amber-500/10 to-transparent border border-amber-500/30 flex items-center justify-between gap-3 shadow-sm">
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    <div className="w-9 h-9 rounded-xl bg-amber-500 text-slate-950 flex items-center justify-center font-extrabold shadow-md flex-shrink-0">
+                      <Swords className="w-5 h-5" />
+                    </div>
+                    <div className="truncate">
+                      <div className="font-extrabold text-xs text-slate-900 dark:text-zinc-100 flex items-center gap-1.5">
+                        <span>Group Arena</span>
+                        <span className="text-[9px] font-bold px-1.5 py-0.2 rounded-full bg-amber-500/20 text-amber-700 dark:text-amber-300">
+                          3-10 Players
+                        </span>
+                      </div>
+                      <div className="text-[10px] text-slate-500 dark:text-zinc-400 mt-0.5">
+                        Choose mode & map · Dynamic 11×11 to 21×21 arena
+                      </div>
+                    </div>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsHostPartyLobby(true);
+                      setShowPartyLobby(true);
+                    }}
+                    className="py-2 px-3.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs flex items-center gap-1.5 shadow-md tap-bounce flex-shrink-0"
+                  >
+                    <Swords className="w-3.5 h-3.5" />
+                    <span>Host Arena</span>
+                  </button>
+                </div>
+              )}
 
               {/* Status Filter Chips */}
               <div className="flex items-center gap-1 overflow-x-auto pb-1 text-[11px]">
@@ -1021,16 +1257,18 @@ export const GroupsModal: React.FC<GroupsModalProps> = ({
           onClose={() => setShowPartyLobby(false)}
           groupCode={selectedGroup.code}
           groupName={selectedGroup.name}
-          isHost={true}
+          isHost={isHostPartyLobby}
           currentUserId={currentUserId}
           currentUserName={currentUserName}
           currentUserEmoji={profile.emoji}
-          onStartMatch={(members, boardSize, variant) => {
+          initialLobby={activeLobby}
+          onStartMatch={(members, boardSize, variant, roomCode) => {
             setShowPartyLobby(false);
             if (onStartPartyMatch) {
               onStartPartyMatch({
                 boardSize,
                 variant,
+                roomCode,
                 players: members.map((m) => ({
                   id: m.slot,
                   name: m.name,

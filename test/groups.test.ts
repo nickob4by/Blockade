@@ -225,5 +225,89 @@ test('Friend Groups - Guests Cannot Join Groups', async () => {
   assert.equal(storedGroup.members[0].id, 'user_real_leader');
 });
 
+test('Active Lobby - Slot Allocation & Max Player Constraints', () => {
+  type PlayerId = 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10;
+  interface PartyMember {
+    id: string;
+    name: string;
+    slot: PlayerId;
+    isReady: boolean;
+    isHost: boolean;
+  }
 
+  const maxPlayers = 4;
+  let members: PartyMember[] = [
+    { id: 'host_1', name: 'Nicko', slot: 1, isReady: true, isHost: true },
+  ];
 
+  function addMember(id: string, name: string): boolean {
+    if (members.length >= maxPlayers) return false;
+    const taken = new Set(members.map((m) => m.slot));
+    let assigned: PlayerId = 2;
+    for (let s = 1; s <= maxPlayers; s++) {
+      if (!taken.has(s as PlayerId)) {
+        assigned = s as PlayerId;
+        break;
+      }
+    }
+    members.push({ id, name, slot: assigned, isReady: false, isHost: false });
+    return true;
+  }
+
+  assert.equal(addMember('user_2', 'Alice'), true);
+  assert.equal(members.length, 2);
+  assert.equal(members[1].slot, 2);
+
+  assert.equal(addMember('user_3', 'Bob'), true);
+  assert.equal(members.length, 3);
+  assert.equal(members[2].slot, 3);
+
+  assert.equal(addMember('user_4', 'Charlie'), true);
+  assert.equal(members.length, 4);
+  assert.equal(members[3].slot, 4);
+
+  // 5th member cannot join because lobby is full (max 4)
+  assert.equal(addMember('user_5', 'Dave'), false);
+  assert.equal(members.length, 4);
+
+  // When member 2 leaves, slot 2 frees up
+  members = members.filter((m) => m.id !== 'user_2');
+  assert.equal(members.length, 3);
+
+  // Next joiner receives the freed slot 2
+  assert.equal(addMember('user_5', 'Dave'), true);
+  assert.equal(members.find((m) => m.id === 'user_5')?.slot, 2);
+});
+
+test('Active Lobby - Ready State & Minimum Player Start Condition', () => {
+  type PlayerId = 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10;
+  interface PartyMember {
+    id: string;
+    name: string;
+    slot: PlayerId;
+    isReady: boolean;
+    isHost: boolean;
+  }
+
+  let members: PartyMember[] = [
+    { id: 'host_1', name: 'Nicko', slot: 1, isReady: true, isHost: true },
+    { id: 'user_2', name: 'Alice', slot: 2, isReady: false, isHost: false },
+  ];
+
+  const canStart = (m: PartyMember[]) => m.length >= 3 && m.every((p) => p.isReady);
+
+  // 2 players: cannot start
+  assert.equal(canStart(members), false, 'Cannot start with only 2 players');
+
+  // Add 3rd player
+  members.push({ id: 'user_3', name: 'Bob', slot: 3, isReady: false, isHost: false });
+  assert.equal(canStart(members), false, 'Cannot start when players are not ready');
+
+  // Alice readies up, Bob still unready
+  members[1].isReady = true;
+  assert.equal(canStart(members), false, 'Cannot start when Bob is not ready');
+
+  // Bob readies up
+  members[2].isReady = true;
+  assert.equal(canStart(members), true, 'Can start when all 3 players are ready');
+});

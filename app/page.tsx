@@ -277,20 +277,16 @@ export default function GamePage() {
     ({
       boardSize,
       players,
-      variant = 'core_race',
+      variant = 'sprint_race',
+      roomCode,
     }: {
       boardSize?: number;
       players: Array<{ id: PlayerId; name: string; emoji?: string }>;
       variant?: GameVariant;
+      roomCode?: string;
     }) => {
       setShowGroups(false);
       sounds.playGameStart();
-      const initialState =
-        variant === 'sprint_race'
-          ? createInitialSprintRaceState(players)
-          : createInitialCoreRaceState(players);
-      setGameState(initialState);
-      setMode('party');
 
       const mySlot =
         players.find(
@@ -299,11 +295,75 @@ export default function GamePage() {
             (profile.name || playerName || 'Player 1').trim().toLowerCase()
         )?.id || 1;
 
+      const isHostRole = mySlot === 1;
+
+      // 1. Clean up any previous room channel & active retry intervals
+      if (channelLeaveRef.current) {
+        channelLeaveRef.current();
+        channelLeaveRef.current = null;
+      }
+      if (handshakeIntervalRef.current) {
+        clearInterval(handshakeIntervalRef.current);
+        handshakeIntervalRef.current = null;
+      }
+
+      const effectiveRoom = (roomCode || `party_arena_${Date.now()}`).trim().toUpperCase();
+      setRoomCode(effectiveRoom);
       setClientPlayerId(mySlot);
+      setIsHost(isHostRole);
+      setMode('online');
+
+      const initialState =
+        variant === 'sprint_race'
+          ? createInitialSprintRaceState(players)
+          : createInitialCoreRaceState(players);
+      initialState.mode = 'online';
+
+      setGameState(initialState);
       setActiveDrag(null);
       activeDragRef.current = null;
+      setCurrentView('game');
+
+      // Subscribe to multiplayer game room for party moves & sync
+      const { broadcast, leave } = subscribeToGameRoom(
+        effectiveRoom,
+        (payload) => {
+          if (payload.type === 'MOVE_PAWN') {
+            sounds.playMove();
+            setGameState((prev) => applyPawnMove(prev, payload.target).nextState);
+          } else if (payload.type === 'PLACE_WALL') {
+            sounds.playWall();
+            setGameState(
+              (prev) =>
+                applyWallPlacement(prev, {
+                  r: payload.r,
+                  c: payload.c,
+                  orientation: payload.orientation,
+                }).nextState
+            );
+          } else if (payload.type === 'SYNC_STATE') {
+            setGameState(payload.state);
+          } else if (payload.type === 'PLAYER_LEFT') {
+            if (payload.playerId !== mySlot) {
+              handleOpponentLeft(payload.playerId, payload.playerName);
+            }
+          }
+        },
+        () => {}
+      );
+
+      channelLeaveRef.current = leave;
+      realtimeBroadcastRef.current = broadcast;
+
+      if (isHostRole) {
+        // Host broadcasts initial canonical state to all players
+        broadcast({
+          type: 'SYNC_STATE',
+          state: initialState,
+        });
+      }
     },
-    [profile.name, playerName]
+    [profile.name, playerName, handleOpponentLeft]
   );
 
   // Turn Timeout for King of the Core Party Mode

@@ -1,25 +1,23 @@
 'use client';
 
-import React, { useState, useEffect, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import {
   X,
   Crown,
   Users,
   Swords,
   Check,
-  Sparkles,
-  ArrowRight,
-  Shield,
   Clock,
   Layers,
-  MapPin,
   Play,
+  Zap,
+  LogOut,
+  AlertCircle,
 } from 'lucide-react';
 import { PlayerId, GameVariant } from '@/lib/game/types';
 import { PLAYER_THEMES, getCoreRaceConfig, getSprintRaceConfig } from '@/lib/game/board';
 import { getSupabaseClient } from '@/lib/supabase/client';
 import { RealtimeChannel } from '@supabase/supabase-js';
-import { Zap } from 'lucide-react';
 
 export interface PartyLobbyMember {
   id: string;
@@ -28,6 +26,17 @@ export interface PartyLobbyMember {
   slot: PlayerId;
   isReady: boolean;
   isHost: boolean;
+}
+
+export interface ActiveLobbyInfo {
+  hostId: string;
+  hostName: string;
+  hostEmoji?: string;
+  variant: GameVariant;
+  maxPlayers: number;
+  currentPlayers: number;
+  members: PartyLobbyMember[];
+  updatedAt: number;
 }
 
 interface PartyLobbyModalProps {
@@ -39,7 +48,13 @@ interface PartyLobbyModalProps {
   currentUserId: string;
   currentUserName: string;
   currentUserEmoji?: string;
-  onStartMatch: (members: PartyLobbyMember[], boardSize: number, variant: GameVariant) => void;
+  initialLobby?: ActiveLobbyInfo | null;
+  onStartMatch: (
+    members: PartyLobbyMember[],
+    boardSize: number,
+    variant: GameVariant,
+    roomCode?: string
+  ) => void;
 }
 
 export const PartyLobbyModal: React.FC<PartyLobbyModalProps> = ({
@@ -51,111 +66,360 @@ export const PartyLobbyModal: React.FC<PartyLobbyModalProps> = ({
   currentUserId,
   currentUserName,
   currentUserEmoji,
+  initialLobby,
   onStartMatch,
 }) => {
-  const [gameVariant, setGameVariant] = useState<GameVariant>('sprint_race');
-  const [maxPlayers, setMaxPlayers] = useState<number>(4);
-  const [lobbyMembers, setLobbyMembers] = useState<PartyLobbyMember[]>([]);
-  const channelRef = useRef<RealtimeChannel | null>(null);
+  const [gameVariant, setGameVariant] = useState<GameVariant>(
+    initialLobby?.variant || 'sprint_race'
+  );
+  const [maxPlayers, setMaxPlayers] = useState<number>(
+    initialLobby?.maxPlayers || 4
+  );
+  const [lobbyMembers, setLobbyMembers] = useState<PartyLobbyMember[]>(() => {
+    if (isHost) {
+      return [
+        {
+          id: currentUserId,
+          name: currentUserName,
+          emoji: currentUserEmoji,
+          slot: 1,
+          isReady: true,
+          isHost: true,
+        },
+      ];
+    }
+    if (initialLobby?.members && initialLobby.members.length > 0) {
+      return initialLobby.members;
+    }
+    return [];
+  });
+  const [closedNotice, setClosedNotice] = useState<string | null>(null);
 
-  // Initialize Host in Slot 1
+  const channelRef = useRef<RealtimeChannel | null>(null);
+  const membersRef = useRef<PartyLobbyMember[]>(lobbyMembers);
+  membersRef.current = lobbyMembers;
+
+  const variantRef = useRef<GameVariant>(gameVariant);
+  variantRef.current = gameVariant;
+
+  const maxPlayersRef = useRef<number>(maxPlayers);
+  maxPlayersRef.current = maxPlayers;
+
+  // Initialize Host or non-host state on open
   useEffect(() => {
     if (isOpen) {
-      const initialHost: PartyLobbyMember = {
-        id: currentUserId,
-        name: currentUserName,
-        emoji: currentUserEmoji,
-        slot: 1,
-        isReady: true,
-        isHost: true,
+      setClosedNotice(null);
+      if (isHost) {
+        const initialHost: PartyLobbyMember = {
+          id: currentUserId,
+          name: currentUserName,
+          emoji: currentUserEmoji,
+          slot: 1,
+          isReady: true,
+          isHost: true,
+        };
+        setLobbyMembers([initialHost]);
+      } else {
+        if (initialLobby?.members && initialLobby.members.length > 0) {
+          setLobbyMembers(initialLobby.members);
+          setGameVariant(initialLobby.variant);
+          setMaxPlayers(initialLobby.maxPlayers);
+        } else {
+          setLobbyMembers([]);
+        }
+      }
+    }
+  }, [isOpen, isHost, currentUserId, currentUserName, currentUserEmoji, initialLobby]);
+
+  // Broadcast state updates to everyone
+  const broadcastLobbyState = useCallback(
+    (
+      updatedMembers: PartyLobbyMember[],
+      newMax: number = maxPlayersRef.current,
+      variant: GameVariant = variantRef.current
+    ) => {
+      const channel = channelRef.current;
+      if (!channel) return;
+
+      const payload = {
+        members: updatedMembers,
+        maxPlayers: newMax,
+        variant,
+        hostId: currentUserId,
+        hostName: currentUserName,
+        hostEmoji: currentUserEmoji,
+        currentPlayers: updatedMembers.length,
+        updatedAt: Date.now(),
       };
 
-      setLobbyMembers([initialHost]);
-    }
-  }, [isOpen, currentUserId, currentUserName, currentUserEmoji]);
+      channel.send({
+        type: 'broadcast',
+        event: 'lobby_sync',
+        payload,
+      });
 
-  // Realtime Lobby Broadcast & Presence
+      channel.send({
+        type: 'broadcast',
+        event: 'lobby_announce',
+        payload,
+      });
+
+      // Also track presence if host
+      if (isHost) {
+        channel
+          .track({
+            isHost: true,
+            hostId: currentUserId,
+            hostName: currentUserName,
+            hostEmoji: currentUserEmoji,
+            variant,
+            maxPlayers: newMax,
+            currentPlayers: updatedMembers.length,
+            members: updatedMembers,
+            updatedAt: Date.now(),
+          })
+          .catch(() => {});
+      }
+    },
+    [isHost, currentUserId, currentUserName, currentUserEmoji]
+  );
+
+  // Realtime Lobby Broadcast, Slot Assignment & Presence
   useEffect(() => {
     if (!isOpen || !groupCode) return;
 
     const supabase = getSupabaseClient();
+    if (!supabase) return;
+
     const cleanGroup = groupCode.trim().toLowerCase();
     const channelName = `party_lobby:${cleanGroup}`;
 
-    if (supabase) {
-      const channel = supabase.channel(channelName, {
-        config: { broadcast: { self: false } },
-      });
+    const channel = supabase.channel(channelName, {
+      config: {
+        broadcast: { self: false },
+        presence: { key: currentUserId },
+      },
+    });
 
-      channel
-        .on('broadcast', { event: 'lobby_sync' }, ({ payload }) => {
-          if (payload?.members) {
-            setLobbyMembers(payload.members);
-          }
-          if (payload?.maxPlayers) {
-            setMaxPlayers(payload.maxPlayers);
-          }
-          if (payload?.variant) {
-            setGameVariant(payload.variant);
-          }
-        })
-        .on('broadcast', { event: 'lobby_start' }, ({ payload }) => {
-          if (payload?.members && payload?.boardSize) {
-            onStartMatch(payload.members, payload.boardSize, payload.variant || 'core_race');
-            onClose();
-          }
-        });
+    // 1. Listen for full lobby sync
+    channel.on('broadcast', { event: 'lobby_sync' }, ({ payload }) => {
+      if (payload?.members && Array.isArray(payload.members)) {
+        setLobbyMembers(payload.members);
+      }
+      if (payload?.maxPlayers) {
+        setMaxPlayers(payload.maxPlayers);
+      }
+      if (payload?.variant) {
+        setGameVariant(payload.variant);
+      }
+    });
 
-      channel.subscribe((status) => {
-        if (status === 'SUBSCRIBED') {
-          // If not host, request sync or announce self
-          if (!isHost) {
-            channel.send({
-              type: 'broadcast',
-              event: 'member_join',
-              payload: {
-                id: currentUserId,
-                name: currentUserName,
-                emoji: currentUserEmoji,
-              },
-            });
-          }
+    // 2. Listen for member joining (handled by Host)
+    channel.on('broadcast', { event: 'member_join' }, ({ payload }) => {
+      if (!isHost) return;
+      if (!payload?.id) return;
+
+      const curMembers = membersRef.current;
+      const curMax = maxPlayersRef.current;
+      const curVariant = variantRef.current;
+
+      const existingIndex = curMembers.findIndex((m) => m.id === payload.id);
+      if (existingIndex !== -1) {
+        // Already registered: update name/emoji and re-sync
+        const updated = curMembers.map((m) =>
+          m.id === payload.id
+            ? { ...m, name: payload.name || m.name, emoji: payload.emoji || m.emoji }
+            : m
+        );
+        setLobbyMembers(updated);
+        broadcastLobbyState(updated, curMax, curVariant);
+        return;
+      }
+
+      if (curMembers.length >= curMax) {
+        // Lobby full, cannot add
+        return;
+      }
+
+      // Assign first available slot between 2 and curMax
+      const takenSlots = new Set(curMembers.map((m) => m.slot));
+      let assignedSlot: PlayerId = 2;
+      for (let s = 1; s <= curMax; s++) {
+        if (!takenSlots.has(s as PlayerId)) {
+          assignedSlot = s as PlayerId;
+          break;
         }
-      });
+      }
 
-      channelRef.current = channel;
-
-      return () => {
-        channel.unsubscribe();
-        supabase.removeChannel(channel);
+      const newMember: PartyLobbyMember = {
+        id: payload.id,
+        name: payload.name || `Player ${assignedSlot}`,
+        emoji: payload.emoji,
+        slot: assignedSlot,
+        isReady: false,
+        isHost: false,
       };
-    }
-  }, [isOpen, groupCode, isHost, currentUserId, currentUserName, currentUserEmoji, onStartMatch, onClose]);
 
-  // Broadcast state updates to other members
-  const broadcastLobbyState = (
-    updatedMembers: PartyLobbyMember[],
-    newMax: number = maxPlayers,
-    variant: GameVariant = gameVariant
-  ) => {
-    if (channelRef.current) {
-      channelRef.current.send({
-        type: 'broadcast',
-        event: 'lobby_sync',
-        payload: { members: updatedMembers, maxPlayers: newMax, variant },
-      });
+      const updated = [...curMembers, newMember];
+      setLobbyMembers(updated);
+      broadcastLobbyState(updated, curMax, curVariant);
+    });
+
+    // 3. Listen for ready toggle (handled by Host)
+    channel.on('broadcast', { event: 'member_ready' }, ({ payload }) => {
+      if (!isHost) return;
+      if (!payload?.id) return;
+
+      const curMembers = membersRef.current;
+      const updated = curMembers.map((m) =>
+        m.id === payload.id ? { ...m, isReady: Boolean(payload.isReady) } : m
+      );
+      setLobbyMembers(updated);
+      broadcastLobbyState(updated, maxPlayersRef.current, variantRef.current);
+    });
+
+    // 4. Listen for member leaving (handled by Host)
+    channel.on('broadcast', { event: 'member_leave' }, ({ payload }) => {
+      if (!isHost) return;
+      if (!payload?.id) return;
+
+      const curMembers = membersRef.current;
+      const updated = curMembers.filter((m) => m.id !== payload.id);
+      setLobbyMembers(updated);
+      broadcastLobbyState(updated, maxPlayersRef.current, variantRef.current);
+    });
+
+    // 5. Listen for requests from viewers in GroupsModal
+    channel.on('broadcast', { event: 'request_lobby_info' }, () => {
+      if (isHost) {
+        broadcastLobbyState(membersRef.current, maxPlayersRef.current, variantRef.current);
+      }
+    });
+
+    // 6. Listen for lobby closed (Host left or cancelled)
+    channel.on('broadcast', { event: 'lobby_closed' }, () => {
+      if (!isHost) {
+        setClosedNotice('The host has closed the party lobby.');
+        setTimeout(() => {
+          onClose();
+        }, 1500);
+      }
+    });
+
+    // 7. Listen for match start
+    channel.on('broadcast', { event: 'lobby_start' }, ({ payload }) => {
+      if (payload?.members && payload?.boardSize) {
+        onStartMatch(
+          payload.members,
+          payload.boardSize,
+          payload.variant || 'sprint_race',
+          payload.roomCode
+        );
+        onClose();
+      }
+    });
+
+    // Presence track & subscribe
+    channel.subscribe((status) => {
+      if (status === 'SUBSCRIBED') {
+        if (isHost) {
+          channel
+            .track({
+              isHost: true,
+              hostId: currentUserId,
+              hostName: currentUserName,
+              hostEmoji: currentUserEmoji,
+              variant: gameVariant,
+              maxPlayers,
+              currentPlayers: membersRef.current.length,
+              members: membersRef.current,
+              updatedAt: Date.now(),
+            })
+            .catch(() => {});
+
+          // Announce immediately upon subscribing
+          broadcastLobbyState(membersRef.current, maxPlayers, gameVariant);
+        } else {
+          // Joiner announces self immediately
+          channel.send({
+            type: 'broadcast',
+            event: 'member_join',
+            payload: {
+              id: currentUserId,
+              name: currentUserName,
+              emoji: currentUserEmoji,
+            },
+          });
+        }
+      }
+    });
+
+    channelRef.current = channel;
+
+    // Host heartbeat: re-announce every 2.5s so opening players immediately discover lobby
+    let heartbeat: NodeJS.Timeout | null = null;
+    if (isHost) {
+      heartbeat = setInterval(() => {
+        if (channelRef.current) {
+          broadcastLobbyState(membersRef.current, maxPlayersRef.current, variantRef.current);
+        }
+      }, 2500);
     }
-  };
+
+    return () => {
+      if (heartbeat) clearInterval(heartbeat);
+
+      // Notify departure
+      if (isHost) {
+        try {
+          channel.send({
+            type: 'broadcast',
+            event: 'lobby_closed',
+            payload: { hostId: currentUserId },
+          });
+          channel.untrack();
+        } catch {}
+      } else {
+        try {
+          channel.send({
+            type: 'broadcast',
+            event: 'member_leave',
+            payload: { id: currentUserId },
+          });
+        } catch {}
+      }
+
+      channel.unsubscribe();
+      supabase.removeChannel(channel);
+    };
+  }, [
+    isOpen,
+    groupCode,
+    isHost,
+    currentUserId,
+    currentUserName,
+    currentUserEmoji,
+    broadcastLobbyState,
+    onStartMatch,
+    onClose,
+  ]);
 
   // Toggle ready status for non-host
   const handleToggleReady = () => {
-    setLobbyMembers((prev) => {
-      const updated = prev.map((m) =>
-        m.id === currentUserId ? { ...m, isReady: !m.isReady } : m
-      );
-      broadcastLobbyState(updated);
-      return updated;
-    });
+    const me = lobbyMembers.find((m) => m.id === currentUserId);
+    const nextReady = !me?.isReady;
+
+    setLobbyMembers((prev) =>
+      prev.map((m) => (m.id === currentUserId ? { ...m, isReady: nextReady } : m))
+    );
+
+    if (channelRef.current) {
+      channelRef.current.send({
+        type: 'broadcast',
+        event: 'member_ready',
+        payload: { id: currentUserId, isReady: nextReady },
+      });
+    }
   };
 
   // Host starts the match
@@ -165,6 +429,9 @@ export const PartyLobbyModal: React.FC<PartyLobbyModalProps> = ({
         ? getSprintRaceConfig(lobbyMembers.length)
         : getCoreRaceConfig(lobbyMembers.length);
 
+    const cleanGroup = groupCode.trim().toLowerCase();
+    const partyRoomCode = `party_${cleanGroup}`;
+
     if (channelRef.current) {
       channelRef.current.send({
         type: 'broadcast',
@@ -173,10 +440,39 @@ export const PartyLobbyModal: React.FC<PartyLobbyModalProps> = ({
           members: lobbyMembers,
           boardSize: config.boardSize,
           variant: gameVariant,
+          roomCode: partyRoomCode,
         },
       });
+
+      // Clear lobby advertisement from group view
+      channelRef.current.send({
+        type: 'broadcast',
+        event: 'lobby_closed',
+        payload: { hostId: currentUserId, reason: 'match_started' },
+      });
     }
-    onStartMatch(lobbyMembers, config.boardSize, gameVariant);
+
+    onStartMatch(lobbyMembers, config.boardSize, gameVariant, partyRoomCode);
+    onClose();
+  };
+
+  // Leave / Close modal
+  const handleLeaveLobby = () => {
+    if (channelRef.current) {
+      if (isHost) {
+        channelRef.current.send({
+          type: 'broadcast',
+          event: 'lobby_closed',
+          payload: { hostId: currentUserId },
+        });
+      } else {
+        channelRef.current.send({
+          type: 'broadcast',
+          event: 'member_leave',
+          payload: { id: currentUserId },
+        });
+      }
+    }
     onClose();
   };
 
@@ -195,6 +491,14 @@ export const PartyLobbyModal: React.FC<PartyLobbyModalProps> = ({
   return (
     <div className="fixed inset-0 z-[70] flex items-center justify-center p-3.5 bg-black/80 backdrop-blur-md animate-fadeIn">
       <div className="relative w-full max-w-md p-5 rounded-3xl bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 shadow-2xl space-y-4 max-h-[92vh] overflow-y-auto">
+        {/* Notice Toast when lobby is closed */}
+        {closedNotice && (
+          <div className="p-3 rounded-2xl bg-amber-500/15 border border-amber-500/30 text-amber-700 dark:text-amber-300 text-xs font-bold flex items-center gap-2 animate-fadeIn">
+            <AlertCircle className="w-4 h-4 flex-shrink-0" />
+            <span>{closedNotice}</span>
+          </div>
+        )}
+
         {/* Header */}
         <div className="flex items-center justify-between pb-3 border-b border-slate-200 dark:border-zinc-800">
           <div className="flex items-center gap-2.5">
@@ -211,7 +515,7 @@ export const PartyLobbyModal: React.FC<PartyLobbyModalProps> = ({
                   {gameVariant === 'sprint_race' ? 'Sprint Race' : 'King of the Core'}
                 </h3>
                 <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20">
-                  Party Mode
+                  {isHost ? 'Host' : 'Party Lobby'}
                 </span>
               </div>
               <p className="text-xs text-slate-500 dark:text-zinc-400">
@@ -222,7 +526,7 @@ export const PartyLobbyModal: React.FC<PartyLobbyModalProps> = ({
 
           <button
             type="button"
-            onClick={onClose}
+            onClick={handleLeaveLobby}
             className="p-1.5 rounded-xl hover:bg-slate-100 dark:hover:bg-zinc-800 text-slate-500 dark:text-zinc-400 transition-colors"
           >
             <X className="w-4 h-4" />
@@ -430,6 +734,8 @@ export const PartyLobbyModal: React.FC<PartyLobbyModalProps> = ({
               <span>
                 {lobbyMembers.length < 3
                   ? `Need at least 3 players (${lobbyMembers.length}/3)`
+                  : !lobbyMembers.every((m) => m.isReady)
+                  ? 'Waiting for all players to ready up...'
                   : `Start ${gameVariant === 'sprint_race' ? 'Sprint Race' : 'King of the Core'}`}
               </span>
             </button>
@@ -450,10 +756,11 @@ export const PartyLobbyModal: React.FC<PartyLobbyModalProps> = ({
 
           <button
             type="button"
-            onClick={onClose}
-            className="w-full py-2 px-4 rounded-xl text-xs font-semibold text-slate-500 hover:text-slate-800 dark:text-zinc-400 dark:hover:text-zinc-200 text-center transition-colors"
+            onClick={handleLeaveLobby}
+            className="w-full py-2 px-4 rounded-xl text-xs font-semibold text-slate-500 hover:text-slate-800 dark:text-zinc-400 dark:hover:text-zinc-200 text-center transition-colors flex items-center justify-center gap-1.5"
           >
-            Leave Lobby
+            <LogOut className="w-3.5 h-3.5" />
+            <span>Leave Lobby</span>
           </button>
         </div>
       </div>
