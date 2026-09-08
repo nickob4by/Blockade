@@ -8,7 +8,6 @@ import {
   Swords,
   Check,
   Clock,
-  Layers,
   Play,
   Zap,
   LogOut,
@@ -446,40 +445,6 @@ export const PartyLobbyModal: React.FC<PartyLobbyModalProps> = ({
               {gameVariant === 'sprint_race' ? '⚡ Sprint Race' : '👑 King of the Core'}
             </span>
           )}
-        </div>
-
-        {/* Dynamic Board Configuration Banner */}
-        <div className="p-3.5 rounded-2xl bg-slate-50 dark:bg-zinc-950 border border-slate-200 dark:border-zinc-800 space-y-2 text-xs">
-          <div className="flex items-center justify-between">
-            <span className="font-semibold text-slate-700 dark:text-zinc-300 flex items-center gap-1.5">
-              <Layers className="w-3.5 h-3.5 text-sky-500" />
-              Dynamic Map Scaler
-            </span>
-            <span className="font-mono font-bold text-sky-600 dark:text-sky-400">
-              {dynamicConfig.boardSize}x{dynamicConfig.boardSize} Grid
-            </span>
-          </div>
-
-          <div className="grid grid-cols-3 gap-2 text-center pt-1">
-            <div className="p-2 rounded-xl bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800">
-              <div className="text-[10px] text-slate-500 dark:text-zinc-400">Grid Size</div>
-              <div className="font-bold text-xs text-slate-800 dark:text-zinc-100 mt-0.5">
-                {dynamicConfig.boardSize}x{dynamicConfig.boardSize}
-              </div>
-            </div>
-            <div className="p-2 rounded-xl bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800">
-              <div className="text-[10px] text-slate-500 dark:text-zinc-400">Walls / Player</div>
-              <div className="font-bold text-xs text-slate-800 dark:text-zinc-100 mt-0.5">
-                {dynamicConfig.wallsPerPlayer} Walls
-              </div>
-            </div>
-            <div className="p-2 rounded-xl bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800">
-              <div className="text-[10px] text-slate-500 dark:text-zinc-400">Goal Target</div>
-              <div className="font-bold text-xs text-slate-800 dark:text-zinc-100 mt-0.5 text-amber-600 dark:text-amber-400 truncate">
-                {gameVariant === 'sprint_race' ? 'Row 0 Finish' : 'Center Core'}
-              </div>
-            </div>
-          </div>
         </div>
 
         {/* Player Slots */}
