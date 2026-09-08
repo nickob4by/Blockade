@@ -719,21 +719,21 @@ export const GroupsModal: React.FC<GroupsModalProps> = ({
                 </button>
               </div>
 
-              {/* King of the Core Party Host Banner */}
+              {/* Group Arena Host Banner */}
               <div className="p-3.5 rounded-2xl bg-gradient-to-r from-amber-500/15 via-amber-500/10 to-transparent border border-amber-500/30 flex items-center justify-between gap-3 shadow-sm">
                 <div className="flex items-center gap-2.5 min-w-0">
                   <div className="w-9 h-9 rounded-xl bg-amber-500 text-slate-950 flex items-center justify-center font-extrabold shadow-md flex-shrink-0">
-                    <Crown className="w-5 h-5" />
+                    <Swords className="w-5 h-5" />
                   </div>
                   <div className="truncate">
                     <div className="font-extrabold text-xs text-slate-900 dark:text-zinc-100 flex items-center gap-1.5">
-                      <span>King of the Core</span>
+                      <span>Group Arena</span>
                       <span className="text-[9px] font-bold px-1.5 py-0.2 rounded-full bg-amber-500/20 text-amber-700 dark:text-amber-300">
-                        3-6 Players
+                        3-10 Players
                       </span>
                     </div>
                     <div className="text-[10px] text-slate-500 dark:text-zinc-400 mt-0.5">
-                      Dynamic 13x13 & 15x15 map · Race to the center
+                      Choose mode & map · Dynamic 11×11 to 21×21 arena
                     </div>
                   </div>
                 </div>
@@ -743,8 +743,8 @@ export const GroupsModal: React.FC<GroupsModalProps> = ({
                   onClick={() => setShowPartyLobby(true)}
                   className="py-2 px-3.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs flex items-center gap-1.5 shadow-md tap-bounce flex-shrink-0"
                 >
-                  <Crown className="w-3.5 h-3.5 fill-current" />
-                  <span>Host Match</span>
+                  <Swords className="w-3.5 h-3.5" />
+                  <span>Host Arena</span>
                 </button>
               </div>
 
