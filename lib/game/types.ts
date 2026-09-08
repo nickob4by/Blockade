@@ -1,4 +1,4 @@
-export type PlayerId = 1 | 2 | 3 | 4 | 5 | 6;
+export type PlayerId = 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10;
 
 export interface Coordinate {
   r: number;
@@ -14,7 +14,17 @@ export interface Wall {
   placedBy: PlayerId;
 }
 
-export type PlayerColorTheme = 'blue' | 'rose' | 'emerald' | 'amber' | 'purple' | 'cyan';
+export type PlayerColorTheme =
+  | 'blue'
+  | 'rose'
+  | 'emerald'
+  | 'amber'
+  | 'purple'
+  | 'cyan'
+  | 'lime'
+  | 'fuchsia'
+  | 'orange'
+  | 'indigo';
 
 export interface PlayerState {
   id: PlayerId;
@@ -32,7 +42,7 @@ export type GameStatus = 'waiting' | 'playing' | 'player1_won' | 'player2_won' |
 
 export type GameMode = 'local' | 'ai' | 'online' | 'party';
 
-export type GameVariant = 'classic' | 'core_race';
+export type GameVariant = 'classic' | 'core_race' | 'sprint_race';
 
 export interface MoveRecord {
   player: PlayerId;

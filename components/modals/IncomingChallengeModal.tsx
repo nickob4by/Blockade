@@ -3,7 +3,7 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { MatchChallenge } from '@/lib/challenges/challengeService';
 import { sounds } from '@/lib/audio/sounds';
-import { Swords, X, Check, Clock, Users } from 'lucide-react';
+import { Swords, X, Check, Clock, Users, Zap, Shield } from 'lucide-react';
 
 interface IncomingChallengeModalProps {
   challenge: MatchChallenge | null;
@@ -50,6 +50,7 @@ export const IncomingChallengeModal: React.FC<IncomingChallengeModalProps> = ({
 
   if (!challenge) return null;
 
+  const isSprint = challenge.variant === 'sprint_race';
   const progressPercent = Math.max(0, Math.min(100, (timeLeft / 30) * 100));
 
   return (
@@ -59,7 +60,7 @@ export const IncomingChallengeModal: React.FC<IncomingChallengeModalProps> = ({
         <div className="relative w-16 h-16 mx-auto">
           <div className="absolute inset-0 rounded-full bg-amber-500/20 animate-ping" />
           <div className="relative w-16 h-16 rounded-full bg-gradient-to-br from-amber-500 to-orange-600 border-2 border-white dark:border-zinc-800 flex items-center justify-center text-white shadow-xl">
-            <Swords className="w-8 h-8 animate-bounce" />
+            {isSprint ? <Zap className="w-8 h-8 animate-bounce" /> : <Swords className="w-8 h-8 animate-bounce" />}
           </div>
         </div>
 
@@ -79,6 +80,21 @@ export const IncomingChallengeModal: React.FC<IncomingChallengeModalProps> = ({
           )}
         </div>
 
+        {/* Game Mode Badge */}
+        <div className="flex items-center justify-center">
+          {isSprint ? (
+            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-extrabold bg-amber-500/15 text-amber-700 dark:text-amber-300 border border-amber-500/30 shadow-sm">
+              <Zap className="w-3.5 h-3.5 text-amber-500" />
+              <span>⚡ Sprint Race Mode (Same-Side Start)</span>
+            </div>
+          ) : (
+            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-extrabold bg-sky-500/15 text-sky-700 dark:text-sky-300 border border-sky-500/30 shadow-sm">
+              <Shield className="w-3.5 h-3.5 text-sky-500" />
+              <span>🛡️ Classic Quoridor (Opposite Sides)</span>
+            </div>
+          )}
+        </div>
+
         {/* Challenger Card */}
         <div className="p-4 rounded-2xl bg-slate-50 dark:bg-zinc-950 border border-slate-200 dark:border-zinc-800 flex items-center gap-3 text-left">
           <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-blue-500/20 to-sky-500/20 border border-sky-400/40 flex items-center justify-center text-2xl flex-shrink-0 shadow-sm">
@@ -94,7 +110,7 @@ export const IncomingChallengeModal: React.FC<IncomingChallengeModalProps> = ({
               {challenge.challengerName}
             </div>
             <div className="text-[11px] text-emerald-600 dark:text-emerald-400 font-medium mt-0.5">
-              Ready for 1v1 Quoridor Match
+              {isSprint ? 'Sprint to row 0 to win!' : 'Ready for 1v1 Quoridor Match'}
             </div>
           </div>
         </div>

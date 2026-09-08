@@ -27,7 +27,7 @@ import {
 } from 'lucide-react';
 import { AuthModal } from './AuthModal';
 import { PartyLobbyModal } from './PartyLobbyModal';
-import { PlayerId } from '@/lib/game/types';
+import { PlayerId, GameVariant } from '@/lib/game/types';
 import {
   FriendGroup,
   GroupMember,
@@ -46,10 +46,11 @@ interface GroupsModalProps {
   isOpen: boolean;
   onClose: () => void;
   onStartOnlineMatch?: (opponentName: string) => void;
-  onChallengePlayer?: (member: GroupMember, group?: FriendGroup) => void;
+  onChallengePlayer?: (member: GroupMember, group?: FriendGroup, variant?: GameVariant) => void;
   onStartPartyMatch?: (config: {
     boardSize: number;
     players: Array<{ id: PlayerId; name: string; emoji?: string }>;
+    variant?: GameVariant;
   }) => void;
 }
 
@@ -74,6 +75,8 @@ export const GroupsModal: React.FC<GroupsModalProps> = ({
   const [livePresences, setLivePresences] = useState<Record<string, { name: string; status: MemberStatus; emoji?: string }>>({});
   const [isJoining, setIsJoining] = useState(false);
   const [showPartyLobby, setShowPartyLobby] = useState(false);
+  const [challengeTarget, setChallengeTarget] = useState<GroupMember | null>(null);
+  const [challengeVariant, setChallengeVariant] = useState<GameVariant>('classic');
 
   const currentUserId = user?.id || profile.id || 'guest_user';
   const currentUserName = profile.name || 'Player 1';
@@ -878,13 +881,8 @@ export const GroupsModal: React.FC<GroupsModalProps> = ({
                               <button
                                 type="button"
                                 onClick={() => {
-                                  if (onChallengePlayer) {
-                                    onChallengePlayer(member, selectedGroup || undefined);
-                                    onClose();
-                                  } else if (onStartOnlineMatch) {
-                                    onStartOnlineMatch(member.name);
-                                    onClose();
-                                  }
+                                  setChallengeTarget(member);
+                                  setChallengeVariant('classic');
                                 }}
                                 className="py-1.5 px-3 rounded-xl bg-sky-500 hover:bg-sky-400 text-white font-bold text-xs flex items-center gap-1.5 shadow-md tap-bounce transition-all"
                               >
@@ -950,7 +948,73 @@ export const GroupsModal: React.FC<GroupsModalProps> = ({
         </div>
       </div>
 
-      {/* King of the Core Party Lobby Waiting Room */}
+      {/* Challenge Mode Selection Dialog */}
+      {challengeTarget && (
+        <div className="fixed inset-0 z-[85] flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm animate-fadeIn">
+          <div className="w-full max-w-sm p-5 rounded-3xl bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 shadow-2xl space-y-4 text-center">
+            <div className="w-12 h-12 mx-auto rounded-2xl bg-gradient-to-br from-sky-500/20 to-blue-500/20 border border-sky-400/40 flex items-center justify-center text-2xl shadow-sm">
+              {challengeTarget.emoji ? challengeTarget.emoji : challengeTarget.name[0]?.toUpperCase() || 'P'}
+            </div>
+
+            <div>
+              <h4 className="font-extrabold text-base text-slate-900 dark:text-white">
+                Challenge {challengeTarget.name}
+              </h4>
+              <p className="text-xs text-slate-500 dark:text-zinc-400 mt-0.5">
+                Choose the game mode for this head-to-head match:
+              </p>
+            </div>
+
+            {/* Mode Dropdown */}
+            <div className="text-left space-y-1.5 p-3 rounded-2xl bg-slate-50 dark:bg-zinc-950 border border-slate-200 dark:border-zinc-800">
+              <label className="text-xs font-bold text-slate-700 dark:text-zinc-300 block">
+                Select Game Mode:
+              </label>
+              <select
+                value={challengeVariant}
+                onChange={(e) => setChallengeVariant(e.target.value as GameVariant)}
+                className="w-full px-3 py-2 rounded-xl bg-white dark:bg-zinc-900 border border-slate-300 dark:border-zinc-700 text-xs font-bold text-slate-900 dark:text-zinc-100 focus:outline-none focus:ring-2 focus:ring-sky-500"
+              >
+                <option value="classic">🛡️ Classic Quoridor (Opposite Sides)</option>
+                <option value="sprint_race">⚡ Sprint Race (Same-Side Start)</option>
+              </select>
+              <p className="text-[11px] text-slate-500 dark:text-zinc-400 mt-1">
+                {challengeVariant === 'classic'
+                  ? 'Standard rules: players start on opposite edges and race to the opposing side.'
+                  : 'Fast-paced race: both start on the bottom row and sprint to row 0. First across wins!'}
+              </p>
+            </div>
+
+            <div className="flex items-center gap-2 pt-1">
+              <button
+                type="button"
+                onClick={() => setChallengeTarget(null)}
+                className="flex-1 py-2.5 px-3 rounded-xl bg-slate-100 dark:bg-zinc-800 hover:bg-slate-200 dark:hover:bg-zinc-700 text-slate-700 dark:text-zinc-300 font-bold text-xs transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  if (onChallengePlayer) {
+                    onChallengePlayer(challengeTarget, selectedGroup || undefined, challengeVariant);
+                  } else if (onStartOnlineMatch) {
+                    onStartOnlineMatch(challengeTarget.name);
+                  }
+                  setChallengeTarget(null);
+                  onClose();
+                }}
+                className="flex-1 py-2.5 px-3 rounded-xl bg-sky-500 hover:bg-sky-400 text-white font-bold text-xs flex items-center justify-center gap-1.5 shadow-md tap-bounce transition-all"
+              >
+                <Swords className="w-3.5 h-3.5" />
+                <span>Send Challenge</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* King of the Core / Sprint Race Party Lobby Waiting Room */}
       {selectedGroup && (
         <PartyLobbyModal
           isOpen={showPartyLobby}
@@ -961,11 +1025,12 @@ export const GroupsModal: React.FC<GroupsModalProps> = ({
           currentUserId={currentUserId}
           currentUserName={currentUserName}
           currentUserEmoji={profile.emoji}
-          onStartMatch={(members, boardSize) => {
+          onStartMatch={(members, boardSize, variant) => {
             setShowPartyLobby(false);
             if (onStartPartyMatch) {
               onStartPartyMatch({
                 boardSize,
+                variant,
                 players: members.map((m) => ({
                   id: m.slot,
                   name: m.name,

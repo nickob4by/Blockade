@@ -11,7 +11,7 @@ export interface ValidationResult {
  * Returns the list of non-eliminated player IDs participating in this match.
  */
 export function getActivePlayerIds(state: GameState): PlayerId[] {
-  const allIds: PlayerId[] = [1, 2, 3, 4, 5, 6];
+  const allIds: PlayerId[] = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
   return allIds.filter((id) => {
     const p = state.players[id];
     return p && !p.isEliminated && p.id !== state.resignedPlayerId;
@@ -60,7 +60,20 @@ export function canPlaceWall(
 
   const activeIds = getActivePlayerIds(state);
 
-  if (state.variant === 'core_race' || activeIds.length > 2) {
+  if (state.variant === 'sprint_race') {
+    const playerGoals = activeIds.map((id) => {
+      const p = state.players[id];
+      return {
+        pos: p.position,
+        target: 0, // Target is row 0 for all sprint racers
+      };
+    });
+
+    const traps = doesWallTrapAllPlayers(candidateWall, playerGoals, state.walls, boardSize);
+    if (traps) {
+      return { valid: false, reason: 'Wall would completely block a player from reaching the Finish Line!' };
+    }
+  } else if (state.variant === 'core_race' || activeIds.length > 2) {
     const playerGoals = activeIds.map((id) => {
       const p = state.players[id];
       const targets = p.targetCore || state.coreTargets || [{ r: Math.floor(boardSize / 2), c: Math.floor(boardSize / 2) }];
@@ -131,6 +144,8 @@ export function applyPawnMove(
       { r: Math.floor(boardSize / 2), c: Math.floor(boardSize / 2) },
     ];
     hasWon = coreTargets.some((t) => isSameCoord(t, newPosition));
+  } else if (state.variant === 'sprint_race') {
+    hasWon = newPosition.r === 0;
   } else {
     hasWon = newPosition.r === (currentPlayer.targetRow ?? 0);
   }

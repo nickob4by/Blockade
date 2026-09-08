@@ -15,10 +15,11 @@ import {
   MapPin,
   Play,
 } from 'lucide-react';
-import { PlayerId } from '@/lib/game/types';
-import { PLAYER_THEMES, getCoreRaceConfig } from '@/lib/game/board';
+import { PlayerId, GameVariant } from '@/lib/game/types';
+import { PLAYER_THEMES, getCoreRaceConfig, getSprintRaceConfig } from '@/lib/game/board';
 import { getSupabaseClient } from '@/lib/supabase/client';
 import { RealtimeChannel } from '@supabase/supabase-js';
+import { Zap } from 'lucide-react';
 
 export interface PartyLobbyMember {
   id: string;
@@ -38,7 +39,7 @@ interface PartyLobbyModalProps {
   currentUserId: string;
   currentUserName: string;
   currentUserEmoji?: string;
-  onStartMatch: (members: PartyLobbyMember[], boardSize: number) => void;
+  onStartMatch: (members: PartyLobbyMember[], boardSize: number, variant: GameVariant) => void;
 }
 
 export const PartyLobbyModal: React.FC<PartyLobbyModalProps> = ({
@@ -52,6 +53,7 @@ export const PartyLobbyModal: React.FC<PartyLobbyModalProps> = ({
   currentUserEmoji,
   onStartMatch,
 }) => {
+  const [gameVariant, setGameVariant] = useState<GameVariant>('sprint_race');
   const [maxPlayers, setMaxPlayers] = useState<number>(4);
   const [lobbyMembers, setLobbyMembers] = useState<PartyLobbyMember[]>([]);
   const channelRef = useRef<RealtimeChannel | null>(null);
@@ -93,10 +95,13 @@ export const PartyLobbyModal: React.FC<PartyLobbyModalProps> = ({
           if (payload?.maxPlayers) {
             setMaxPlayers(payload.maxPlayers);
           }
+          if (payload?.variant) {
+            setGameVariant(payload.variant);
+          }
         })
         .on('broadcast', { event: 'lobby_start' }, ({ payload }) => {
           if (payload?.members && payload?.boardSize) {
-            onStartMatch(payload.members, payload.boardSize);
+            onStartMatch(payload.members, payload.boardSize, payload.variant || 'core_race');
             onClose();
           }
         });
@@ -128,12 +133,16 @@ export const PartyLobbyModal: React.FC<PartyLobbyModalProps> = ({
   }, [isOpen, groupCode, isHost, currentUserId, currentUserName, currentUserEmoji, onStartMatch, onClose]);
 
   // Broadcast state updates to other members
-  const broadcastLobbyState = (updatedMembers: PartyLobbyMember[], newMax: number = maxPlayers) => {
+  const broadcastLobbyState = (
+    updatedMembers: PartyLobbyMember[],
+    newMax: number = maxPlayers,
+    variant: GameVariant = gameVariant
+  ) => {
     if (channelRef.current) {
       channelRef.current.send({
         type: 'broadcast',
         event: 'lobby_sync',
-        payload: { members: updatedMembers, maxPlayers: newMax },
+        payload: { members: updatedMembers, maxPlayers: newMax, variant },
       });
     }
   };
@@ -151,7 +160,11 @@ export const PartyLobbyModal: React.FC<PartyLobbyModalProps> = ({
 
   // Host starts the match
   const handleHostStart = () => {
-    const config = getCoreRaceConfig(lobbyMembers.length);
+    const config =
+      gameVariant === 'sprint_race'
+        ? getSprintRaceConfig(lobbyMembers.length)
+        : getCoreRaceConfig(lobbyMembers.length);
+
     if (channelRef.current) {
       channelRef.current.send({
         type: 'broadcast',
@@ -159,16 +172,20 @@ export const PartyLobbyModal: React.FC<PartyLobbyModalProps> = ({
         payload: {
           members: lobbyMembers,
           boardSize: config.boardSize,
+          variant: gameVariant,
         },
       });
     }
-    onStartMatch(lobbyMembers, config.boardSize);
+    onStartMatch(lobbyMembers, config.boardSize, gameVariant);
     onClose();
   };
 
   const dynamicConfig = useMemo(() => {
-    return getCoreRaceConfig(lobbyMembers.length || 3);
-  }, [lobbyMembers.length]);
+    const count = lobbyMembers.length || 3;
+    return gameVariant === 'sprint_race'
+      ? getSprintRaceConfig(count)
+      : getCoreRaceConfig(count);
+  }, [lobbyMembers.length, gameVariant]);
 
   const canStart = lobbyMembers.length >= 3 && lobbyMembers.every((m) => m.isReady);
   const userMember = lobbyMembers.find((m) => m.id === currentUserId);
@@ -182,12 +199,16 @@ export const PartyLobbyModal: React.FC<PartyLobbyModalProps> = ({
         <div className="flex items-center justify-between pb-3 border-b border-slate-200 dark:border-zinc-800">
           <div className="flex items-center gap-2.5">
             <div className="w-10 h-10 rounded-2xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-center text-amber-500 shadow-md">
-              <Crown className="w-5 h-5" />
+              {gameVariant === 'sprint_race' ? (
+                <Zap className="w-5 h-5 fill-current" />
+              ) : (
+                <Crown className="w-5 h-5" />
+              )}
             </div>
             <div>
               <div className="flex items-center gap-1.5">
                 <h3 className="text-base font-extrabold text-slate-900 dark:text-white">
-                  King of the Core
+                  {gameVariant === 'sprint_race' ? 'Sprint Race' : 'King of the Core'}
                 </h3>
                 <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20">
                   Party Mode
@@ -206,6 +227,41 @@ export const PartyLobbyModal: React.FC<PartyLobbyModalProps> = ({
           >
             <X className="w-4 h-4" />
           </button>
+        </div>
+
+        {/* Game Mode Dropdown Selector */}
+        <div className="p-3 rounded-2xl bg-slate-100 dark:bg-zinc-800/60 border border-slate-200 dark:border-zinc-700/60 flex items-center justify-between gap-2 text-xs">
+          <span className="font-bold text-slate-700 dark:text-zinc-300 flex items-center gap-1.5">
+            {gameVariant === 'sprint_race' ? (
+              <Zap className="w-4 h-4 text-amber-500" />
+            ) : (
+              <Crown className="w-4 h-4 text-amber-500" />
+            )}
+            Game Mode:
+          </span>
+          {isHost ? (
+            <select
+              value={gameVariant}
+              onChange={(e) => {
+                const newVar = e.target.value as GameVariant;
+                setGameVariant(newVar);
+                if (newVar === 'core_race' && maxPlayers > 6) {
+                  setMaxPlayers(6);
+                  broadcastLobbyState(lobbyMembers, 6, newVar);
+                } else {
+                  broadcastLobbyState(lobbyMembers, maxPlayers, newVar);
+                }
+              }}
+              className="px-3 py-1.5 rounded-xl bg-white dark:bg-zinc-900 border border-slate-300 dark:border-zinc-700 text-xs font-bold text-slate-800 dark:text-zinc-100 focus:outline-none focus:ring-2 focus:ring-amber-500"
+            >
+              <option value="sprint_race">⚡ Sprint Race (3-10 Players)</option>
+              <option value="core_race">👑 King of the Core (3-6 Players)</option>
+            </select>
+          ) : (
+            <span className="font-extrabold text-amber-600 dark:text-amber-400">
+              {gameVariant === 'sprint_race' ? '⚡ Sprint Race' : '👑 King of the Core'}
+            </span>
+          )}
         </div>
 
         {/* Dynamic Board Configuration Banner */}
@@ -234,40 +290,42 @@ export const PartyLobbyModal: React.FC<PartyLobbyModalProps> = ({
               </div>
             </div>
             <div className="p-2 rounded-xl bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800">
-              <div className="text-[10px] text-slate-500 dark:text-zinc-400">Goal Distance</div>
-              <div className="font-bold text-xs text-slate-800 dark:text-zinc-100 mt-0.5 text-amber-600 dark:text-amber-400">
-                {dynamicConfig.boardSize === 13 ? '6 Steps' : '7 Steps'}
+              <div className="text-[10px] text-slate-500 dark:text-zinc-400">Goal Target</div>
+              <div className="font-bold text-xs text-slate-800 dark:text-zinc-100 mt-0.5 text-amber-600 dark:text-amber-400 truncate">
+                {gameVariant === 'sprint_race' ? 'Row 0 Finish' : 'Center Core'}
               </div>
             </div>
           </div>
         </div>
 
-        {/* Player Slots (3 to 6) */}
+        {/* Player Slots */}
         <div className="space-y-2">
           <div className="flex items-center justify-between text-xs font-semibold px-1">
             <span className="text-slate-600 dark:text-zinc-400">
               Players ({lobbyMembers.length}/{maxPlayers})
             </span>
             {isHost && (
-              <div className="flex items-center gap-1">
+              <div className="flex items-center gap-1 flex-wrap justify-end">
                 <span className="text-[11px] text-slate-500 dark:text-zinc-400">Slots:</span>
-                {[3, 4, 5, 6].map((num) => (
-                  <button
-                    key={num}
-                    type="button"
-                    onClick={() => {
-                      setMaxPlayers(num);
-                      broadcastLobbyState(lobbyMembers, num);
-                    }}
-                    className={`w-6 h-6 rounded-lg text-xs font-bold transition-all ${
-                      maxPlayers === num
-                        ? 'bg-amber-500 text-white shadow-sm'
-                        : 'bg-slate-100 dark:bg-zinc-800 text-slate-600 dark:text-zinc-400 hover:bg-slate-200'
-                    }`}
-                  >
-                    {num}
-                  </button>
-                ))}
+                {(gameVariant === 'sprint_race' ? [3, 4, 5, 6, 7, 8, 9, 10] : [3, 4, 5, 6]).map(
+                  (num) => (
+                    <button
+                      key={num}
+                      type="button"
+                      onClick={() => {
+                        setMaxPlayers(num);
+                        broadcastLobbyState(lobbyMembers, num, gameVariant);
+                      }}
+                      className={`w-6 h-6 rounded-lg text-xs font-bold transition-all ${
+                        maxPlayers === num
+                          ? 'bg-amber-500 text-white shadow-sm'
+                          : 'bg-slate-100 dark:bg-zinc-800 text-slate-600 dark:text-zinc-400 hover:bg-slate-200'
+                      }`}
+                    >
+                      {num}
+                    </button>
+                  )
+                )}
               </div>
             )}
           </div>
@@ -276,7 +334,22 @@ export const PartyLobbyModal: React.FC<PartyLobbyModalProps> = ({
             {Array.from({ length: maxPlayers }).map((_, idx) => {
               const slot = (idx + 1) as PlayerId;
               const member = lobbyMembers[idx];
-              const theme = PLAYER_THEMES[slot];
+              const theme = PLAYER_THEMES[slot] || PLAYER_THEMES[1];
+
+              const spawnInfo =
+                gameVariant === 'sprint_race'
+                  ? `Starts bottom row (Col ${dynamicConfig.spawns[slot]?.c ?? idx}) · Goal: Row 0`
+                  : `Starts ${
+                      slot === 1
+                        ? 'South'
+                        : slot === 2
+                        ? 'West'
+                        : slot === 3
+                        ? 'East'
+                        : slot === 4
+                        ? 'North'
+                        : `Perimeter P${slot}`
+                    }`;
 
               return (
                 <div
@@ -313,10 +386,8 @@ export const PartyLobbyModal: React.FC<PartyLobbyModalProps> = ({
                           </span>
                         )}
                       </div>
-                      <div className="text-[10px] text-slate-500 dark:text-zinc-500 mt-0.5">
-                        {member
-                          ? `Starts ${slot === 1 ? 'South' : slot === 2 ? 'West' : slot === 3 ? 'East' : 'North'}`
-                          : 'Waiting for player...'}
+                      <div className="text-[10px] text-slate-500 dark:text-zinc-500 mt-0.5 truncate">
+                        {member ? spawnInfo : 'Waiting for player...'}
                       </div>
                     </div>
                   </div>
@@ -359,7 +430,7 @@ export const PartyLobbyModal: React.FC<PartyLobbyModalProps> = ({
               <span>
                 {lobbyMembers.length < 3
                   ? `Need at least 3 players (${lobbyMembers.length}/3)`
-                  : 'Start King of the Core'}
+                  : `Start ${gameVariant === 'sprint_race' ? 'Sprint Race' : 'King of the Core'}`}
               </span>
             </button>
           ) : (

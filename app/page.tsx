@@ -1,8 +1,8 @@
 'use client';
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { Coordinate, GameMode, GameState, PlayerId, WallOrientation } from '@/lib/game/types';
-import { createInitialGameState, createInitialCoreRaceState, PLAYER_THEMES } from '@/lib/game/board';
+import { Coordinate, GameMode, GameState, GameVariant, PlayerId, WallOrientation } from '@/lib/game/types';
+import { createInitialGameState, createInitialCoreRaceState, createInitialSprintRaceState, PLAYER_THEMES } from '@/lib/game/board';
 import { applyPawnMove, applyWallPlacement, canPlaceWall, getActivePlayerIds, getNextTurnPlayerId } from '@/lib/game/engine';
 import { computeAIMove } from '@/lib/game/ai';
 import { isSupabaseConfigured } from '@/lib/supabase/client';
@@ -42,7 +42,7 @@ import {
   fetchUserGroupsAsync,
   subscribeToGroupPresence,
 } from '@/lib/groups/groupService';
-import { Users, Bot, Globe, ArrowLeft, RefreshCw, Settings, Sun, Moon, Flag } from 'lucide-react';
+import { Users, Bot, Globe, ArrowLeft, RefreshCw, Settings, Sun, Moon, Flag, Zap } from 'lucide-react';
 
 export default function GamePage() {
   const { user, profile } = useAuth();
@@ -228,16 +228,37 @@ export default function GamePage() {
   const handleRestart = useCallback(() => {
     setRematchStatus('idle');
     setOpponentResignedInfo(null);
-    const newState = createInitialGameState(mode);
-    const p1Name = gameState.players[1]?.name || playerName.trim() || profile.name || 'Player 1';
-    newState.players[1].name = p1Name;
-    newState.players[1].emoji = gameState.players[1]?.emoji || profile.emoji;
-    if (gameState.players[2]?.name) {
-      newState.players[2].name = gameState.players[2].name;
-      newState.players[2].emoji = gameState.players[2]?.emoji;
-    } else if (mode === 'ai') {
-      newState.players[2].name = 'AI Bot';
-      newState.players[2].emoji = '🤖';
+    let newState: GameState;
+    if (gameState.variant === 'sprint_race') {
+      const activeIds = getActivePlayerIds(gameState);
+      const playersList = activeIds.map((id) => ({
+        id,
+        name: gameState.players[id]?.name || `Player ${id}`,
+        emoji: gameState.players[id]?.emoji,
+      }));
+      newState = createInitialSprintRaceState(playersList);
+      newState.mode = mode;
+    } else if (gameState.variant === 'core_race') {
+      const activeIds = getActivePlayerIds(gameState);
+      const playersList = activeIds.map((id) => ({
+        id,
+        name: gameState.players[id]?.name || `Player ${id}`,
+        emoji: gameState.players[id]?.emoji,
+      }));
+      newState = createInitialCoreRaceState(playersList);
+      newState.mode = mode;
+    } else {
+      newState = createInitialGameState(mode);
+      const p1Name = gameState.players[1]?.name || playerName.trim() || profile.name || 'Player 1';
+      newState.players[1].name = p1Name;
+      newState.players[1].emoji = gameState.players[1]?.emoji || profile.emoji;
+      if (gameState.players[2]?.name) {
+        newState.players[2].name = gameState.players[2].name;
+        newState.players[2].emoji = gameState.players[2]?.emoji;
+      } else if (mode === 'ai') {
+        newState.players[2].name = 'AI Bot';
+        newState.players[2].emoji = '🤖';
+      }
     }
     setGameState(newState);
     setActiveDrag(null);
@@ -249,20 +270,25 @@ export default function GamePage() {
         state: newState,
       });
     }
-  }, [mode, gameState.players, playerName, profile.name, profile.emoji]);
+  }, [mode, gameState, playerName, profile.name, profile.emoji]);
 
-  // Start King of the Core party match from Group
+  // Start Party match (King of the Core or Sprint Race) from Group
   const handleStartPartyMatch = useCallback(
     ({
       boardSize,
       players,
+      variant = 'core_race',
     }: {
-      boardSize: number;
+      boardSize?: number;
       players: Array<{ id: PlayerId; name: string; emoji?: string }>;
+      variant?: GameVariant;
     }) => {
       setShowGroups(false);
       sounds.playGameStart();
-      const initialState = createInitialCoreRaceState(players);
+      const initialState =
+        variant === 'sprint_race'
+          ? createInitialSprintRaceState(players)
+          : createInitialCoreRaceState(players);
       setGameState(initialState);
       setMode('party');
 
@@ -449,7 +475,7 @@ export default function GamePage() {
   }, []);
 
   // Switch Game Mode
-  const handleSelectMode = (newMode: GameMode) => {
+  const handleSelectMode = (newMode: GameMode, variant: GameVariant = 'classic') => {
     if (newMode === 'online') {
       if (!isSupabaseConfigured()) {
         setShowSupabaseConfig(true);
@@ -460,12 +486,29 @@ export default function GamePage() {
     }
 
     setMode(newMode);
-    const initial = createInitialGameState(newMode);
-    initial.players[1].name = playerName.trim() || profile.name || 'Player 1';
-    initial.players[1].emoji = profile.emoji;
-    if (newMode === 'ai') {
-      initial.players[2].name = 'AI Bot';
-      initial.players[2].emoji = '🤖';
+    let initial: GameState;
+    if (variant === 'sprint_race') {
+      initial = createInitialSprintRaceState([
+        {
+          id: 1,
+          name: playerName.trim() || profile.name || 'Player 1',
+          emoji: profile.emoji,
+        },
+        {
+          id: 2,
+          name: newMode === 'ai' ? 'AI Bot' : 'Player 2',
+          emoji: newMode === 'ai' ? '🤖' : undefined,
+        },
+      ]);
+      initial.mode = newMode;
+    } else {
+      initial = createInitialGameState(newMode);
+      initial.players[1].name = playerName.trim() || profile.name || 'Player 1';
+      initial.players[1].emoji = profile.emoji;
+      if (newMode === 'ai') {
+        initial.players[2].name = 'AI Bot';
+        initial.players[2].emoji = '🤖';
+      }
     }
     setGameState(initial);
     setClientPlayerId(1);
@@ -483,10 +526,12 @@ export default function GamePage() {
       return;
     }
 
+    const startRow = (gameState.boardSize ?? 9) - 1;
     const hasMadeMoves =
       gameState.walls.length > 0 ||
-      gameState.players[1].position.r !== 8 ||
-      gameState.players[2].position.r !== 0;
+      (gameState.variant === 'sprint_race'
+        ? gameState.players[1]?.position.r !== startRow || gameState.players[2]?.position.r !== startRow
+        : gameState.players[1]?.position.r !== 8 || gameState.players[2]?.position.r !== 0);
 
     if (gameState.status === 'playing' && hasMadeMoves) {
       setShowExitConfirm(true);
@@ -708,7 +753,13 @@ export default function GamePage() {
 
   // Online Realtime Room Setup
   const setupRealtimeRoom = useCallback(
-    (code: string, isHostRole: boolean, currentName: string, currentEmoji?: string) => {
+    (
+      code: string,
+      isHostRole: boolean,
+      currentName: string,
+      currentEmoji?: string,
+      variant: GameVariant = 'classic'
+    ) => {
       // 1. Clean up any previous room channel & active retry intervals
       if (channelLeaveRef.current) {
         channelLeaveRef.current();
@@ -726,11 +777,28 @@ export default function GamePage() {
       setMode('online');
 
       // Initialize base game state for online match
-      const baseState = createInitialGameState('online');
-      baseState.players[1].name = isHostRole ? currentName : 'Host';
-      baseState.players[1].emoji = isHostRole ? currentEmoji : undefined;
-      baseState.players[2].name = !isHostRole ? currentName : 'Waiting for opponent...';
-      baseState.players[2].emoji = !isHostRole ? currentEmoji : undefined;
+      let baseState: GameState;
+      if (variant === 'sprint_race') {
+        baseState = createInitialSprintRaceState([
+          {
+            id: 1,
+            name: isHostRole ? currentName : 'Host',
+            emoji: isHostRole ? currentEmoji : undefined,
+          },
+          {
+            id: 2,
+            name: !isHostRole ? currentName : 'Waiting for opponent...',
+            emoji: !isHostRole ? currentEmoji : undefined,
+          },
+        ]);
+        baseState.mode = 'online';
+      } else {
+        baseState = createInitialGameState('online');
+        baseState.players[1].name = isHostRole ? currentName : 'Host';
+        baseState.players[1].emoji = isHostRole ? currentEmoji : undefined;
+        baseState.players[2].name = !isHostRole ? currentName : 'Waiting for opponent...';
+        baseState.players[2].emoji = !isHostRole ? currentEmoji : undefined;
+      }
       setGameState(baseState);
 
       let hasSynced = false;
@@ -959,7 +1027,7 @@ export default function GamePage() {
 
   // Handle challenging a specific player
   const handleChallengePlayer = useCallback(
-    async (targetMember: GroupMember, group?: FriendGroup) => {
+    async (targetMember: GroupMember, group?: FriendGroup, variant: GameVariant = 'classic') => {
       const roomCode = generateChallengeRoomCode();
       const currentId = user?.id || profile.id || 'guest_user';
       const currentName = profile.name || playerName || 'Player 1';
@@ -975,6 +1043,7 @@ export default function GamePage() {
         groupCode: group?.code,
         groupName: group?.name,
         createdAt: Date.now(),
+        variant,
       };
 
       setOutgoingChallenge(challenge);
@@ -982,7 +1051,7 @@ export default function GamePage() {
       setShowGroups(false);
 
       // Setup host room and listen for opponent connection
-      setupRealtimeRoom(roomCode, true, currentName, profile.emoji);
+      setupRealtimeRoom(roomCode, true, currentName, profile.emoji, variant);
       setWaitingForOpponent(true);
 
       // Send challenge notification
@@ -1059,7 +1128,13 @@ export default function GamePage() {
       setPlayerName(currentName);
       setWaitingForOpponent(true);
       setIsHost(false);
-      setupRealtimeRoom(challenge.roomCode, false, currentName, profile.emoji);
+      setupRealtimeRoom(
+        challenge.roomCode,
+        false,
+        currentName,
+        profile.emoji,
+        challenge.variant || 'classic'
+      );
     },
     [user?.id, profile.id, profile.name, profile.emoji, playerName, setupRealtimeRoom]
   );
@@ -1267,7 +1342,7 @@ export default function GamePage() {
     return (
       <main className="h-full min-h-[100dvh] w-full bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 flex flex-col items-center justify-center transition-colors duration-150">
         <MainMenu
-          onSelectMode={(selectedMode) => {
+          onSelectMode={(selectedMode, selectedVariant) => {
             if (selectedMode === 'online') {
               if (!isSupabaseConfigured()) {
                 setShowSupabaseConfig(true);
@@ -1276,7 +1351,7 @@ export default function GamePage() {
               setShowLobby(true);
               return;
             }
-            handleSelectMode(selectedMode);
+            handleSelectMode(selectedMode, selectedVariant);
           }}
           onOpenRules={() => setShowRules(true)}
           onOpenGroups={() => setShowGroups(true)}
@@ -1301,6 +1376,7 @@ export default function GamePage() {
             setShowLobby(true);
           }}
           onChallengePlayer={handleChallengePlayer}
+          onStartPartyMatch={handleStartPartyMatch}
         />
 
         {/* Incoming Challenge Notification Modal */}
@@ -1356,7 +1432,17 @@ export default function GamePage() {
 
         {/* Mode Indicator Chip */}
         <div className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-white dark:bg-zinc-900/90 border border-slate-200 dark:border-zinc-800 text-xs font-semibold text-slate-800 dark:text-zinc-200 shadow-sm">
-          {mode === 'ai' ? (
+          {gameState.variant === 'sprint_race' ? (
+            <>
+              <Zap className="w-3.5 h-3.5 text-amber-500 fill-amber-500 dark:text-amber-400 dark:fill-amber-400" />
+              <span className="text-amber-700 dark:text-amber-300">Sprint Race</span>
+            </>
+          ) : gameState.variant === 'core_race' ? (
+            <>
+              <Flag className="w-3.5 h-3.5 text-indigo-500 dark:text-indigo-400" />
+              <span className="text-indigo-700 dark:text-indigo-300">King of the Core</span>
+            </>
+          ) : mode === 'ai' ? (
             <>
               <Bot className="w-3.5 h-3.5 text-rose-500 dark:text-rose-400" />
               <span>vs AI Bot</span>
@@ -1448,7 +1534,7 @@ export default function GamePage() {
 
       {/* 2. Middle Game Core: Turn Timer -> Opponents/Roster -> Board -> Player */}
       <div className="w-full flex flex-col items-center justify-center gap-3 sm:gap-4 my-auto">
-        {gameState.variant === 'core_race' || mode === 'party' ? (
+        {gameState.variant === 'core_race' || getActivePlayerIds(gameState).length > 2 ? (
           <>
             {/* Rapid Turn Countdown Timer */}
             <TurnTimerBar
@@ -1492,7 +1578,7 @@ export default function GamePage() {
             isCurrentTurn={gameState.currentTurn === opponentPlayerId}
             walls={gameState.walls}
             isClientPlayer={false}
-            targetDescription="Bottom Row"
+            targetDescription={gameState.variant === 'sprint_race' ? 'Finish Line (Row 1)' : 'Bottom Row'}
           />
         )}
 
@@ -1509,13 +1595,13 @@ export default function GamePage() {
         />
 
         {/* Standard 1v1 Client Player Card (Bottom) */}
-        {!(gameState.variant === 'core_race' || mode === 'party') && (
+        {!(gameState.variant === 'core_race' || getActivePlayerIds(gameState).length > 2) && (
           <PlayerCard
             player={gameState.players[clientPlayerId]}
             isCurrentTurn={gameState.currentTurn === clientPlayerId}
             walls={gameState.walls}
             isClientPlayer={isOnlineMode ? true : undefined}
-            targetDescription="Top Row"
+            targetDescription={gameState.variant === 'sprint_race' ? 'Finish Line (Row 1)' : 'Top Row'}
           />
         )}
       </div>
@@ -1525,7 +1611,7 @@ export default function GamePage() {
         onRestart={!isOnlineMode ? handleRestart : undefined}
         onResign={gameState.status === 'playing' && !gameState.winner ? () => setShowResignConfirm(true) : undefined}
         onOpenRules={() => setShowRules(true)}
-        wallsLeft={gameState.players[gameState.currentTurn].wallsLeft}
+        wallsLeft={gameState.players[gameState.currentTurn]?.wallsLeft ?? 0}
         currentTurn={gameState.currentTurn}
         isMyTurn={isMyTurn}
         onDragStart={handleDragStart}

@@ -6,7 +6,7 @@ import { BOARD_SIZE, isSameCoord, PLAYER_THEMES } from '@/lib/game/board';
 import { canPlaceWall, getActivePlayerIds } from '@/lib/game/engine';
 import { getValidPawnMoves } from '@/lib/game/pathfinding';
 import { sounds } from '@/lib/audio/sounds';
-import { User, Crown } from 'lucide-react';
+import { User, Crown, Flag } from 'lucide-react';
 import { getMergedWallGroups, computeWallLayout, getWallJunctions, MergedWallGroup } from '@/lib/game/wallLayout';
 
 export interface GameBoardHandle {
@@ -44,6 +44,7 @@ export const GameBoard = forwardRef<GameBoardHandle, GameBoardProps>(({
   const innerGridRef = useRef<HTMLDivElement>(null);
   const boardSize = gameState.boardSize || 9;
   const isCoreRace = gameState.variant === 'core_race';
+  const isSprintRace = gameState.variant === 'sprint_race';
 
   const activePlayerTheme = PLAYER_THEMES[gameState.currentTurn] || PLAYER_THEMES[1];
   const isMyTurn = !disabled && gameState.currentTurn === clientPlayerId && gameState.status === 'playing';
@@ -193,8 +194,22 @@ export const GameBoard = forwardRef<GameBoardHandle, GameBoardProps>(({
             gridTemplateRows: `repeat(${boardSize - 1}, 1fr clamp(4px, 1.4vw, 8px)) 1fr`,
           }}
         >
+          {/* Sprint Race Finish Zone Highlights */}
+          {isSprintRace && (
+            <>
+              <div
+                className="absolute -top-1 left-0 right-0 h-12 rounded-t-xl bg-gradient-to-b from-amber-500/25 via-yellow-500/10 to-transparent pointer-events-none z-0"
+                aria-hidden="true"
+              />
+              <div
+                className="absolute -top-2 left-0 right-0 h-1.5 rounded-full bg-gradient-to-r from-amber-500 via-yellow-300 to-amber-500 shadow-[0_2px_14px_rgba(245,158,11,0.7)] pointer-events-none z-10"
+                aria-hidden="true"
+              />
+            </>
+          )}
+
           {/* Classic Finish Zone Ambient Highlights */}
-          {!isCoreRace && (
+          {!isCoreRace && !isSprintRace && (
             <>
               <div
                 className="absolute -top-1 left-0 right-0 h-11 rounded-t-xl bg-gradient-to-b from-blue-500/25 via-blue-500/5 to-transparent pointer-events-none z-0"
@@ -229,8 +244,9 @@ export const GameBoard = forwardRef<GameBoardHandle, GameBoardProps>(({
 
               const isValidMove = validPawnMoves.some((m) => isSameCoord(m, coord));
               const isCoreTile = isCoreRace && (gameState.coreTargets || []).some((t) => isSameCoord(t, coord));
-              const isP1FinishLine = !isCoreRace && r === 0;
-              const isP2FinishLine = !isCoreRace && r === boardSize - 1;
+              const isSprintFinish = isSprintRace && r === 0;
+              const isP1FinishLine = !isCoreRace && !isSprintRace && r === 0;
+              const isP2FinishLine = !isCoreRace && !isSprintRace && r === boardSize - 1;
 
               const gridRow = 2 * r + 1;
               const gridCol = 2 * c + 1;
@@ -253,6 +269,8 @@ export const GameBoard = forwardRef<GameBoardHandle, GameBoardProps>(({
                   } ${
                     isCoreTile
                       ? 'bg-amber-400/20 dark:bg-amber-500/15 border-2 border-amber-400/80 dark:border-amber-400 shadow-[0_0_12px_rgba(245,158,11,0.4)] hover:border-amber-300'
+                      : isSprintFinish
+                      ? 'bg-amber-400/[0.12] dark:bg-amber-500/[0.08] border border-amber-400/60 dark:border-amber-400/40 hover:border-amber-400'
                       : isP1FinishLine
                       ? 'bg-blue-500/[0.08] dark:bg-blue-500/[0.04] border border-slate-200/90 dark:border-zinc-800/80 hover:border-slate-300 dark:hover:border-zinc-700/60'
                       : isP2FinishLine
@@ -264,6 +282,13 @@ export const GameBoard = forwardRef<GameBoardHandle, GameBoardProps>(({
                   {isCoreTile && !playerOnSquare && (
                     <div className="absolute inset-0 flex items-center justify-center pointer-events-none animate-pulse">
                       <Crown className="w-4 h-4 text-amber-500 drop-shadow-[0_1px_4px_rgba(245,158,11,0.8)]" />
+                    </div>
+                  )}
+
+                  {/* Finish Flag on Sprint Race Finish Row */}
+                  {isSprintFinish && !playerOnSquare && (
+                    <div className="absolute inset-0 flex items-center justify-center pointer-events-none opacity-40">
+                      <Flag className="w-3 h-3 text-amber-500" />
                     </div>
                   )}
 

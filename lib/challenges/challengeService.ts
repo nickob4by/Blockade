@@ -1,5 +1,6 @@
 import { getSupabaseClient } from '@/lib/supabase/client';
 import { RealtimeChannel } from '@supabase/supabase-js';
+import { GameVariant } from '@/lib/game/types';
 
 export interface MatchChallenge {
   id: string;
@@ -12,6 +13,7 @@ export interface MatchChallenge {
   groupCode?: string;
   groupName?: string;
   createdAt: number;
+  variant?: GameVariant;
 }
 
 export type ChallengeActionPayload =

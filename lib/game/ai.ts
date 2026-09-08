@@ -17,16 +17,17 @@ export function computeAIMove(state: GameState): AIAction {
   const aiState = state.players[aiId];
   const humanState = state.players[humanId];
 
-  const aiTargetRow = aiState.targetRow ?? 8;
-  const humanTargetRow = humanState.targetRow ?? 0;
+  const boardSize = state.boardSize || 9;
+  const aiTargetRow = aiState.targetRow !== undefined ? aiState.targetRow : (state.variant === 'sprint_race' ? 0 : 8);
+  const humanTargetRow = humanState.targetRow !== undefined ? humanState.targetRow : 0;
 
-  const aiPath = findShortestPath(aiState.position, aiTargetRow, state.walls);
-  const humanPath = findShortestPath(humanState.position, humanTargetRow, state.walls);
+  const aiPath = findShortestPath(aiState.position, aiTargetRow, state.walls, boardSize);
+  const humanPath = findShortestPath(humanState.position, humanTargetRow, state.walls, boardSize);
 
   const aiDist = aiPath ? aiPath.length - 1 : 99;
   const humanDist = humanPath ? humanPath.length - 1 : 99;
 
-  const validMoves = getValidPawnMoves(aiState.position, humanState.position, state.walls);
+  const validMoves = getValidPawnMoves(aiState.position, humanState.position, state.walls, boardSize);
 
   // If AI can win this turn, do it immediately!
   const winningMove = validMoves.find((m) => m.r === aiTargetRow);
@@ -51,7 +52,7 @@ export function computeAIMove(state: GameState): AIAction {
         for (let dc = -1; dc <= 1; dc++) {
           const r = step.r + dr;
           const c = step.c + dc;
-          if (r >= 0 && r < 8 && c >= 0 && c < 8) {
+          if (r >= 0 && r < boardSize - 1 && c >= 0 && c < boardSize - 1) {
             if (!candidateIntersections.some((coord) => coord.r === r && coord.c === c)) {
               candidateIntersections.push({ r, c });
             }
@@ -70,8 +71,8 @@ export function computeAIMove(state: GameState): AIAction {
 
         // Simulate wall placement
         const simWalls = [...state.walls, { ...candidate, placedBy: aiId }];
-        const newHumanPath = findShortestPath(humanState.position, humanTargetRow, simWalls);
-        const newAiPath = findShortestPath(aiState.position, aiTargetRow, simWalls);
+        const newHumanPath = findShortestPath(humanState.position, humanTargetRow, simWalls, boardSize);
+        const newAiPath = findShortestPath(aiState.position, aiTargetRow, simWalls, boardSize);
 
         if (!newHumanPath || !newAiPath) continue;
 
@@ -108,7 +109,7 @@ export function computeAIMove(state: GameState): AIAction {
   let minDistance = 999;
 
   for (const move of validMoves) {
-    const pathFromMove = findShortestPath(move, aiTargetRow, state.walls);
+    const pathFromMove = findShortestPath(move, aiTargetRow, state.walls, boardSize);
     const dist = pathFromMove ? pathFromMove.length - 1 : 999;
     if (dist < minDistance) {
       minDistance = dist;

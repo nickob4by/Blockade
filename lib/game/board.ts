@@ -1,4 +1,4 @@
-import { Coordinate, GameMode, GameState, PlayerId, Wall, WallOrientation } from './types';
+import { Coordinate, GameMode, GameState, PlayerId, PlayerState, Wall, WallOrientation } from './types';
 
 export const BOARD_SIZE = 9;
 export const TOTAL_WALLS_PER_PLAYER = 10;
@@ -15,7 +15,7 @@ export function isWithinBoard(coord: Coordinate, boardSize: number = BOARD_SIZE)
 export const PLAYER_THEMES: Record<
   PlayerId,
   {
-    color: 'blue' | 'rose' | 'emerald' | 'amber' | 'purple' | 'cyan';
+    color: PlayerState['color'];
     label: string;
     bgClass: string;
     borderClass: string;
@@ -85,6 +85,46 @@ export const PLAYER_THEMES: Record<
     wallBorder: 'border-cyan-400/60 dark:border-cyan-300/40',
     ringColor: 'rgba(6, 182, 212, 0.6)',
   },
+  7: {
+    color: 'lime',
+    label: 'Player 7',
+    bgClass: 'bg-lime-600 dark:bg-lime-500',
+    borderClass: 'border-lime-400/60 dark:border-lime-300/40',
+    textClass: 'text-lime-600 dark:text-lime-400',
+    wallBg: 'bg-lime-600 dark:bg-lime-500',
+    wallBorder: 'border-lime-400/60 dark:border-lime-300/40',
+    ringColor: 'rgba(132, 204, 22, 0.6)',
+  },
+  8: {
+    color: 'fuchsia',
+    label: 'Player 8',
+    bgClass: 'bg-fuchsia-600 dark:bg-fuchsia-500',
+    borderClass: 'border-fuchsia-400/60 dark:border-fuchsia-300/40',
+    textClass: 'text-fuchsia-600 dark:text-fuchsia-400',
+    wallBg: 'bg-fuchsia-600 dark:bg-fuchsia-500',
+    wallBorder: 'border-fuchsia-400/60 dark:border-fuchsia-300/40',
+    ringColor: 'rgba(217, 70, 239, 0.6)',
+  },
+  9: {
+    color: 'orange',
+    label: 'Player 9',
+    bgClass: 'bg-orange-600 dark:bg-orange-500',
+    borderClass: 'border-orange-400/60 dark:border-orange-300/40',
+    textClass: 'text-orange-600 dark:text-orange-400',
+    wallBg: 'bg-orange-600 dark:bg-orange-500',
+    wallBorder: 'border-orange-400/60 dark:border-orange-300/40',
+    ringColor: 'rgba(249, 115, 22, 0.6)',
+  },
+  10: {
+    color: 'indigo',
+    label: 'Player 10',
+    bgClass: 'bg-indigo-600 dark:bg-indigo-500',
+    borderClass: 'border-indigo-400/60 dark:border-indigo-300/40',
+    textClass: 'text-indigo-600 dark:text-indigo-400',
+    wallBg: 'bg-indigo-600 dark:bg-indigo-500',
+    wallBorder: 'border-indigo-400/60 dark:border-indigo-300/40',
+    ringColor: 'rgba(99, 102, 241, 0.6)',
+  },
 };
 
 export interface CoreRaceConfig {
@@ -109,6 +149,10 @@ export function getCoreRaceConfig(playerCount: number): CoreRaceConfig {
         4: { r: 0, c: 6 },  // Fallback
         5: { r: 0, c: 0 },
         6: { r: 12, c: 12 },
+        7: { r: 12, c: 0 },
+        8: { r: 0, c: 12 },
+        9: { r: 6, c: 6 },
+        10: { r: 0, c: 0 },
       },
     };
   }
@@ -130,6 +174,10 @@ export function getCoreRaceConfig(playerCount: number): CoreRaceConfig {
         4: { r: 7, c: 14 }, // East (dist 7)
         5: { r: 3, c: 4 },
         6: { r: 11, c: 10 },
+        7: { r: 3, c: 10 },
+        8: { r: 11, c: 4 },
+        9: { r: 0, c: 0 },
+        10: { r: 14, c: 14 },
       },
     };
   }
@@ -146,7 +194,133 @@ export function getCoreRaceConfig(playerCount: number): CoreRaceConfig {
       4: { r: 3, c: 10 },  // North-East (dist 7)
       5: { r: 11, c: 4 },  // South-West (dist 7)
       6: { r: 11, c: 10 }, // South-East (dist 7)
+      7: { r: 7, c: 0 },
+      8: { r: 7, c: 14 },
+      9: { r: 0, c: 0 },
+      10: { r: 14, c: 14 },
     },
+  };
+}
+
+export interface SprintRaceConfig {
+  boardSize: number;
+  wallsPerPlayer: number;
+  targetRow: number;
+  spawns: Record<PlayerId, Coordinate>;
+}
+
+/**
+ * Computes dynamic map dimensions, wall counts, and symmetric starting positions
+ * for the Sprint Race mode where all players start on the bottom row and sprint to row 0.
+ */
+export function getSprintRaceConfig(playerCount: number): SprintRaceConfig {
+  const count = Math.max(2, Math.min(10, playerCount));
+  let boardSize = 9;
+  let wallsPerPlayer = 10;
+
+  if (count === 2) {
+    boardSize = 9;
+    wallsPerPlayer = 10;
+  } else if (count <= 4) {
+    boardSize = 11;
+    wallsPerPlayer = 6;
+  } else if (count <= 6) {
+    boardSize = 15;
+    wallsPerPlayer = 5;
+  } else if (count <= 8) {
+    boardSize = 17;
+    wallsPerPlayer = 4;
+  } else {
+    boardSize = 21;
+    wallsPerPlayer = 4;
+  }
+
+  const startRow = boardSize - 1;
+  const spawns: Record<PlayerId, Coordinate> = {
+    1: { r: startRow, c: 0 },
+    2: { r: startRow, c: 0 },
+    3: { r: startRow, c: 0 },
+    4: { r: startRow, c: 0 },
+    5: { r: startRow, c: 0 },
+    6: { r: startRow, c: 0 },
+    7: { r: startRow, c: 0 },
+    8: { r: startRow, c: 0 },
+    9: { r: startRow, c: 0 },
+    10: { r: startRow, c: 0 },
+  };
+
+  if (count === 2) {
+    // 9x9 Grid: spaced symmetrically
+    spawns[1] = { r: startRow, c: 2 };
+    spawns[2] = { r: startRow, c: 6 };
+  } else if (count === 3) {
+    // 11x11 Grid
+    spawns[1] = { r: startRow, c: 2 };
+    spawns[2] = { r: startRow, c: 5 };
+    spawns[3] = { r: startRow, c: 8 };
+  } else if (count === 4) {
+    // 11x11 Grid
+    spawns[1] = { r: startRow, c: 1 };
+    spawns[2] = { r: startRow, c: 4 };
+    spawns[3] = { r: startRow, c: 6 };
+    spawns[4] = { r: startRow, c: 9 };
+  } else if (count === 5) {
+    // 15x15 Grid
+    spawns[1] = { r: startRow, c: 1 };
+    spawns[2] = { r: startRow, c: 4 };
+    spawns[3] = { r: startRow, c: 7 };
+    spawns[4] = { r: startRow, c: 10 };
+    spawns[5] = { r: startRow, c: 13 };
+  } else if (count === 6) {
+    // 15x15 Grid
+    spawns[1] = { r: startRow, c: 1 };
+    spawns[2] = { r: startRow, c: 3 };
+    spawns[3] = { r: startRow, c: 6 };
+    spawns[4] = { r: startRow, c: 8 };
+    spawns[5] = { r: startRow, c: 11 };
+    spawns[6] = { r: startRow, c: 13 };
+  } else if (count === 7) {
+    // 17x17 Grid
+    spawns[1] = { r: startRow, c: 1 };
+    spawns[2] = { r: startRow, c: 3 };
+    spawns[3] = { r: startRow, c: 6 };
+    spawns[4] = { r: startRow, c: 8 };
+    spawns[5] = { r: startRow, c: 10 };
+    spawns[6] = { r: startRow, c: 13 };
+    spawns[7] = { r: startRow, c: 15 };
+  } else if (count === 8) {
+    // 17x17 Grid
+    spawns[1] = { r: startRow, c: 1 };
+    spawns[2] = { r: startRow, c: 3 };
+    spawns[3] = { r: startRow, c: 5 };
+    spawns[4] = { r: startRow, c: 7 };
+    spawns[5] = { r: startRow, c: 9 };
+    spawns[6] = { r: startRow, c: 11 };
+    spawns[7] = { r: startRow, c: 13 };
+    spawns[8] = { r: startRow, c: 15 };
+  } else if (count === 9) {
+    // 21x21 Grid
+    spawns[1] = { r: startRow, c: 2 };
+    spawns[2] = { r: startRow, c: 4 };
+    spawns[3] = { r: startRow, c: 6 };
+    spawns[4] = { r: startRow, c: 8 };
+    spawns[5] = { r: startRow, c: 10 };
+    spawns[6] = { r: startRow, c: 12 };
+    spawns[7] = { r: startRow, c: 14 };
+    spawns[8] = { r: startRow, c: 16 };
+    spawns[9] = { r: startRow, c: 18 };
+  } else {
+    // 10 players on 21x21 Grid: Alternating odd columns
+    for (let i = 1; i <= 10; i++) {
+      spawns[i as PlayerId] = { r: startRow, c: 2 * i - 1 };
+    }
+  }
+
+  return {
+    boardSize,
+    wallsPerPlayer,
+    targetRow: 0,
+    spawns,
   };
 }
 
@@ -177,6 +351,10 @@ export function createInitialGameState(mode: GameMode = 'local'): GameState {
       4: { id: 4, name: 'Player 4', position: { r: 4, c: 8 }, wallsLeft: 0, targetRow: 0, isEliminated: true },
       5: { id: 5, name: 'Player 5', position: { r: 0, c: 0 }, wallsLeft: 0, targetRow: 8, isEliminated: true },
       6: { id: 6, name: 'Player 6', position: { r: 8, c: 8 }, wallsLeft: 0, targetRow: 0, isEliminated: true },
+      7: { id: 7, name: 'Player 7', position: { r: 0, c: 8 }, wallsLeft: 0, targetRow: 8, isEliminated: true },
+      8: { id: 8, name: 'Player 8', position: { r: 8, c: 0 }, wallsLeft: 0, targetRow: 0, isEliminated: true },
+      9: { id: 9, name: 'Player 9', position: { r: 4, c: 4 }, wallsLeft: 0, targetRow: 8, isEliminated: true },
+      10: { id: 10, name: 'Player 10', position: { r: 4, c: 4 }, wallsLeft: 0, targetRow: 0, isEliminated: true },
     },
     currentTurn: 1,
     walls: [],
@@ -203,6 +381,10 @@ export function createInitialCoreRaceState(
     4: { id: 4, name: 'Player 4', position: config.spawns[4], wallsLeft: config.wallsPerPlayer, targetCore: config.coreTargets, color: 'amber', isEliminated: count < 4 },
     5: { id: 5, name: 'Player 5', position: config.spawns[5], wallsLeft: config.wallsPerPlayer, targetCore: config.coreTargets, color: 'purple', isEliminated: count < 5 },
     6: { id: 6, name: 'Player 6', position: config.spawns[6], wallsLeft: config.wallsPerPlayer, targetCore: config.coreTargets, color: 'cyan', isEliminated: count < 6 },
+    7: { id: 7, name: 'Player 7', position: config.spawns[7], wallsLeft: config.wallsPerPlayer, targetCore: config.coreTargets, color: 'lime', isEliminated: true },
+    8: { id: 8, name: 'Player 8', position: config.spawns[8], wallsLeft: config.wallsPerPlayer, targetCore: config.coreTargets, color: 'fuchsia', isEliminated: true },
+    9: { id: 9, name: 'Player 9', position: config.spawns[9], wallsLeft: config.wallsPerPlayer, targetCore: config.coreTargets, color: 'orange', isEliminated: true },
+    10: { id: 10, name: 'Player 10', position: config.spawns[10], wallsLeft: config.wallsPerPlayer, targetCore: config.coreTargets, color: 'indigo', isEliminated: true },
   };
 
   playerInfos.forEach((info) => {
@@ -224,6 +406,49 @@ export function createInitialCoreRaceState(
     variant: 'core_race',
     boardSize: config.boardSize,
     coreTargets: config.coreTargets,
+    turnTimeLimit: 15,
+    resignedPlayerId: null,
+  };
+}
+
+export function createInitialSprintRaceState(
+  playerInfos: Array<{ id: PlayerId; name: string; emoji?: string }>,
+  mode: GameMode = 'party'
+): GameState {
+  const count = Math.max(2, Math.min(10, playerInfos.length));
+  const config = getSprintRaceConfig(count);
+
+  const players: Record<PlayerId, any> = {
+    1: { id: 1, name: 'Player 1', position: config.spawns[1], wallsLeft: config.wallsPerPlayer, targetRow: 0, color: 'blue', isEliminated: count < 1 },
+    2: { id: 2, name: 'Player 2', position: config.spawns[2], wallsLeft: config.wallsPerPlayer, targetRow: 0, color: 'rose', isEliminated: count < 2 },
+    3: { id: 3, name: 'Player 3', position: config.spawns[3], wallsLeft: config.wallsPerPlayer, targetRow: 0, color: 'emerald', isEliminated: count < 3 },
+    4: { id: 4, name: 'Player 4', position: config.spawns[4], wallsLeft: config.wallsPerPlayer, targetRow: 0, color: 'amber', isEliminated: count < 4 },
+    5: { id: 5, name: 'Player 5', position: config.spawns[5], wallsLeft: config.wallsPerPlayer, targetRow: 0, color: 'purple', isEliminated: count < 5 },
+    6: { id: 6, name: 'Player 6', position: config.spawns[6], wallsLeft: config.wallsPerPlayer, targetRow: 0, color: 'cyan', isEliminated: count < 6 },
+    7: { id: 7, name: 'Player 7', position: config.spawns[7], wallsLeft: config.wallsPerPlayer, targetRow: 0, color: 'lime', isEliminated: count < 7 },
+    8: { id: 8, name: 'Player 8', position: config.spawns[8], wallsLeft: config.wallsPerPlayer, targetRow: 0, color: 'fuchsia', isEliminated: count < 8 },
+    9: { id: 9, name: 'Player 9', position: config.spawns[9], wallsLeft: config.wallsPerPlayer, targetRow: 0, color: 'orange', isEliminated: count < 9 },
+    10: { id: 10, name: 'Player 10', position: config.spawns[10], wallsLeft: config.wallsPerPlayer, targetRow: 0, color: 'indigo', isEliminated: count < 10 },
+  };
+
+  playerInfos.forEach((info) => {
+    if (players[info.id]) {
+      players[info.id].name = info.name;
+      players[info.id].emoji = info.emoji;
+      players[info.id].isEliminated = false;
+    }
+  });
+
+  return {
+    players,
+    currentTurn: playerInfos[0]?.id || 1,
+    walls: [],
+    status: 'playing',
+    winner: null,
+    history: [],
+    mode,
+    variant: 'sprint_race',
+    boardSize: config.boardSize,
     turnTimeLimit: 15,
     resignedPlayerId: null,
   };

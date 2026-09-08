@@ -24,11 +24,13 @@ import {
   Sun,
   Moon,
 } from 'lucide-react';
+import { GameVariant } from '@/lib/game/types';
 import { AuthModal } from '@/components/modals/AuthModal';
 import { SettingsModal } from '@/components/modals/SettingsModal';
+import { Shield } from 'lucide-react';
 
 interface MainMenuProps {
-  onSelectMode: (mode: 'ai' | 'local' | 'online') => void;
+  onSelectMode: (mode: 'ai' | 'local' | 'online', variant?: GameVariant) => void;
   onOpenRules: () => void;
   onOpenGroups: () => void;
   onOpenOnlineLobby: () => void;
@@ -42,6 +44,7 @@ export const MainMenu: React.FC<MainMenuProps> = ({
 }) => {
   const { user, profile, signOut } = useAuth();
   const { theme, toggleTheme } = useTheme();
+  const [selected1v1Variant, setSelected1v1Variant] = useState<GameVariant>('classic');
   const [soundEnabled, setSoundEnabled] = useState(true);
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [showSettingsModal, setShowSettingsModal] = useState(false);
@@ -166,10 +169,38 @@ export const MainMenu: React.FC<MainMenuProps> = ({
 
         {/* 3. Game Mode Action Cards */}
         <div className="w-full space-y-3">
+          {/* 1v1 Mode Variant Toggle */}
+          <div className="w-full flex items-center p-1 rounded-2xl bg-slate-200/80 dark:bg-zinc-850/80 border border-slate-300 dark:border-zinc-750 text-xs font-bold">
+            <button
+              type="button"
+              onClick={() => setSelected1v1Variant('classic')}
+              className={`flex-1 py-1.5 px-3 rounded-xl flex items-center justify-center gap-1.5 transition-all ${
+                selected1v1Variant === 'classic'
+                  ? 'bg-white dark:bg-zinc-900 text-slate-900 dark:text-white shadow-sm'
+                  : 'text-slate-600 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-white'
+              }`}
+            >
+              <Shield className="w-3.5 h-3.5 text-blue-500" />
+              <span>Classic (Opposite)</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setSelected1v1Variant('sprint_race')}
+              className={`flex-1 py-1.5 px-3 rounded-xl flex items-center justify-center gap-1.5 transition-all ${
+                selected1v1Variant === 'sprint_race'
+                  ? 'bg-amber-500 text-slate-950 shadow-sm font-extrabold'
+                  : 'text-slate-600 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-white'
+              }`}
+            >
+              <Zap className="w-3.5 h-3.5 fill-current text-slate-950 dark:text-slate-950" />
+              <span>Sprint Race (Same Side)</span>
+            </button>
+          </div>
+
           {/* Card 1: Play vs AI */}
           <button
             type="button"
-            onClick={() => onSelectMode('ai')}
+            onClick={() => onSelectMode('ai', selected1v1Variant)}
             className="w-full group p-4 rounded-2xl bg-white dark:bg-zinc-900/90 hover:bg-slate-50 dark:hover:bg-zinc-850 border border-slate-200 dark:border-zinc-800 hover:border-sky-500/50 shadow-md dark:shadow-xl transition-all duration-150 flex items-center justify-between text-left tap-bounce"
           >
             <div className="flex items-center gap-3.5">
@@ -180,11 +211,13 @@ export const MainMenu: React.FC<MainMenuProps> = ({
                 <div className="font-bold text-sm sm:text-base text-slate-800 dark:text-zinc-100 group-hover:text-slate-950 dark:group-hover:text-white flex items-center gap-1.5">
                   Play vs AI
                   <span className="text-[10px] font-extrabold uppercase tracking-wider px-1.5 py-0.5 rounded bg-rose-100 text-rose-700 dark:bg-rose-950 dark:text-rose-300 border border-rose-300 dark:border-rose-500/30">
-                    Solo
+                    {selected1v1Variant === 'sprint_race' ? 'Sprint' : 'Solo'}
                   </span>
                 </div>
                 <div className="text-xs text-slate-500 dark:text-zinc-400 mt-0.5">
-                  Single player match against the smart computer bot.
+                  {selected1v1Variant === 'sprint_race'
+                    ? 'Race against AI from the bottom line to row 0!'
+                    : 'Single player match against the smart computer bot.'}
                 </div>
               </div>
             </div>
@@ -194,7 +227,7 @@ export const MainMenu: React.FC<MainMenuProps> = ({
           {/* Card 2: Pass & Play (Local 2P) */}
           <button
             type="button"
-            onClick={() => onSelectMode('local')}
+            onClick={() => onSelectMode('local', selected1v1Variant)}
             className="w-full group p-4 rounded-2xl bg-white dark:bg-zinc-900/90 hover:bg-slate-50 dark:hover:bg-zinc-850 border border-slate-200 dark:border-zinc-800 hover:border-blue-500/50 shadow-md dark:shadow-xl transition-all duration-150 flex items-center justify-between text-left tap-bounce"
           >
             <div className="flex items-center gap-3.5">
@@ -205,11 +238,13 @@ export const MainMenu: React.FC<MainMenuProps> = ({
                 <div className="font-bold text-sm sm:text-base text-slate-800 dark:text-zinc-100 group-hover:text-slate-950 dark:group-hover:text-white flex items-center gap-1.5">
                   Pass & Play (Local 2P)
                   <span className="text-[10px] font-extrabold uppercase tracking-wider px-1.5 py-0.5 rounded bg-blue-100 text-blue-700 dark:bg-blue-950 dark:text-blue-300 border border-blue-300 dark:border-blue-500/30">
-                    1 Phone
+                    {selected1v1Variant === 'sprint_race' ? 'Sprint' : '1 Phone'}
                   </span>
                 </div>
                 <div className="text-xs text-slate-500 dark:text-zinc-400 mt-0.5">
-                  Head-to-head match with a friend on the same device.
+                  {selected1v1Variant === 'sprint_race'
+                    ? 'Start side-by-side on 1 phone and race across!'
+                    : 'Head-to-head match with a friend on the same device.'}
                 </div>
               </div>
             </div>

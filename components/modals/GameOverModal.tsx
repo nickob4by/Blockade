@@ -18,6 +18,7 @@ import {
   Swords,
   Flag,
   Crown,
+  Zap,
 } from 'lucide-react';
 
 export type RematchStatus =
@@ -98,6 +99,8 @@ export const GameOverModal: React.FC<GameOverModalProps> = ({
         >
           {gameState.variant === 'core_race' ? (
             <Crown className="w-12 h-12 text-white animate-bounce" />
+          ) : gameState.variant === 'sprint_race' ? (
+            <Zap className="w-12 h-12 text-white animate-bounce" />
           ) : (
             <Trophy className="w-12 h-12 text-white animate-bounce" />
           )}
@@ -106,7 +109,11 @@ export const GameOverModal: React.FC<GameOverModalProps> = ({
         <div className="mt-8">
           <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-amber-500/20 text-amber-600 dark:text-amber-300 border border-amber-500/30 mb-2">
             <Sparkles className="w-3.5 h-3.5 text-amber-500 dark:text-amber-400" />
-            {gameState.variant === 'core_race' ? 'King of the Core!' : 'Victory!'}
+            {gameState.variant === 'core_race'
+              ? 'King of the Core!'
+              : gameState.variant === 'sprint_race'
+              ? 'Sprint Champion!'
+              : 'Victory!'}
           </div>
 
           <h2 className="text-2xl sm:text-3xl font-extrabold text-slate-900 dark:text-white">
@@ -135,6 +142,8 @@ export const GameOverModal: React.FC<GameOverModalProps> = ({
               </>
             ) : gameState.variant === 'core_race' ? (
               'Captured the Golden Center Core and conquered the labyrinth!'
+            ) : gameState.variant === 'sprint_race' ? (
+              'Sprint Champion! Crossed row 0 first and won the race!'
             ) : (
               'Successfully crossed to the other side of the grid!'
             )}
