@@ -1,6 +1,6 @@
 import { Coordinate, GameState, PlayerId, Wall, WallOrientation } from './types';
 import { isSameCoord, isWallCollision } from './board';
-import { doesWallTrapAllPlayers, doesWallTrapAnyPlayer, getValidPawnMoves } from './pathfinding';
+import { doesWallTrapAnyPlayerInMultiplayer, doesWallTrapAnyPlayer, getValidPawnMoves } from './pathfinding';
 
 export interface ValidationResult {
   valid: boolean;
@@ -73,7 +73,7 @@ export function canPlaceWall(
       };
     });
 
-    const traps = doesWallTrapAllPlayers(candidateWall, playerGoals, state.walls, boardSize);
+    const traps = doesWallTrapAnyPlayerInMultiplayer(candidateWall, playerGoals, state.walls, boardSize);
     if (traps) {
       return { valid: false, reason: 'Wall would completely block a player from reaching the Finish Line!' };
     }
@@ -87,7 +87,7 @@ export function canPlaceWall(
       };
     });
 
-    const traps = doesWallTrapAllPlayers(candidateWall, playerGoals, state.walls, boardSize);
+    const traps = doesWallTrapAnyPlayerInMultiplayer(candidateWall, playerGoals, state.walls, boardSize);
     if (traps) {
       return { valid: false, reason: 'Wall would completely block a player from reaching the Center Core!' };
     }

@@ -60,9 +60,9 @@ export function subscribeToGameRoom(
     channel.on('presence', { event: 'leave' }, ({ key, leftPresences }) => {
       const myId = presenceInfo.playerId;
       if (Array.isArray(leftPresences) && leftPresences.length > 0) {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        leftPresences.forEach((p: any) => {
-          const id = Number(p?.playerId || key) as PlayerId;
+        leftPresences.forEach((p) => {
+          const pRecord = p as unknown as Record<string, unknown>;
+          const id = Number(pRecord?.playerId || key) as PlayerId;
           if (id && id !== myId && presenceInfo.onOpponentLeave) {
             presenceInfo.onOpponentLeave(id);
           }

@@ -16,7 +16,9 @@ class SoundController {
       }
     }
     if (this.ctx && this.ctx.state === 'suspended') {
-      this.ctx.resume();
+      this.ctx.resume().catch(() => {
+        // Autoplay policy may restrict audio until user interaction
+      });
     }
   }
 

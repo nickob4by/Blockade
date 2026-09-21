@@ -1,6 +1,7 @@
-import { Coordinate, GameState, PlayerId, WallOrientation } from './types';
+import { Coordinate, GameState, PlayerId, Wall, WallOrientation } from './types';
 import { canPlaceWall } from './engine';
-import { findShortestPath, getValidPawnMoves } from './pathfinding';
+import { findShortestPath, findShortestPathToTargets, getValidPawnMoves } from './pathfinding';
+import { isSameCoord } from './board';
 
 export type AIAction =
   | { type: 'move'; target: Coordinate }
@@ -8,29 +9,52 @@ export type AIAction =
 
 /**
  * Computes the best move for Player 2 (AI).
- * Balances moving along the shortest path to goal (row 8) with placing strategic walls
- * to impede Player 1 when Player 1 is closer to winning.
+ * Balances moving along the shortest path to goal (row 8 or center core in King of the Core)
+ * with placing strategic walls to impede opponents when they are closer to winning.
  */
 export function computeAIMove(state: GameState): AIAction {
   const aiId: PlayerId = 2;
   const humanId: PlayerId = 1;
   const aiState = state.players[aiId];
-  const humanState = state.players[humanId];
+  const humanState = state.players[humanId] || Object.values(state.players).find((p) => p.id !== aiId && !p.isEliminated) || state.players[1];
 
   const boardSize = state.boardSize || 9;
+  const isCoreRace = state.variant === 'core_race';
+  const defaultCore = { r: Math.floor(boardSize / 2), c: Math.floor(boardSize / 2) };
+  const targetCores: Coordinate[] = aiState.targetCore || state.coreTargets || [defaultCore];
+
   const aiTargetRow = aiState.targetRow !== undefined ? aiState.targetRow : (state.variant === 'sprint_race' ? 0 : 8);
   const humanTargetRow = humanState.targetRow !== undefined ? humanState.targetRow : 0;
 
-  const aiPath = findShortestPath(aiState.position, aiTargetRow, state.walls, boardSize);
-  const humanPath = findShortestPath(humanState.position, humanTargetRow, state.walls, boardSize);
+  const getPath = (pos: Coordinate, targetRow: number, walls: Wall[] = state.walls): Coordinate[] | null => {
+    if (isCoreRace) {
+      return findShortestPathToTargets(pos, targetCores, walls, boardSize);
+    }
+    return findShortestPath(pos, targetRow, walls, boardSize);
+  };
+
+  const isWinningCoord = (coord: Coordinate, targetRow: number): boolean => {
+    if (isCoreRace) {
+      return targetCores.some((t) => isSameCoord(coord, t));
+    }
+    return coord.r === targetRow;
+  };
+
+  const aiPath = getPath(aiState.position, aiTargetRow);
+  const humanPath = getPath(humanState.position, humanTargetRow);
 
   const aiDist = aiPath ? aiPath.length - 1 : 99;
   const humanDist = humanPath ? humanPath.length - 1 : 99;
 
-  const validMoves = getValidPawnMoves(aiState.position, humanState.position, state.walls, boardSize);
+  // Gather other active pawns on the board
+  const otherPawnPositions = Object.values(state.players)
+    .filter((p) => p.id !== aiId && !p.isEliminated)
+    .map((p) => p.position);
+
+  const validMoves = getValidPawnMoves(aiState.position, otherPawnPositions, state.walls, boardSize);
 
   // If AI can win this turn, do it immediately!
-  const winningMove = validMoves.find((m) => m.r === aiTargetRow);
+  const winningMove = validMoves.find((m) => isWinningCoord(m, aiTargetRow));
   if (winningMove) {
     return { type: 'move', target: winningMove };
   }
@@ -71,8 +95,8 @@ export function computeAIMove(state: GameState): AIAction {
 
         // Simulate wall placement
         const simWalls = [...state.walls, { ...candidate, placedBy: aiId }];
-        const newHumanPath = findShortestPath(humanState.position, humanTargetRow, simWalls, boardSize);
-        const newAiPath = findShortestPath(aiState.position, aiTargetRow, simWalls, boardSize);
+        const newHumanPath = getPath(humanState.position, humanTargetRow, simWalls);
+        const newAiPath = getPath(aiState.position, aiTargetRow, simWalls);
 
         if (!newHumanPath || !newAiPath) continue;
 
@@ -104,12 +128,12 @@ export function computeAIMove(state: GameState): AIAction {
     }
   }
 
-  // Default: Choose the pawn move that minimizes AI distance to target row
+  // Default: Choose the pawn move that minimizes AI distance to target
   let bestPawnMove = validMoves[0];
   let minDistance = 999;
 
   for (const move of validMoves) {
-    const pathFromMove = findShortestPath(move, aiTargetRow, state.walls, boardSize);
+    const pathFromMove = getPath(move, aiTargetRow, state.walls);
     const dist = pathFromMove ? pathFromMove.length - 1 : 999;
     if (dist < minDistance) {
       minDistance = dist;

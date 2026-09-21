@@ -55,16 +55,10 @@ export const GameOverModal: React.FC<GameOverModalProps> = ({
   opponentName,
 }) => {
   const winner = gameState.winner;
-  if (!winner) return null;
-
-  const winningPlayer = gameState.players[winner];
-  const isClientWinner = clientPlayerId ? winner === clientPlayerId : false;
-  const isMultiplayerParty =
-    gameState.variant === 'core_race' ||
-    gameState.variant === 'sprint_race' ||
-    Object.values(gameState.players).filter((p) => !p.isEliminated).length > 2;
 
   useEffect(() => {
+    if (!winner) return;
+
     sounds.playWin();
 
     // Trigger confetti explosion
@@ -87,7 +81,16 @@ export const GameOverModal: React.FC<GameOverModalProps> = ({
     fire(0.35, { spread: 100, decay: 0.91, scalar: 0.8 });
     fire(0.1, { spread: 120, startVelocity: 25, decay: 0.92, scalar: 1.2 });
     fire(0.1, { spread: 120, startVelocity: 45 });
-  }, []);
+  }, [winner]);
+
+  if (!winner) return null;
+
+  const winningPlayer = gameState.players[winner];
+  const isClientWinner = clientPlayerId ? winner === clientPlayerId : false;
+  const isMultiplayerParty =
+    gameState.variant === 'core_race' ||
+    gameState.variant === 'sprint_race' ||
+    Object.values(gameState.players).filter((p) => !p.isEliminated).length > 2;
 
   const totalMoves = gameState.history.length;
   const wallsPlacedByWinner = gameState.walls.filter((w) => w.placedBy === winner).length;

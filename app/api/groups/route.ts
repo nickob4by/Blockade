@@ -1,11 +1,44 @@
 import { NextResponse } from 'next/server';
 import fs from 'fs';
 import path from 'path';
+import os from 'os';
 import { createClient } from '@supabase/supabase-js';
 import { FriendGroup, GroupMember } from '@/lib/groups/groupService';
 
-const DATA_DIR = path.join(process.cwd(), '.data');
-const GROUPS_FILE = path.join(DATA_DIR, 'groups.json');
+// Determine writable directory for local fallback (handles local dev and Vercel serverless /tmp)
+function getLocalDataDir(): string {
+  try {
+    const localDir = path.join(process.cwd(), '.data');
+    if (!fs.existsSync(localDir)) {
+      fs.mkdirSync(localDir, { recursive: true });
+    }
+    const testFile = path.join(localDir, '.write_test');
+    fs.writeFileSync(testFile, 'ok');
+    fs.unlinkSync(testFile);
+    return localDir;
+  } catch {
+    const tmpDir = path.join(os.tmpdir(), 'blockade_data');
+    try {
+      if (!fs.existsSync(tmpDir)) {
+        fs.mkdirSync(tmpDir, { recursive: true });
+      }
+    } catch {}
+    return tmpDir;
+  }
+}
+
+let cachedDataDir: string | null = null;
+function getDataDir(): string {
+  if (!cachedDataDir) {
+    cachedDataDir = getLocalDataDir();
+  }
+  return cachedDataDir;
+}
+
+function getGroupsFilePath(): string {
+  return path.join(getDataDir(), 'groups.json');
+}
+
 const STORAGE_BUCKET = 'blockade-data';
 const STORAGE_FILE = 'groups.json';
 
@@ -109,8 +142,9 @@ async function loadGroups(): Promise<Record<string, FriendGroup>> {
 
   // 2. Fallback to local file
   try {
-    if (fs.existsSync(GROUPS_FILE)) {
-      const content = fs.readFileSync(GROUPS_FILE, 'utf-8');
+    const filePath = getGroupsFilePath();
+    if (fs.existsSync(filePath)) {
+      const content = fs.readFileSync(filePath, 'utf-8');
       const parsed = JSON.parse(content);
       inMemoryGroups = sanitizeGroupsMap(parsed);
       lastFetchTime = now;
@@ -133,23 +167,27 @@ async function saveGroups(groups: Record<string, FriendGroup>): Promise<void> {
   const supabase = getSupabaseClient();
   if (supabase) {
     try {
-      await supabase.storage.from(STORAGE_BUCKET).upload(STORAGE_FILE, payload, {
+      const { error } = await supabase.storage.from(STORAGE_BUCKET).upload(STORAGE_FILE, payload, {
         contentType: 'application/json',
         upsert: true,
       });
+      if (error) {
+        console.warn('Supabase Storage saveGroups warning:', error.message);
+      }
     } catch (err) {
-      console.error('Error saving groups to Supabase Storage:', err);
+      console.warn('Error saving groups to Supabase Storage:', err);
     }
   }
 
   // 2. Local file fallback
   try {
-    if (!fs.existsSync(DATA_DIR)) {
-      fs.mkdirSync(DATA_DIR, { recursive: true });
+    const dataDir = getDataDir();
+    if (!fs.existsSync(dataDir)) {
+      fs.mkdirSync(dataDir, { recursive: true });
     }
-    fs.writeFileSync(GROUPS_FILE, payload, 'utf-8');
-  } catch {
-    // Ignore in read-only serverless
+    fs.writeFileSync(getGroupsFilePath(), payload, 'utf-8');
+  } catch (err) {
+    console.warn('Local filesystem save fallback skipped:', err);
   }
 }
 

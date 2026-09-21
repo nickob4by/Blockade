@@ -123,7 +123,7 @@ test('Path Trapping Prohibition (Quoridor rule)', () => {
   // Place wall above: H at (7, 0)
   state.walls.push({ r: 7, c: 0, orientation: 'H', placedBy: 2 });
   // Place wall to the right: V at (7, 0) -> this seals off (8,0) completely!
-  const trapWall = { r: 7, c: 0, orientation: 'V' };
+  const trapWall = { r: 7, c: 0, orientation: 'V' as const };
 
   // Check if placing this wall traps P1
   const traps = doesWallTrapAnyPlayer(

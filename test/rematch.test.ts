@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { RealtimePayload } from '../lib/supabase/realtime';
 import { RematchStatus } from '../components/modals/GameOverModal';
 import { createInitialGameState } from '../lib/game/board';
+import { GameStatus } from '../lib/game/types';
 
 test('Rematch - RealtimePayload Types & Structure', () => {
   const requestPayload: RealtimePayload = {
@@ -117,7 +118,7 @@ test('Resignation - Forfeiting player sets opponent as winner and enables Rematc
 
   const endedGame = {
     ...game,
-    status: (winningPlayerId === 1 ? 'player1_won' : 'player2_won') as const,
+    status: (winningPlayerId === 1 ? 'player1_won' : 'player2_won') as GameStatus,
     winner: winningPlayerId,
     resignedPlayerId: resigningPlayerId,
   };

@@ -1,6 +1,41 @@
 import { getSupabaseClient } from '@/lib/supabase/client';
-import { RealtimeChannel } from '@supabase/supabase-js';
+import { RealtimeChannel, SupabaseClient } from '@supabase/supabase-js';
 import { GameVariant } from '@/lib/game/types';
+
+/**
+ * Sends a transient broadcast message on a temporary channel and cleanly
+ * unsubscribes and removes the channel from the Supabase client immediately.
+ */
+async function sendTransientBroadcast(
+  supabase: SupabaseClient,
+  channelName: string,
+  event: string,
+  payload: ChallengeActionPayload
+): Promise<boolean> {
+  const channel = supabase.channel(channelName, {
+    config: { broadcast: { self: false } },
+  });
+
+  try {
+    await channel.subscribe();
+    const res = await channel.send({
+      type: 'broadcast',
+      event,
+      payload,
+    });
+    return res === 'ok';
+  } catch (err) {
+    console.error(`Failed to send broadcast on ${channelName}:`, err);
+    return false;
+  } finally {
+    try {
+      channel.unsubscribe();
+      supabase.removeChannel(channel);
+    } catch {
+      // Safe cleanup fallback
+    }
+  }
+}
 
 export interface MatchChallenge {
   id: string;
@@ -67,44 +102,33 @@ export async function sendChallenge(challenge: MatchChallenge): Promise<boolean>
       challenge,
     };
 
-    // Target user channel (by ID and by normalized username)
-    const targetChannel1 = supabase.channel(`challenges:user_${challenge.targetUserId}`, {
-      config: { broadcast: { self: false } },
-    });
-    const targetChannel2 = supabase.channel(
-      `challenges:name_${challenge.targetUserName.toLowerCase().trim()}`,
-      { config: { broadcast: { self: false } } }
-    );
+    const broadcasts: Promise<boolean>[] = [
+      sendTransientBroadcast(
+        supabase,
+        `challenges:user_${challenge.targetUserId}`,
+        'challenge_event',
+        payload
+      ),
+      sendTransientBroadcast(
+        supabase,
+        `challenges:name_${challenge.targetUserName.toLowerCase().trim()}`,
+        'challenge_event',
+        payload
+      ),
+    ];
 
-    await targetChannel1.subscribe();
-    await targetChannel2.subscribe();
-
-    await targetChannel1.send({
-      type: 'broadcast',
-      event: 'challenge_event',
-      payload,
-    });
-
-    await targetChannel2.send({
-      type: 'broadcast',
-      event: 'challenge_event',
-      payload,
-    });
-
-    // Also broadcast on group channel if initiated from a group
     if (challenge.groupCode) {
-      const groupChannel = supabase.channel(
-        `group_presence:${challenge.groupCode.toLowerCase()}`,
-        { config: { broadcast: { self: false } } }
+      broadcasts.push(
+        sendTransientBroadcast(
+          supabase,
+          `group_presence:${challenge.groupCode.toLowerCase()}`,
+          'challenge_event',
+          payload
+        )
       );
-      await groupChannel.subscribe();
-      await groupChannel.send({
-        type: 'broadcast',
-        event: 'challenge_event',
-        payload,
-      });
     }
 
+    await Promise.allSettled(broadcasts);
     return true;
   } catch (err) {
     console.error('Failed to send challenge broadcast:', err);
@@ -148,44 +172,33 @@ export async function respondToChallenge(
   if (!supabase) return true;
 
   try {
-    // Notify the challenger
-    const challengerChannel1 = supabase.channel(`challenges:user_${challenge.challengerId}`, {
-      config: { broadcast: { self: false } },
-    });
-    const challengerChannel2 = supabase.channel(
-      `challenges:name_${challenge.challengerName.toLowerCase().trim()}`,
-      { config: { broadcast: { self: false } } }
-    );
+    const broadcasts: Promise<boolean>[] = [
+      sendTransientBroadcast(
+        supabase,
+        `challenges:user_${challenge.challengerId}`,
+        'challenge_event',
+        payload
+      ),
+      sendTransientBroadcast(
+        supabase,
+        `challenges:name_${challenge.challengerName.toLowerCase().trim()}`,
+        'challenge_event',
+        payload
+      ),
+    ];
 
-    await challengerChannel1.subscribe();
-    await challengerChannel2.subscribe();
-
-    await challengerChannel1.send({
-      type: 'broadcast',
-      event: 'challenge_event',
-      payload,
-    });
-
-    await challengerChannel2.send({
-      type: 'broadcast',
-      event: 'challenge_event',
-      payload,
-    });
-
-    // Also broadcast on group channel if present
     if (challenge.groupCode) {
-      const groupChannel = supabase.channel(
-        `group_presence:${challenge.groupCode.toLowerCase()}`,
-        { config: { broadcast: { self: false } } }
+      broadcasts.push(
+        sendTransientBroadcast(
+          supabase,
+          `group_presence:${challenge.groupCode.toLowerCase()}`,
+          'challenge_event',
+          payload
+        )
       );
-      await groupChannel.subscribe();
-      await groupChannel.send({
-        type: 'broadcast',
-        event: 'challenge_event',
-        payload,
-      });
     }
 
+    await Promise.allSettled(broadcasts);
     return true;
   } catch (err) {
     console.error('Failed to send challenge response:', err);
@@ -220,42 +233,33 @@ export async function cancelChallenge(
   if (!supabase) return true;
 
   try {
-    const targetChannel1 = supabase.channel(`challenges:user_${challenge.targetUserId}`, {
-      config: { broadcast: { self: false } },
-    });
-    const targetChannel2 = supabase.channel(
-      `challenges:name_${challenge.targetUserName.toLowerCase().trim()}`,
-      { config: { broadcast: { self: false } } }
-    );
-
-    await targetChannel1.subscribe();
-    await targetChannel2.subscribe();
-
-    await targetChannel1.send({
-      type: 'broadcast',
-      event: 'challenge_event',
-      payload,
-    });
-
-    await targetChannel2.send({
-      type: 'broadcast',
-      event: 'challenge_event',
-      payload,
-    });
+    const broadcasts: Promise<boolean>[] = [
+      sendTransientBroadcast(
+        supabase,
+        `challenges:user_${challenge.targetUserId}`,
+        'challenge_event',
+        payload
+      ),
+      sendTransientBroadcast(
+        supabase,
+        `challenges:name_${challenge.targetUserName.toLowerCase().trim()}`,
+        'challenge_event',
+        payload
+      ),
+    ];
 
     if (challenge.groupCode) {
-      const groupChannel = supabase.channel(
-        `group_presence:${challenge.groupCode.toLowerCase()}`,
-        { config: { broadcast: { self: false } } }
+      broadcasts.push(
+        sendTransientBroadcast(
+          supabase,
+          `group_presence:${challenge.groupCode.toLowerCase()}`,
+          'challenge_event',
+          payload
+        )
       );
-      await groupChannel.subscribe();
-      await groupChannel.send({
-        type: 'broadcast',
-        event: 'challenge_event',
-        payload,
-      });
     }
 
+    await Promise.allSettled(broadcasts);
     return true;
   } catch {
     return false;
@@ -331,7 +335,19 @@ export function subscribeToUserChallenges(
     if (typeof window !== 'undefined') {
       window.removeEventListener('storage', handleStorage);
     }
-    if (ch1) ch1.unsubscribe();
-    if (ch2) ch2.unsubscribe();
+    if (supabase) {
+      if (ch1) {
+        try {
+          ch1.unsubscribe();
+          supabase.removeChannel(ch1);
+        } catch {}
+      }
+      if (ch2) {
+        try {
+          ch2.unsubscribe();
+          supabase.removeChannel(ch2);
+        } catch {}
+      }
+    }
   };
 }

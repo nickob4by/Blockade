@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Clock } from 'lucide-react';
 import { PlayerId } from '@/lib/game/types';
 import { PLAYER_THEMES } from '@/lib/game/board';
@@ -23,20 +23,26 @@ export const TurnTimerBar: React.FC<TurnTimerBarProps> = ({
   disabled = false,
 }) => {
   const [secondsLeft, setSecondsLeft] = useState(timeLimit);
+  const onTimeoutRef = useRef(onTimeout);
 
-  // Reset timer whenever the active turn changes
+  // Keep latest onTimeout handler without triggering timer restart
+  useEffect(() => {
+    onTimeoutRef.current = onTimeout;
+  }, [onTimeout]);
+
+  // Reset and run timer whenever the active turn or timeLimit changes
   useEffect(() => {
     setSecondsLeft(timeLimit);
-  }, [currentTurn, timeLimit]);
 
-  useEffect(() => {
-    if (disabled || secondsLeft <= 0) return;
+    if (disabled) return;
 
     const timer = setInterval(() => {
       setSecondsLeft((prev) => {
         if (prev <= 1) {
           clearInterval(timer);
-          if (onTimeout) onTimeout();
+          if (onTimeoutRef.current) {
+            onTimeoutRef.current();
+          }
           return 0;
         }
         return prev - 1;
@@ -44,7 +50,7 @@ export const TurnTimerBar: React.FC<TurnTimerBarProps> = ({
     }, 1000);
 
     return () => clearInterval(timer);
-  }, [disabled, secondsLeft, onTimeout]);
+  }, [currentTurn, timeLimit, disabled]);
 
   const theme = PLAYER_THEMES[currentTurn] || PLAYER_THEMES[1];
   const percent = Math.max(0, Math.min(100, (secondsLeft / timeLimit) * 100));

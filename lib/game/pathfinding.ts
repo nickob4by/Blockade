@@ -251,8 +251,9 @@ export function doesWallTrapAnyPlayer(
 
 /**
  * Verifies that placing a candidate wall does not trap ANY active player in a multi-player game.
+ * Returns true if ANY player's path to their destination is completely blocked.
  */
-export function doesWallTrapAllPlayers(
+export function doesWallTrapAnyPlayerInMultiplayer(
   candidateWall: Wall,
   players: Array<{ pos: Coordinate; target: number | Coordinate[] }>,
   currentWalls: Wall[],
@@ -267,3 +268,8 @@ export function doesWallTrapAllPlayers(
 
   return false;
 }
+
+/**
+ * Backward-compatible alias for doesWallTrapAnyPlayerInMultiplayer.
+ */
+export const doesWallTrapAllPlayers = doesWallTrapAnyPlayerInMultiplayer;
