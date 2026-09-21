@@ -371,22 +371,24 @@ export function createInitialGameState(mode: GameMode = 'local'): GameState {
 }
 
 export function createInitialCoreRaceState(
-  playerInfos: Array<{ id: PlayerId; name: string; emoji?: string }>
+  playerInfos: Array<{ id: PlayerId; name: string; emoji?: string }>,
+  customWalls?: number
 ): GameState {
   const count = Math.max(3, Math.min(6, playerInfos.length));
   const config = getCoreRaceConfig(count);
+  const effectiveWalls = typeof customWalls === 'number' && customWalls > 0 ? customWalls : config.wallsPerPlayer;
 
   const players: Record<PlayerId, any> = {
-    1: { id: 1, name: 'Player 1', position: config.spawns[1], wallsLeft: config.wallsPerPlayer, targetCore: config.coreTargets, color: 'blue', isEliminated: count < 1 },
-    2: { id: 2, name: 'Player 2', position: config.spawns[2], wallsLeft: config.wallsPerPlayer, targetCore: config.coreTargets, color: 'rose', isEliminated: count < 2 },
-    3: { id: 3, name: 'Player 3', position: config.spawns[3], wallsLeft: config.wallsPerPlayer, targetCore: config.coreTargets, color: 'emerald', isEliminated: count < 3 },
-    4: { id: 4, name: 'Player 4', position: config.spawns[4], wallsLeft: config.wallsPerPlayer, targetCore: config.coreTargets, color: 'amber', isEliminated: count < 4 },
-    5: { id: 5, name: 'Player 5', position: config.spawns[5], wallsLeft: config.wallsPerPlayer, targetCore: config.coreTargets, color: 'purple', isEliminated: count < 5 },
-    6: { id: 6, name: 'Player 6', position: config.spawns[6], wallsLeft: config.wallsPerPlayer, targetCore: config.coreTargets, color: 'cyan', isEliminated: count < 6 },
-    7: { id: 7, name: 'Player 7', position: config.spawns[7], wallsLeft: config.wallsPerPlayer, targetCore: config.coreTargets, color: 'lime', isEliminated: true },
-    8: { id: 8, name: 'Player 8', position: config.spawns[8], wallsLeft: config.wallsPerPlayer, targetCore: config.coreTargets, color: 'fuchsia', isEliminated: true },
-    9: { id: 9, name: 'Player 9', position: config.spawns[9], wallsLeft: config.wallsPerPlayer, targetCore: config.coreTargets, color: 'orange', isEliminated: true },
-    10: { id: 10, name: 'Player 10', position: config.spawns[10], wallsLeft: config.wallsPerPlayer, targetCore: config.coreTargets, color: 'indigo', isEliminated: true },
+    1: { id: 1, name: 'Player 1', position: config.spawns[1], wallsLeft: effectiveWalls, targetCore: config.coreTargets, color: 'blue', isEliminated: count < 1 },
+    2: { id: 2, name: 'Player 2', position: config.spawns[2], wallsLeft: effectiveWalls, targetCore: config.coreTargets, color: 'rose', isEliminated: count < 2 },
+    3: { id: 3, name: 'Player 3', position: config.spawns[3], wallsLeft: effectiveWalls, targetCore: config.coreTargets, color: 'emerald', isEliminated: count < 3 },
+    4: { id: 4, name: 'Player 4', position: config.spawns[4], wallsLeft: effectiveWalls, targetCore: config.coreTargets, color: 'amber', isEliminated: count < 4 },
+    5: { id: 5, name: 'Player 5', position: config.spawns[5], wallsLeft: effectiveWalls, targetCore: config.coreTargets, color: 'purple', isEliminated: count < 5 },
+    6: { id: 6, name: 'Player 6', position: config.spawns[6], wallsLeft: effectiveWalls, targetCore: config.coreTargets, color: 'cyan', isEliminated: count < 6 },
+    7: { id: 7, name: 'Player 7', position: config.spawns[7], wallsLeft: effectiveWalls, targetCore: config.coreTargets, color: 'lime', isEliminated: true },
+    8: { id: 8, name: 'Player 8', position: config.spawns[8], wallsLeft: effectiveWalls, targetCore: config.coreTargets, color: 'fuchsia', isEliminated: true },
+    9: { id: 9, name: 'Player 9', position: config.spawns[9], wallsLeft: effectiveWalls, targetCore: config.coreTargets, color: 'orange', isEliminated: true },
+    10: { id: 10, name: 'Player 10', position: config.spawns[10], wallsLeft: effectiveWalls, targetCore: config.coreTargets, color: 'indigo', isEliminated: true },
   };
 
   playerInfos.forEach((info) => {
@@ -415,22 +417,24 @@ export function createInitialCoreRaceState(
 
 export function createInitialSprintRaceState(
   playerInfos: Array<{ id: PlayerId; name: string; emoji?: string }>,
-  mode: GameMode = 'party'
+  mode: GameMode = 'party',
+  customWalls?: number
 ): GameState {
   const count = Math.max(2, Math.min(10, playerInfos.length));
   const config = getSprintRaceConfig(count);
+  const effectiveWalls = typeof customWalls === 'number' && customWalls > 0 ? customWalls : config.wallsPerPlayer;
 
   const players: Record<PlayerId, any> = {
-    1: { id: 1, name: 'Player 1', position: config.spawns[1], wallsLeft: config.wallsPerPlayer, targetRow: 0, color: 'blue', isEliminated: count < 1 },
-    2: { id: 2, name: 'Player 2', position: config.spawns[2], wallsLeft: config.wallsPerPlayer, targetRow: 0, color: 'rose', isEliminated: count < 2 },
-    3: { id: 3, name: 'Player 3', position: config.spawns[3], wallsLeft: config.wallsPerPlayer, targetRow: 0, color: 'emerald', isEliminated: count < 3 },
-    4: { id: 4, name: 'Player 4', position: config.spawns[4], wallsLeft: config.wallsPerPlayer, targetRow: 0, color: 'amber', isEliminated: count < 4 },
-    5: { id: 5, name: 'Player 5', position: config.spawns[5], wallsLeft: config.wallsPerPlayer, targetRow: 0, color: 'purple', isEliminated: count < 5 },
-    6: { id: 6, name: 'Player 6', position: config.spawns[6], wallsLeft: config.wallsPerPlayer, targetRow: 0, color: 'cyan', isEliminated: count < 6 },
-    7: { id: 7, name: 'Player 7', position: config.spawns[7], wallsLeft: config.wallsPerPlayer, targetRow: 0, color: 'lime', isEliminated: count < 7 },
-    8: { id: 8, name: 'Player 8', position: config.spawns[8], wallsLeft: config.wallsPerPlayer, targetRow: 0, color: 'fuchsia', isEliminated: count < 8 },
-    9: { id: 9, name: 'Player 9', position: config.spawns[9], wallsLeft: config.wallsPerPlayer, targetRow: 0, color: 'orange', isEliminated: count < 9 },
-    10: { id: 10, name: 'Player 10', position: config.spawns[10], wallsLeft: config.wallsPerPlayer, targetRow: 0, color: 'indigo', isEliminated: count < 10 },
+    1: { id: 1, name: 'Player 1', position: config.spawns[1], wallsLeft: effectiveWalls, targetRow: 0, color: 'blue', isEliminated: count < 1 },
+    2: { id: 2, name: 'Player 2', position: config.spawns[2], wallsLeft: effectiveWalls, targetRow: 0, color: 'rose', isEliminated: count < 2 },
+    3: { id: 3, name: 'Player 3', position: config.spawns[3], wallsLeft: effectiveWalls, targetRow: 0, color: 'emerald', isEliminated: count < 3 },
+    4: { id: 4, name: 'Player 4', position: config.spawns[4], wallsLeft: effectiveWalls, targetRow: 0, color: 'amber', isEliminated: count < 4 },
+    5: { id: 5, name: 'Player 5', position: config.spawns[5], wallsLeft: effectiveWalls, targetRow: 0, color: 'purple', isEliminated: count < 5 },
+    6: { id: 6, name: 'Player 6', position: config.spawns[6], wallsLeft: effectiveWalls, targetRow: 0, color: 'cyan', isEliminated: count < 6 },
+    7: { id: 7, name: 'Player 7', position: config.spawns[7], wallsLeft: effectiveWalls, targetRow: 0, color: 'lime', isEliminated: count < 7 },
+    8: { id: 8, name: 'Player 8', position: config.spawns[8], wallsLeft: effectiveWalls, targetRow: 0, color: 'fuchsia', isEliminated: count < 8 },
+    9: { id: 9, name: 'Player 9', position: config.spawns[9], wallsLeft: effectiveWalls, targetRow: 0, color: 'orange', isEliminated: count < 9 },
+    10: { id: 10, name: 'Player 10', position: config.spawns[10], wallsLeft: effectiveWalls, targetRow: 0, color: 'indigo', isEliminated: count < 10 },
   };
 
   playerInfos.forEach((info) => {

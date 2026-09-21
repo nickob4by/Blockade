@@ -55,6 +55,7 @@ interface GroupsModalProps {
     variant?: GameVariant;
     roomCode?: string;
     mySlot?: PlayerId;
+    customWalls?: number;
   }) => void;
 }
 
@@ -96,7 +97,8 @@ export const GroupsModal: React.FC<GroupsModalProps> = ({
       members: PartyLobbyMember[],
       boardSize: number,
       variant: GameVariant,
-      roomCode?: string
+      roomCode?: string,
+      customWalls?: number
     ) => {
       setShowPartyLobby(false);
       if (onStartPartyMatch) {
@@ -108,6 +110,7 @@ export const GroupsModal: React.FC<GroupsModalProps> = ({
           variant,
           roomCode,
           mySlot,
+          customWalls,
           players: members.map((m) => ({
             id: m.slot,
             name: m.name,

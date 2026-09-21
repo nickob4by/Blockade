@@ -20,6 +20,7 @@ export interface ActiveLobbyInfo {
   currentPlayers: number;
   members: PartyLobbyMember[];
   updatedAt: number;
+  customWalls?: number;
 }
 
 export interface PartyLobbyListeners {
@@ -34,6 +35,7 @@ export interface PartyLobbyListeners {
     boardSize: number;
     variant: GameVariant;
     roomCode: string;
+    customWalls?: number;
   }) => void;
   onLobbyClosed?: (payload: { hostId: string; reason?: string }) => void;
   onPresenceUpdate?: (activeLobby: ActiveLobbyInfo | null) => void;
@@ -45,7 +47,8 @@ export interface PartyLobbySubscription {
     members: PartyLobbyMember[],
     maxPlayers: number,
     variant: GameVariant,
-    host: { id: string; name: string; emoji?: string }
+    host: { id: string; name: string; emoji?: string },
+    customWalls?: number
   ) => Promise<void>;
   sendMemberJoin: (member: { id: string; name: string; emoji?: string }) => Promise<void>;
   sendMemberReady: (id: string, isReady: boolean) => Promise<void>;
@@ -55,6 +58,7 @@ export interface PartyLobbySubscription {
     boardSize: number;
     variant: GameVariant;
     roomCode: string;
+    customWalls?: number;
   }) => Promise<void>;
   sendLobbyClosed: (hostId: string, reason?: string) => Promise<void>;
   requestLobbyInfo: () => Promise<void>;
@@ -146,6 +150,7 @@ export function subscribeToPartyLobby(
           currentPlayers: payload.members ? payload.members.length : payload.currentPlayers || 1,
           members: Array.isArray(payload.members) ? payload.members : [],
           updatedAt: Date.now(),
+          customWalls: typeof payload.customWalls === 'number' ? payload.customWalls : undefined,
         };
         cur.currentLobby = lobby;
         cur.listeners.forEach((l) => {
@@ -168,6 +173,7 @@ export function subscribeToPartyLobby(
           currentPlayers: payload.members ? payload.members.length : payload.currentPlayers || 1,
           members: Array.isArray(payload.members) ? payload.members : [],
           updatedAt: Date.now(),
+          customWalls: typeof payload.customWalls === 'number' ? payload.customWalls : undefined,
         };
         cur.currentLobby = lobby;
         cur.listeners.forEach((l) => {
@@ -261,7 +267,8 @@ export function subscribeToPartyLobby(
     members: PartyLobbyMember[],
     maxPlayers: number,
     variant: GameVariant,
-    host: { id: string; name: string; emoji?: string }
+    host: { id: string; name: string; emoji?: string },
+    customWalls?: number
   ) => {
     const cur = lobbyChannelRegistry.get(topicKey);
     if (!cur) return;
@@ -275,6 +282,7 @@ export function subscribeToPartyLobby(
       hostEmoji: host.emoji,
       currentPlayers: members.length,
       updatedAt: Date.now(),
+      customWalls,
     };
 
     cur.currentLobby = payload;
@@ -343,6 +351,7 @@ export function subscribeToPartyLobby(
     boardSize: number;
     variant: GameVariant;
     roomCode: string;
+    customWalls?: number;
   }) => {
     const cur = lobbyChannelRegistry.get(topicKey);
     if (!cur) return;

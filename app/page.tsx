@@ -102,6 +102,7 @@ export default function GamePage() {
   const [isPartyMatch, setIsPartyMatch] = useState<boolean>(false);
   const isPartyMatchRef = useRef<boolean>(false);
   isPartyMatchRef.current = isPartyMatch;
+  const partyCustomWallsRef = useRef<number | undefined>(undefined);
 
   const [departedPlayerIds, setDepartedPlayerIds] = useState<PlayerId[]>([]);
   const departedPlayerIdsRef = useRef<PlayerId[]>([]);
@@ -176,6 +177,7 @@ export default function GamePage() {
     }
     setIsPartyMatch(false);
     isPartyMatchRef.current = false;
+    partyCustomWallsRef.current = undefined;
     setDepartedPlayerIds([]);
     departedPlayerIdsRef.current = [];
     setInGameAlert(null);
@@ -213,6 +215,7 @@ export default function GamePage() {
       }
       setIsPartyMatch(false);
       isPartyMatchRef.current = false;
+      partyCustomWallsRef.current = undefined;
       setDepartedPlayerIds([]);
       departedPlayerIdsRef.current = [];
       setInGameAlert(null);
@@ -374,7 +377,7 @@ export default function GamePage() {
         name: gameState.players[id]?.name || `Player ${id}`,
         emoji: gameState.players[id]?.emoji,
       }));
-      newState = createInitialSprintRaceState(playersList);
+      newState = createInitialSprintRaceState(playersList, 'party', partyCustomWallsRef.current);
       newState.mode = mode;
     } else if (gameState.variant === 'core_race') {
       const activeIds = getActivePlayerIds(gameState);
@@ -383,7 +386,7 @@ export default function GamePage() {
         name: gameState.players[id]?.name || `Player ${id}`,
         emoji: gameState.players[id]?.emoji,
       }));
-      newState = createInitialCoreRaceState(playersList);
+      newState = createInitialCoreRaceState(playersList, partyCustomWallsRef.current);
       newState.mode = mode;
     } else {
       newState = createInitialGameState(mode);
@@ -418,13 +421,16 @@ export default function GamePage() {
       variant = 'sprint_race',
       roomCode,
       mySlot: explicitSlot,
+      customWalls,
     }: {
       boardSize?: number;
       players: Array<{ id: PlayerId; name: string; emoji?: string; userId?: string }>;
       variant?: GameVariant;
       roomCode?: string;
       mySlot?: PlayerId;
+      customWalls?: number;
     }) => {
+      partyCustomWallsRef.current = customWalls;
       setShowGroups(false);
       sounds.playGameStart();
 
@@ -459,8 +465,8 @@ export default function GamePage() {
 
       const initialState =
         variant === 'sprint_race'
-          ? createInitialSprintRaceState(players)
-          : createInitialCoreRaceState(players);
+          ? createInitialSprintRaceState(players, 'party', customWalls)
+          : createInitialCoreRaceState(players, customWalls);
       initialState.mode = 'online';
 
       setGameState(initialState);
@@ -866,6 +872,7 @@ export default function GamePage() {
       }
       setIsPartyMatch(false);
       isPartyMatchRef.current = false;
+      partyCustomWallsRef.current = undefined;
       setDepartedPlayerIds([]);
       departedPlayerIdsRef.current = [];
       setInGameAlert(null);
@@ -909,6 +916,7 @@ export default function GamePage() {
     }
     setIsPartyMatch(false);
     isPartyMatchRef.current = false;
+    partyCustomWallsRef.current = undefined;
     setDepartedPlayerIds([]);
     departedPlayerIdsRef.current = [];
     setInGameAlert(null);

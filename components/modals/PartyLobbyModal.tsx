@@ -12,6 +12,8 @@ import {
   Zap,
   LogOut,
   AlertCircle,
+  Minus,
+  Plus,
 } from 'lucide-react';
 import { PlayerId, GameVariant } from '@/lib/game/types';
 import { PLAYER_THEMES, getCoreRaceConfig, getSprintRaceConfig } from '@/lib/game/board';
@@ -38,7 +40,8 @@ interface PartyLobbyModalProps {
     members: PartyLobbyMember[],
     boardSize: number,
     variant: GameVariant,
-    roomCode?: string
+    roomCode?: string,
+    customWalls?: number
   ) => void;
 }
 
@@ -79,6 +82,9 @@ export const PartyLobbyModal: React.FC<PartyLobbyModalProps> = ({
     }
     return [];
   });
+  const [customWalls, setCustomWalls] = useState<number | null>(
+    typeof initialLobby?.customWalls === 'number' ? initialLobby.customWalls : null
+  );
   const [closedNotice, setClosedNotice] = useState<string | null>(null);
 
   const subRef = useRef<PartyLobbySubscription | null>(null);
@@ -90,6 +96,9 @@ export const PartyLobbyModal: React.FC<PartyLobbyModalProps> = ({
 
   const maxPlayersRef = useRef<number>(maxPlayers);
   maxPlayersRef.current = maxPlayers;
+
+  const customWallsRef = useRef<number | null>(customWalls);
+  customWallsRef.current = customWalls;
 
   const onStartMatchRef = useRef(onStartMatch);
   onStartMatchRef.current = onStartMatch;
@@ -129,6 +138,7 @@ export const PartyLobbyModal: React.FC<PartyLobbyModalProps> = ({
             setLobbyMembers(initialLobby.members);
             setGameVariant(initialLobby.variant);
             setMaxPlayers(initialLobby.maxPlayers);
+            setCustomWalls(typeof initialLobby.customWalls === 'number' ? initialLobby.customWalls : null);
           } else {
             setLobbyMembers([]);
           }
@@ -154,6 +164,9 @@ export const PartyLobbyModal: React.FC<PartyLobbyModalProps> = ({
         if (lobby?.variant) {
           setGameVariant(lobby.variant);
         }
+        if (!isHostRef.current) {
+          setCustomWalls(typeof lobby?.customWalls === 'number' ? lobby.customWalls : null);
+        }
       },
       onMemberJoin: ({ id, name, emoji }) => {
         if (!isHostRef.current) return;
@@ -167,11 +180,17 @@ export const PartyLobbyModal: React.FC<PartyLobbyModalProps> = ({
             m.id === id ? { ...m, name: name || m.name, emoji: emoji || m.emoji } : m
           );
           setLobbyMembers(updated);
-          sub.broadcastLobbyState(updated, curMax, curVariant, {
-            id: currentUserId,
-            name: currentUserNameRef.current,
-            emoji: currentUserEmojiRef.current,
-          });
+          sub.broadcastLobbyState(
+            updated,
+            curMax,
+            curVariant,
+            {
+              id: currentUserId,
+              name: currentUserNameRef.current,
+              emoji: currentUserEmojiRef.current,
+            },
+            customWallsRef.current ?? undefined
+          );
           return;
         }
 
@@ -197,11 +216,17 @@ export const PartyLobbyModal: React.FC<PartyLobbyModalProps> = ({
 
         const updated = [...curMembers, newMember];
         setLobbyMembers(updated);
-        sub.broadcastLobbyState(updated, curMax, curVariant, {
-          id: currentUserId,
-          name: currentUserNameRef.current,
-          emoji: currentUserEmojiRef.current,
-        });
+        sub.broadcastLobbyState(
+          updated,
+          curMax,
+          curVariant,
+          {
+            id: currentUserId,
+            name: currentUserNameRef.current,
+            emoji: currentUserEmojiRef.current,
+          },
+          customWallsRef.current ?? undefined
+        );
       },
       onMemberReady: ({ id, isReady }) => {
         if (!isHostRef.current) return;
@@ -210,30 +235,48 @@ export const PartyLobbyModal: React.FC<PartyLobbyModalProps> = ({
           m.id === id ? { ...m, isReady: Boolean(isReady) } : m
         );
         setLobbyMembers(updated);
-        sub.broadcastLobbyState(updated, maxPlayersRef.current, variantRef.current, {
-          id: currentUserId,
-          name: currentUserNameRef.current,
-          emoji: currentUserEmojiRef.current,
-        });
+        sub.broadcastLobbyState(
+          updated,
+          maxPlayersRef.current,
+          variantRef.current,
+          {
+            id: currentUserId,
+            name: currentUserNameRef.current,
+            emoji: currentUserEmojiRef.current,
+          },
+          customWallsRef.current ?? undefined
+        );
       },
       onMemberLeave: ({ id }) => {
         if (!isHostRef.current) return;
         const curMembers = membersRef.current;
         const updated = curMembers.filter((m) => m.id !== id);
         setLobbyMembers(updated);
-        sub.broadcastLobbyState(updated, maxPlayersRef.current, variantRef.current, {
-          id: currentUserId,
-          name: currentUserNameRef.current,
-          emoji: currentUserEmojiRef.current,
-        });
-      },
-      onRequestLobbyInfo: () => {
-        if (isHostRef.current) {
-          sub.broadcastLobbyState(membersRef.current, maxPlayersRef.current, variantRef.current, {
+        sub.broadcastLobbyState(
+          updated,
+          maxPlayersRef.current,
+          variantRef.current,
+          {
             id: currentUserId,
             name: currentUserNameRef.current,
             emoji: currentUserEmojiRef.current,
-          });
+          },
+          customWallsRef.current ?? undefined
+        );
+      },
+      onRequestLobbyInfo: () => {
+        if (isHostRef.current) {
+          sub.broadcastLobbyState(
+            membersRef.current,
+            maxPlayersRef.current,
+            variantRef.current,
+            {
+              id: currentUserId,
+              name: currentUserNameRef.current,
+              emoji: currentUserEmojiRef.current,
+            },
+            customWallsRef.current ?? undefined
+          );
         }
       },
       onLobbyStart: (payload) => {
@@ -242,7 +285,8 @@ export const PartyLobbyModal: React.FC<PartyLobbyModalProps> = ({
             payload.members,
             payload.boardSize,
             payload.variant || 'sprint_race',
-            payload.roomCode
+            payload.roomCode,
+            payload.customWalls
           );
           onCloseRef.current();
         }
@@ -261,11 +305,17 @@ export const PartyLobbyModal: React.FC<PartyLobbyModalProps> = ({
     subRef.current = sub;
 
     if (isHostRef.current) {
-      sub.broadcastLobbyState(membersRef.current, maxPlayersRef.current, variantRef.current, {
-        id: currentUserId,
-        name: currentUserNameRef.current,
-        emoji: currentUserEmojiRef.current,
-      });
+      sub.broadcastLobbyState(
+        membersRef.current,
+        maxPlayersRef.current,
+        variantRef.current,
+        {
+          id: currentUserId,
+          name: currentUserNameRef.current,
+          emoji: currentUserEmojiRef.current,
+        },
+        customWallsRef.current ?? undefined
+      );
     } else {
       sub.sendMemberJoin({
         id: currentUserId,
@@ -287,7 +337,8 @@ export const PartyLobbyModal: React.FC<PartyLobbyModalProps> = ({
               id: currentUserId,
               name: currentUserNameRef.current,
               emoji: currentUserEmojiRef.current,
-            }
+            },
+            customWallsRef.current ?? undefined
           );
         }
       }, 2500);
@@ -323,6 +374,7 @@ export const PartyLobbyModal: React.FC<PartyLobbyModalProps> = ({
 
     const cleanGroup = groupCode.trim().toLowerCase();
     const partyRoomCode = `party_${cleanGroup}`;
+    const effectiveWalls = customWalls !== null ? customWalls : dynamicConfig.wallsPerPlayer;
 
     if (subRef.current) {
       await subRef.current.sendLobbyStart({
@@ -330,12 +382,13 @@ export const PartyLobbyModal: React.FC<PartyLobbyModalProps> = ({
         boardSize: config.boardSize,
         variant: gameVariant,
         roomCode: partyRoomCode,
+        customWalls: effectiveWalls,
       });
 
       await subRef.current.sendLobbyClosed(currentUserId, 'match_started');
     }
 
-    onStartMatch(lobbyMembers, config.boardSize, gameVariant, partyRoomCode);
+    onStartMatch(lobbyMembers, config.boardSize, gameVariant, partyRoomCode, effectiveWalls);
     onClose();
   };
 
@@ -357,6 +410,25 @@ export const PartyLobbyModal: React.FC<PartyLobbyModalProps> = ({
       ? getSprintRaceConfig(count)
       : getCoreRaceConfig(count);
   }, [lobbyMembers.length, gameVariant]);
+
+  const effectiveWalls = customWalls !== null ? customWalls : dynamicConfig.wallsPerPlayer;
+
+  const handleUpdateCustomWalls = (walls: number | null) => {
+    setCustomWalls(walls);
+    customWallsRef.current = walls;
+    const hostInfo = {
+      id: currentUserId,
+      name: currentUserNameRef.current,
+      emoji: currentUserEmojiRef.current,
+    };
+    subRef.current?.broadcastLobbyState(
+      lobbyMembers,
+      maxPlayers,
+      gameVariant,
+      hostInfo,
+      walls ?? undefined
+    );
+  };
 
   const canStart = lobbyMembers.length >= 3 && lobbyMembers.every((m) => m.isReady);
   const userMember = lobbyMembers.find((m) => m.id === currentUserId);
@@ -431,9 +503,21 @@ export const PartyLobbyModal: React.FC<PartyLobbyModalProps> = ({
                 };
                 if (newVar === 'core_race' && maxPlayers > 6) {
                   setMaxPlayers(6);
-                  subRef.current?.broadcastLobbyState(lobbyMembers, 6, newVar, hostInfo);
+                  subRef.current?.broadcastLobbyState(
+                    lobbyMembers,
+                    6,
+                    newVar,
+                    hostInfo,
+                    customWallsRef.current ?? undefined
+                  );
                 } else {
-                  subRef.current?.broadcastLobbyState(lobbyMembers, maxPlayers, newVar, hostInfo);
+                  subRef.current?.broadcastLobbyState(
+                    lobbyMembers,
+                    maxPlayers,
+                    newVar,
+                    hostInfo,
+                    customWallsRef.current ?? undefined
+                  );
                 }
               }}
               className="px-3 py-1.5 rounded-xl bg-white dark:bg-zinc-900 border border-slate-300 dark:border-zinc-700 text-xs font-bold text-slate-800 dark:text-zinc-100 focus:outline-none focus:ring-2 focus:ring-amber-500"
@@ -445,6 +529,109 @@ export const PartyLobbyModal: React.FC<PartyLobbyModalProps> = ({
             <span className="font-extrabold text-amber-600 dark:text-amber-400">
               {gameVariant === 'sprint_race' ? '⚡ Sprint Race' : '👑 King of the Core'}
             </span>
+          )}
+        </div>
+
+        {/* Custom Wall Count Configuration */}
+        <div className="p-3 rounded-2xl bg-slate-100 dark:bg-zinc-800/60 border border-slate-200 dark:border-zinc-700/60 space-y-2 text-xs">
+          <div className="flex items-center justify-between gap-2">
+            <span className="font-bold text-slate-700 dark:text-zinc-300 flex items-center gap-1.5">
+              <span className="text-sm">🧱</span>
+              Walls Per Player:
+            </span>
+            {isHost ? (
+              <div className="flex items-center gap-1.5">
+                <button
+                  type="button"
+                  onClick={() => handleUpdateCustomWalls(Math.max(3, effectiveWalls - 1))}
+                  disabled={effectiveWalls <= 3}
+                  className="w-6 h-6 rounded-lg bg-white dark:bg-zinc-900 border border-slate-300 dark:border-zinc-700 text-slate-700 dark:text-zinc-200 hover:bg-slate-50 dark:hover:bg-zinc-800 disabled:opacity-40 disabled:pointer-events-none font-extrabold flex items-center justify-center transition-all shadow-sm tap-bounce"
+                  aria-label="Decrease walls"
+                >
+                  <Minus className="w-3 h-3" />
+                </button>
+                <span className="min-w-[2.5rem] text-center font-black text-sm text-slate-900 dark:text-white px-1">
+                  {effectiveWalls}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => handleUpdateCustomWalls(Math.min(20, effectiveWalls + 1))}
+                  disabled={effectiveWalls >= 20}
+                  className="w-6 h-6 rounded-lg bg-white dark:bg-zinc-900 border border-slate-300 dark:border-zinc-700 text-slate-700 dark:text-zinc-200 hover:bg-slate-50 dark:hover:bg-zinc-800 disabled:opacity-40 disabled:pointer-events-none font-extrabold flex items-center justify-center transition-all shadow-sm tap-bounce"
+                  aria-label="Increase walls"
+                >
+                  <Plus className="w-3 h-3" />
+                </button>
+              </div>
+            ) : (
+              <div className="flex items-center gap-1.5 font-bold">
+                <span className="text-amber-600 dark:text-amber-400 font-extrabold text-sm">
+                  {effectiveWalls} walls
+                </span>
+                {customWalls !== null ? (
+                  <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20">
+                    Host Custom
+                  </span>
+                ) : (
+                  <span className="text-[10px] font-medium text-slate-400 dark:text-zinc-500">
+                    (Default)
+                  </span>
+                )}
+              </div>
+            )}
+          </div>
+
+          {/* Quick Presets for Host */}
+          {isHost && (
+            <div className="flex items-center gap-1.5 pt-1.5 border-t border-slate-200/60 dark:border-zinc-700/50 flex-wrap">
+              <span className="text-[10px] font-semibold text-slate-500 dark:text-zinc-400 mr-0.5">
+                Presets:
+              </span>
+              <button
+                type="button"
+                onClick={() => handleUpdateCustomWalls(null)}
+                className={`px-2 py-0.5 rounded-lg text-[11px] font-bold transition-all ${
+                  customWalls === null
+                    ? 'bg-amber-500 text-white shadow-sm'
+                    : 'bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-700 text-slate-600 dark:text-zinc-400 hover:bg-slate-50 dark:hover:bg-zinc-800'
+                }`}
+              >
+                Default ({dynamicConfig.wallsPerPlayer})
+              </button>
+              <button
+                type="button"
+                onClick={() => handleUpdateCustomWalls(4)}
+                className={`px-2 py-0.5 rounded-lg text-[11px] font-bold transition-all ${
+                  customWalls === 4
+                    ? 'bg-amber-500 text-white shadow-sm'
+                    : 'bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-700 text-slate-600 dark:text-zinc-400 hover:bg-slate-50 dark:hover:bg-zinc-800'
+                }`}
+              >
+                Blitz (4)
+              </button>
+              <button
+                type="button"
+                onClick={() => handleUpdateCustomWalls(10)}
+                className={`px-2 py-0.5 rounded-lg text-[11px] font-bold transition-all ${
+                  customWalls === 10
+                    ? 'bg-amber-500 text-white shadow-sm'
+                    : 'bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-700 text-slate-600 dark:text-zinc-400 hover:bg-slate-50 dark:hover:bg-zinc-800'
+                }`}
+              >
+                Plentiful (10)
+              </button>
+              <button
+                type="button"
+                onClick={() => handleUpdateCustomWalls(14)}
+                className={`px-2 py-0.5 rounded-lg text-[11px] font-bold transition-all ${
+                  customWalls === 14
+                    ? 'bg-amber-500 text-white shadow-sm'
+                    : 'bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-700 text-slate-600 dark:text-zinc-400 hover:bg-slate-50 dark:hover:bg-zinc-800'
+                }`}
+              >
+                Mayhem (14)
+              </button>
+            </div>
           )}
         </div>
 
@@ -469,7 +656,13 @@ export const PartyLobbyModal: React.FC<PartyLobbyModalProps> = ({
                           name: currentUserNameRef.current,
                           emoji: currentUserEmojiRef.current,
                         };
-                        subRef.current?.broadcastLobbyState(lobbyMembers, num, gameVariant, hostInfo);
+                        subRef.current?.broadcastLobbyState(
+                          lobbyMembers,
+                          num,
+                          gameVariant,
+                          hostInfo,
+                          customWallsRef.current ?? undefined
+                        );
                       }}
                       className={`w-6 h-6 rounded-lg text-xs font-bold transition-all ${
                         maxPlayers === num

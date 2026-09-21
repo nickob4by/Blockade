@@ -5,6 +5,10 @@ import {
   ActiveLobbyInfo,
 } from '../lib/groups/partyLobbyService';
 import { PlayerId } from '../lib/game/types';
+import {
+  createInitialSprintRaceState,
+  createInitialCoreRaceState,
+} from '../lib/game/board';
 
 test('Party Lobby - Slot Assignment Stability and Non-Trapping', () => {
   const maxPlayers = 4;
@@ -179,3 +183,78 @@ test('Party Lobby - Stale Lobby Expiration Threshold', () => {
   assert.equal(isLobbyStale(slowNetworkLobby, now), false, '8s delay is within 12s threshold (no flickering!)');
   assert.equal(isLobbyStale(deadLobby, now), true, '15s delay is considered stale');
 });
+
+test('Party Lobby - Custom Wall Count Overrides in Sprint Race and Core Race', () => {
+  const players: Array<{ id: PlayerId; name: string }> = [
+    { id: 1, name: 'Alice' },
+    { id: 2, name: 'Bob' },
+    { id: 3, name: 'Charlie' },
+    { id: 4, name: 'Dave' },
+  ];
+
+  // Default walls (no custom override): 4 players get 6 walls in sprint race
+  const defaultSprintState = createInitialSprintRaceState(players);
+  assert.equal(defaultSprintState.players[1].wallsLeft, 6);
+  assert.equal(defaultSprintState.players[2].wallsLeft, 6);
+  assert.equal(defaultSprintState.players[3].wallsLeft, 6);
+  assert.equal(defaultSprintState.players[4].wallsLeft, 6);
+
+  // Custom walls: Blitz (4)
+  const blitzSprintState = createInitialSprintRaceState(players, 'party', 4);
+  assert.equal(blitzSprintState.players[1].wallsLeft, 4);
+  assert.equal(blitzSprintState.players[4].wallsLeft, 4);
+
+  // Custom walls: Plentiful (10)
+  const plentifulSprintState = createInitialSprintRaceState(players, 'party', 10);
+  assert.equal(plentifulSprintState.players[1].wallsLeft, 10);
+  assert.equal(plentifulSprintState.players[3].wallsLeft, 10);
+
+  // Custom walls: Mayhem (14)
+  const mayhemSprintState = createInitialSprintRaceState(players, 'party', 14);
+  assert.equal(mayhemSprintState.players[1].wallsLeft, 14);
+  assert.equal(mayhemSprintState.players[2].wallsLeft, 14);
+
+  // Core Race with custom walls
+  const defaultCoreState = createInitialCoreRaceState(players);
+  assert.equal(defaultCoreState.players[1].wallsLeft, 6);
+
+  const customCoreState = createInitialCoreRaceState(players, 12);
+  assert.equal(customCoreState.players[1].wallsLeft, 12);
+  assert.equal(customCoreState.players[2].wallsLeft, 12);
+  assert.equal(customCoreState.players[3].wallsLeft, 12);
+  assert.equal(customCoreState.players[4].wallsLeft, 12);
+});
+
+test('Party Lobby - Stepper and Preset Clamping Logic', () => {
+  const clampWalls = (val: number) => Math.max(3, Math.min(20, val));
+
+  // Below min
+  assert.equal(clampWalls(1), 3);
+  assert.equal(clampWalls(2), 3);
+  assert.equal(clampWalls(3), 3);
+
+  // Normal range
+  assert.equal(clampWalls(7), 7);
+  assert.equal(clampWalls(15), 15);
+
+  // Above max
+  assert.equal(clampWalls(20), 20);
+  assert.equal(clampWalls(25), 20);
+  assert.equal(clampWalls(99), 20);
+});
+
+test('Party Lobby - Realtime Payload Carries customWalls', () => {
+  const lobby: ActiveLobbyInfo = {
+    hostId: 'host_1',
+    hostName: 'Nicko',
+    variant: 'sprint_race',
+    maxPlayers: 4,
+    currentPlayers: 2,
+    members: [],
+    updatedAt: Date.now(),
+    customWalls: 12,
+  };
+
+  assert.equal(lobby.customWalls, 12);
+});
+
