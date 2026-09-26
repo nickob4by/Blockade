@@ -135,58 +135,55 @@ export interface CoreRaceConfig {
 }
 
 export function getCoreRaceConfig(playerCount: number): CoreRaceConfig {
-  if (playerCount <= 4) {
-    // 3 or 4 players: compact 9x9 board, center is (4, 4), distance is exactly 4
-    const boardSize = 9;
-    const center = 4;
-    const coreTargets = [{ r: center, c: center }];
+  const boardSize = 11;
+  const center = 5;
+  const coreTargets = [{ r: center, c: center }];
 
-    if (playerCount <= 3) {
-      return {
-        boardSize,
-        wallsPerPlayer: 8,
-        coreTargets,
-        spawns: {
-          1: { r: 8, c: 4 },  // South (dist 4)
-          2: { r: 4, c: 0 },  // West (dist 4)
-          3: { r: 4, c: 8 },  // East (dist 4)
-          4: { r: 0, c: 4 },  // Fallback
-          5: { r: 0, c: 0 },
-          6: { r: 8, c: 8 },
-          7: { r: 8, c: 0 },
-          8: { r: 0, c: 8 },
-          9: { r: 4, c: 4 },
-          10: { r: 0, c: 0 },
-        },
-      };
-    }
+  if (playerCount <= 3) {
+    // 3 players: 11x11 board, center is (5, 5), distance is exactly 5
+    // Cardinal spawns: South (10, 5), West (5, 0), East (5, 10). North (0, 5) fallback.
+    return {
+      boardSize,
+      wallsPerPlayer: 8,
+      coreTargets,
+      spawns: {
+        1: { r: 10, c: 5 }, // South (dist 5)
+        2: { r: 5, c: 0 },  // West (dist 5)
+        3: { r: 5, c: 10 }, // East (dist 5)
+        4: { r: 0, c: 5 },  // North fallback (dist 5)
+        5: { r: 2, c: 3 },
+        6: { r: 8, c: 7 },
+        7: { r: 8, c: 3 },
+        8: { r: 2, c: 7 },
+        9: { r: 5, c: 5 },
+        10: { r: 0, c: 0 },
+      },
+    };
+  }
 
-    // 4 players: 4 cardinal directions (South, North, West, East), 6 walls each
+  if (playerCount === 4) {
+    // 4 players: 4 cardinal directions (South, North, West, East), 6 walls each, distance exactly 5
     return {
       boardSize,
       wallsPerPlayer: 6,
       coreTargets,
       spawns: {
-        1: { r: 8, c: 4 },  // South (dist 4)
-        2: { r: 0, c: 4 },  // North (dist 4)
-        3: { r: 4, c: 0 },  // West (dist 4)
-        4: { r: 4, c: 8 },  // East (dist 4)
+        1: { r: 10, c: 5 }, // South (dist 5)
+        2: { r: 0, c: 5 },  // North (dist 5)
+        3: { r: 5, c: 0 },  // West (dist 5)
+        4: { r: 5, c: 10 }, // East (dist 5)
         5: { r: 2, c: 3 },
-        6: { r: 6, c: 5 },
-        7: { r: 2, c: 5 },
-        8: { r: 6, c: 3 },
-        9: { r: 0, c: 0 },
-        10: { r: 8, c: 8 },
+        6: { r: 8, c: 7 },
+        7: { r: 2, c: 7 },
+        8: { r: 8, c: 3 },
+        9: { r: 5, c: 5 },
+        10: { r: 10, c: 10 },
       },
     };
   }
 
   // 5 or 6 players: 11x11 board, center is (5, 5), distance is exactly 5
   // 5 players get 7 walls, 6 players get 6 walls
-  const boardSize = 11;
-  const center = 5;
-  const coreTargets = [{ r: center, c: center }];
-
   return {
     boardSize,
     wallsPerPlayer: playerCount === 5 ? 7 : 6,

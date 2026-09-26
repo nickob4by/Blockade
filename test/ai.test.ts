@@ -33,22 +33,22 @@ test('AI Core Race - Computes move towards center core and seizes win', () => {
   // Test pawn pathfinding when moving along shortest path to core
   state.players[2].wallsLeft = 0;
 
-  // Initial spawn of P2 on 9x9 (3 players) is West at (4, 0), core is (4, 4)
+  // Initial spawn of P2 on 11x11 (3 players) is West at (5, 0), core is (5, 5)
   const initialAction = computeAIMove(state);
   assert.equal(initialAction.type, 'move');
   if (initialAction.type === 'move') {
-    // Should move closer to center core (step East from column 0 to column 1 at row 4)
-    assert.equal(initialAction.target.r, 4);
+    // Should move closer to center core (step East from column 0 to column 1 at row 5)
+    assert.equal(initialAction.target.r, 5);
     assert.equal(initialAction.target.c, 1);
   }
 
-  // Adjacent to core test: place P2 at (3, 4) with walls available
+  // Adjacent to core test: place P2 at (4, 5) with walls available
   state.players[2].wallsLeft = 5;
-  state.players[2].position = { r: 3, c: 4 };
+  state.players[2].position = { r: 4, c: 5 };
   const winAction = computeAIMove(state);
   assert.equal(winAction.type, 'move');
   if (winAction.type === 'move') {
-    assert.deepEqual(winAction.target, { r: 4, c: 4 }, 'AI must immediately seize win at core (4,4)');
+    assert.deepEqual(winAction.target, { r: 5, c: 5 }, 'AI must immediately seize win at core (5,5)');
   }
 });
 
