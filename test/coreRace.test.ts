@@ -86,13 +86,20 @@ test('Core Race - Multi-Pawn Jumping Mechanics', () => {
   const p3Pos: Coordinate = { r: 6, c: 7 }; // P3 is behind P2!
   const walls: Wall[] = [];
 
-  // With P3 standing behind P2, straight jump to (6, 7) is occupied.
-  // P1 should be able to jump diagonally to (5, 6) and (7, 6) around P2!
+  // P1 can jump straight over both P2 and P3 to open square (6, 8)!
   const validMoves = getValidPawnMoves(p1Pos, [p2Pos, p3Pos], walls, boardSize);
 
+  assert.ok(validMoves.some((m) => m.r === 6 && m.c === 8), 'Can jump straight past P2 and P3 to (6, 8)');
   assert.ok(validMoves.some((m) => m.r === 5 && m.c === 6), 'Can jump diagonal North around P2');
   assert.ok(validMoves.some((m) => m.r === 7 && m.c === 6), 'Can jump diagonal South around P2');
+  assert.ok(!validMoves.some((m) => m.r === 6 && m.c === 6), 'Cannot land on occupied square P2');
   assert.ok(!validMoves.some((m) => m.r === 6 && m.c === 7), 'Cannot land on occupied square P3');
+
+  // Test 3 pawns in a straight line: P2 at (6, 6), P3 at (6, 7), P4 at (6, 8)
+  const p4Pos: Coordinate = { r: 6, c: 8 };
+  const validMoves3 = getValidPawnMoves(p1Pos, [p2Pos, p3Pos, p4Pos], walls, boardSize);
+  assert.ok(validMoves3.some((m) => m.r === 6 && m.c === 9), 'Can jump straight past 3 consecutive pawns to (6, 9)');
+  assert.ok(!validMoves3.some((m) => m.r === 6 && m.c === 8), 'Cannot land on occupied square P4');
 });
 
 test('Core Race - Clockwise Turn Rotation', () => {

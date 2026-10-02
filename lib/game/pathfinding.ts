@@ -37,48 +37,77 @@ export function getValidPawnMoves(
       continue;
     }
 
-    // Neighbor square is occupied by an opponent: calculate jump options
-    const straightJump: Coordinate = {
-      r: blockingOpponent.r + dir.r,
-      c: blockingOpponent.c + dir.c,
-    };
+    // Neighbor square is occupied by an opponent: calculate multi-pawn straight and diagonal jumps
+    const perpendicularDirs =
+      dir.r !== 0
+        ? [
+            { r: 0, c: -1 },
+            { r: 0, c: 1 },
+          ]
+        : [
+            { r: -1, c: 0 },
+            { r: 1, c: 0 },
+          ];
 
-    const isStraightOccupied = opponents.some((opp) => isSameCoord(straightJump, opp));
-    const canStraightJump =
-      isWithinBoard(straightJump, boardSize) &&
-      !isStepBlockedByWall(blockingOpponent, straightJump, walls) &&
-      !isStraightOccupied;
+    // Scan forward along `dir` across all consecutive pawns in line
+    const pawnChain: Coordinate[] = [blockingOpponent];
+    let curr = blockingOpponent;
+    let straightBlocked = false;
 
-    if (canStraightJump) {
-      validMoves.push(straightJump);
-    } else {
-      // Straight jump is blocked by a wall, board edge, or another pawn:
-      // Player can jump diagonally to either flank of the opponent
-      const perpendicularDirs =
-        dir.r !== 0
-          ? [
-              { r: 0, c: -1 },
-              { r: 0, c: 1 },
-            ]
-          : [
-              { r: -1, c: 0 },
-              { r: 1, c: 0 },
-            ];
+    while (true) {
+      const stepAhead: Coordinate = {
+        r: curr.r + dir.r,
+        c: curr.c + dir.c,
+      };
 
-      for (const pDir of perpendicularDirs) {
-        const diagonalTarget: Coordinate = {
-          r: blockingOpponent.r + pDir.r,
-          c: blockingOpponent.c + pDir.c,
-        };
+      if (!isWithinBoard(stepAhead, boardSize)) {
+        straightBlocked = true;
+        break;
+      }
 
-        const isDiagOccupied = opponents.some((opp) => isSameCoord(diagonalTarget, opp));
+      if (isStepBlockedByWall(curr, stepAhead, walls)) {
+        straightBlocked = true;
+        break;
+      }
 
-        if (
-          isWithinBoard(diagonalTarget, boardSize) &&
-          !isStepBlockedByWall(blockingOpponent, diagonalTarget, walls) &&
-          !isDiagOccupied
-        ) {
-          validMoves.push(diagonalTarget);
+      const nextOpponent = opponents.find((opp) => isSameCoord(stepAhead, opp));
+      if (nextOpponent) {
+        // Another pawn in line: keep jumping forward through the chain
+        pawnChain.push(nextOpponent);
+        curr = nextOpponent;
+      } else {
+        // Unoccupied square found! Valid straight jump past the line of pawns
+        validMoves.push(stepAhead);
+        break;
+      }
+    }
+
+    // Diagonal jumps:
+    // 1. If straight jump is blocked by a wall or board edge (classic Quoridor flank jump)
+    // 2. OR if there are 2 or more pawns in line (multiplayer flank evasion)
+    if (straightBlocked || pawnChain.length > 1) {
+      const pawnsToFlank =
+        pawnChain.length > 1
+          ? [pawnChain[0], pawnChain[pawnChain.length - 1]]
+          : [blockingOpponent];
+
+      for (const p of pawnsToFlank) {
+        for (const pDir of perpendicularDirs) {
+          const diagonalTarget: Coordinate = {
+            r: p.r + pDir.r,
+            c: p.c + pDir.c,
+          };
+
+          const isDiagOccupied = opponents.some((opp) => isSameCoord(diagonalTarget, opp));
+
+          if (
+            isWithinBoard(diagonalTarget, boardSize) &&
+            !isStepBlockedByWall(p, diagonalTarget, walls) &&
+            !isDiagOccupied &&
+            !isSameCoord(diagonalTarget, playerPos)
+          ) {
+            validMoves.push(diagonalTarget);
+          }
         }
       }
     }

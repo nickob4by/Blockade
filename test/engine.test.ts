@@ -13,6 +13,7 @@ import {
   applyWallPlacement,
   canPlaceWall,
 } from '../lib/game/engine';
+import { Coordinate, Wall } from '../lib/game/types';
 
 test('Initial Game State', () => {
   const state = createInitialGameState('local');
@@ -113,6 +114,32 @@ test('Pawn Jump Mechanics', () => {
   assert.ok(!movesDiagonal.some((m) => m.r === 2 && m.c === 4));
   assert.ok(movesDiagonal.some((m) => m.r === 3 && m.c === 3));
   assert.ok(movesDiagonal.some((m) => m.r === 3 && m.c === 5));
+});
+
+test('Multiplayer Line Jumping (3+ players in line)', () => {
+  // P1 at (5, 4), P2 at (4, 4), P3 at (3, 4)
+  const p1: Coordinate = { r: 5, c: 4 };
+  const p2: Coordinate = { r: 4, c: 4 };
+  const p3: Coordinate = { r: 3, c: 4 };
+  const walls: Wall[] = [];
+
+  // P1 should be able to jump straight over both P2 and P3 to open square (2, 4)
+  const moves = getValidPawnMoves(p1, [p2, p3], walls, 9);
+  assert.ok(moves.some((m) => m.r === 2 && m.c === 4), 'P1 must be able to leap over P2 and P3 to (2, 4)');
+  assert.ok(!moves.some((m) => m.r === 4 && m.c === 4), 'Cannot land on P2');
+  assert.ok(!moves.some((m) => m.r === 3 && m.c === 4), 'Cannot land on P3');
+
+  // Add 4th player in line: P4 at (2, 4)
+  const p4: Coordinate = { r: 2, c: 4 };
+  const moves4 = getValidPawnMoves(p1, [p2, p3, p4], walls, 9);
+  assert.ok(moves4.some((m) => m.r === 1 && m.c === 4), 'P1 must be able to leap over 3 pawns in line to (1, 4)');
+
+  // If a horizontal wall blocks the landing square (between (3, 4) and (2, 4)):
+  const blockedWalls: Wall[] = [{ r: 2, c: 4, orientation: 'H', placedBy: 2 }];
+  const movesBlocked = getValidPawnMoves(p1, [p2, p3], blockedWalls, 9);
+  assert.ok(!movesBlocked.some((m) => m.r === 2 && m.c === 4), 'Cannot jump through wall');
+  // Flanks around P2 (4, 3)/(4, 5) or P3 (3, 3)/(3, 5) must be available
+  assert.ok(movesBlocked.some((m) => m.r === 4 && m.c === 3 || m.r === 4 && m.c === 5), 'Flank options available when straight blocked');
 });
 
 test('Path Trapping Prohibition (Quoridor rule)', () => {
